@@ -186,6 +186,8 @@ def restore_db_from_github():
         return
     try:
         url = f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
+        # 🔎 진단 로그: 어느 저장소/브랜치/파일을 조회하는지 명시 (설정 오류 즉시 파악용)
+        print(f"[복원] 조회 대상 → repo={GITHUB_REPO}, path={GITHUB_PATH}, ref={GITHUB_BRANCH}")
         resp = requests.get(url, headers=_github_headers("application/vnd.github.raw"),
                             params={"ref": GITHUB_BRANCH}, timeout=30)
         if resp.status_code == 200 and resp.content:
@@ -195,10 +197,11 @@ def restore_db_from_github():
             print(f"✅ [복원] GitHub 백업에서 DB 복원 완료 ({len(resp.content)} bytes)")
         elif resp.status_code == 404:
             _backup_safe = True   # 백업이 아직 없음(최초 실행) → 새로 시작해도 안전
-            print("ℹ️ [복원] 기존 백업 없음(최초 실행) → 신규 DB로 시작")
+            print(f"ℹ️ [복원] 기존 백업 없음(repo={GITHUB_REPO}, status=404) → 신규 DB로 시작. "
+                  f"(repo 이름이 맞는지, 토큰이 이 private 저장소에 접근되는지 확인)")
         else:
             _backup_safe = False  # 백업이 있는데 못 가져옴 → 덮어쓰기 금지
-            print(f"🛑 [복원] 백업 조회 실패(status={resp.status_code}). "
+            print(f"🛑 [복원] 백업 조회 실패(repo={GITHUB_REPO}, status={resp.status_code}). "
                   f"데이터 보호를 위해 자동 백업을 비활성화합니다.")
     except Exception as e:
         _backup_safe = False
