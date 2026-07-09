@@ -29,3 +29,8 @@ script.js
 # seed 용으로 임시 clone 한 백업 저장소 (vmsback 에 포함되면 안 됨)
 vms-db/
 
+
+# 로컬엔 두되 git 추적은 하지 않는 파일 (일회용 스크립트/기획 메모)
+migrate_db.py
+vms 개선안.txt
+피드백.txt
