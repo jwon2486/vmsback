@@ -26,3 +26,6 @@ script.js
 # 배포에 불필요한 잡파일
 *.lnk
 
+# seed 용으로 임시 clone 한 백업 저장소 (vmsback 에 포함되면 안 됨)
+vms-db/
+
