@@ -11,6 +11,11 @@ const urlParams = new URLSearchParams(window.location.search);
 //  - QR 없이 / 로 직접 들어온 손님은 null 상태가 되어 거점 선택 드롭다운으로 폴백한다.
 let currentRegion = null;
 
+// 🏢 전체 사업장(거점) 목록 — 거점 드롭다운의 단일 관리 지점.
+//   값은 백엔드 ALLOWED_REGIONS(app.py REGION_MAP)와 정확히 일치해야 한다.
+//   사업장이 늘거나 이름이 바뀌면 여기만 고치면 된다.
+const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 조선소'];
+
 // 서버 세션에 귀속된 손님 거점명을 받아와 currentRegion 에 채운다.
 async function loadGuestRegion() {
     try {

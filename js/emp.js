@@ -92,12 +92,14 @@ function showIntegratedEmpDashboard() {
         regionSelectorHtml = `<input type="hidden" id="empRegionSelect" value="${currentRegion}">`;
     } else {
         titleBadge = `<span class="region-badge-warning">(거점 선택 필요)</span>`;
+        const empRegionOptions = REGION_LIST.map(r =>
+            `<option value="${r}" ${sessionRegion === r ? 'selected' : ''}>${r}</option>`
+        ).join('');
         regionSelectorHtml = `
             <div class="input-group mb-15">
                 <label>방문 거점 선택 *</label>
                 <select id="empRegionSelect">
-                    <option value="테크센터" ${sessionRegion === '테크센터' ? 'selected' : ''}>테크센터</option>
-                    <option value="에코센터" ${sessionRegion === '에코센터' ? 'selected' : ''}>에코센터</option>
+                    ${empRegionOptions}
                 </select>
             </div>
         `;
