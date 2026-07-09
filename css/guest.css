@@ -1,0 +1,635 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+
+/* ==========================================
+   1. 전역 시스템 변수 및 비례 스케일링 설정
+   ========================================== */
+html { font-size: clamp(14px, 0.85vw + 0.3rem, 16px); }
+
+:root {
+    --primary: #2563eb;         
+    --primary-hover: #1d4ed8;
+    --danger: #ef4444;          
+    --success: #10b981;         
+    --bg-main: #f8fafc;         
+    --card-bg: #ffffff;
+    --text-main: #0f172a;       
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    
+    --radius-xl: 1.5rem;
+    --radius-md: 0.75rem;
+    --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 16px -6px rgba(15, 23, 42, 0.04);
+}
+
+* { 
+    box-sizing: border-box; margin: 0; padding: 0; 
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; 
+    -webkit-font-smoothing: antialiased; letter-spacing: -0.02em;
+}
+
+body { 
+    background: var(--bg-main); color: var(--text-main); 
+    display: flex; flex-direction: column; justify-content: center; align-items: center; 
+    min-height: 100vh; padding: 2.5rem 1rem; 
+}
+
+.container { 
+    width: 100%; max-width: 53.75rem; 
+    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================
+   2. 공통 헤더 및 네비게이션
+   ========================================== */
+.app-header { text-align: center; margin-bottom: 2rem; }
+.app-header .brand-logo { font-size: 2.8rem; margin-bottom: 0.6rem; animation: float 3s ease-in-out infinite; }
+.brand-logo-img { max-width: 15rem; height: auto; object-fit: contain; margin-bottom: 0.6rem; }
+
+/* 💡 메인 타이틀(S&SYS VMS) 색상을 #2d4d96 로 지정 */
+.app-header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: 1px; color: #2d4d96; }
+
+/* 💡 서브 타이틀(에스엔시스 방문객 출입 관리 시스템) 색상도 동일하게 #2d4d96 로 지정 */
+.app-header .brand-sub { font-size: 1.4rem; color: #2d4d96; margin-top: 0.4rem; }
+
+#utility-nav {
+    background: var(--card-bg); border: 1px solid var(--border-color); padding: 0.85rem 1.5rem;
+    border-radius: var(--radius-md); margin-bottom: 0.6rem; align-items: center;
+    justify-content: space-between; box-shadow: var(--shadow-md); width: 100%;
+    position: relative;   /* 중앙 로고 절대배치 기준점 */
+}
+/* 유틸리티 바 정중앙 로고 (좌측 프로필 / 우측 액션과 무관하게 항상 중앙 고정) */
+.nav-brand-center {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    display: flex; align-items: center;
+    pointer-events: none;   /* 로고가 버튼 클릭을 가리지 않도록 */
+}
+.nav-brand-logo-img { height: 1.9rem; width: auto; object-fit: contain; display: block; }
+.nav-profile-info { display: flex; align-items: center; gap: 0.6rem; }
+.nav-profile-info .avatar { font-size: 1.2rem; background: #f1f5f9; padding: 0.35rem; border-radius: 50%; }
+.nav-profile-info .user-text { font-size: 0.92rem; color: #334155; }
+.nav-profile-info .dept-tag { font-size: 0.75rem; color: var(--primary); font-weight: 600; background: #eff6ff; padding: 0.2rem 0.5rem; border-radius: 6px; margin-left: 0.4rem; }
+.nav-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+.btn-nav-link { padding: 0.35rem 0.85rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; background: transparent; border: none; cursor: pointer; }
+.btn-link-danger { background: #fef2f2; color: var(--danger); border: 1px solid #fee2e2; }
+.btn-link-danger:hover { background: var(--danger); color: white; }
+
+/* ==========================================
+   3. 메인 카드 & 레이아웃 
+   ========================================== */
+.card, .card-wide, .card-emp-wide, .card-guest-wide, .card-security-wide { 
+    background: var(--card-bg); border-radius: var(--radius-xl); padding: 2rem 2.25rem;       
+    box-shadow: var(--shadow-md); border: 1px solid var(--border-color); width: 100%; margin: 0 auto;           
+}
+
+.dashboard-split-wrapper { display: flex; flex-direction: row; gap: 2rem; width: 100%; align-items: stretch; }
+.dashboard-form-zone { flex: 1; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.dashboard-list-zone { flex: 1; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.dashboard-divider-line { width: 1px; background: var(--border-color); }
+
+.list-header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.zone-title { font-size: 1.2rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.02em; }
+
+/* ==========================================
+   4. 입력 폼 공통 스타일
+   ========================================== */
+.form-container { display: flex; flex-direction: column; gap: 1rem; }
+.input-group { display: flex; flex-direction: column; gap: 0.35rem; position: relative; }
+.input-group label { font-size: 0.9rem; font-weight: 700; color: #475569; text-align: left; }
+.input-group input, .select-wrapper select, .filter-bar select, .input-group select { 
+    width: 100%; padding: 0.9rem 1rem; border: 1px solid #cbd5e1; border-radius: var(--radius-md); 
+    font-size: 0.95rem; font-weight: 500; outline: none; background: #f8fafc; transition: all 0.2s ease;
+}
+.input-group input:focus, .input-group select:focus { border-color: var(--primary); background: #ffffff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08); }
+
+.input-row-group { display: flex; flex-direction: row; gap: 1rem; width: 100%; }
+.input-row-group .input-group { flex: 1; margin-bottom: 0; }
+
+.purpose-button-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; width: 100%; margin-top: 0.5rem; }
+.btn-choice {
+    width: 100%; padding: 1rem 0.5rem; background: #ffffff; border: 1px solid #cbd5e1; 
+    color: #475569; border-radius: var(--radius-md); font-size: 0.92rem; font-weight: 600; 
+    cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 0.35rem; transition: all 0.2s ease;
+}
+.btn-choice:hover { background: #f8fafc; border-color: #94a3b8; }
+.btn-choice.active { 
+    background: rgba(37, 99, 235, 0.06); border-color: var(--primary); 
+    color: var(--primary); font-weight: 700; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08); 
+}
+
+/* ==========================================
+   5. 리스트 & 스크롤 박스
+   ========================================== */
+.results-container { 
+    display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--border-color); 
+    border-radius: var(--radius-md); padding: 0.6rem; background: #f8fafc; width: 100%; 
+}
+.results-container::-webkit-scrollbar, .guest-comp-scroll-box::-webkit-scrollbar, .emp-comp-scroll-box::-webkit-scrollbar { width: 5px; }
+.results-container::-webkit-scrollbar-thumb, .guest-comp-scroll-box::-webkit-scrollbar-thumb, .emp-comp-scroll-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+/* 점선 박스 기본 속성 (PC에서는 절대 위치로 변경됨, 모바일에서는 Flex로 작동) */
+.guest-comp-scroll-box, .emp-comp-scroll-box {
+    flex: 1 !important;             
+    min-height: 0 !important;       
+    max-height: none !important;    
+    overflow-y: auto !important;
+}
+.guest-comp-scroll-box {
+    border: 1px dashed #cbd5e1;
+    background: #f8fafc;
+    padding: 0.6rem;
+    border-radius: var(--radius-md);
+}
+.emp-comp-scroll-box { padding-right: 5px; }
+#my-schedule-list.schedule-list-scroll-box { flex: 1; overflow-y: auto; max-height: none; }
+
+/* ==========================================
+   6. 리스트 내부 아이템 디자인
+   ========================================== */
+.result-item, .result-item-schedule { 
+    background: #ffffff; border: 1px solid var(--border-color); border-radius: 10px; 
+    padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.01); 
+}
+.result-item { cursor: pointer; }
+.result-item-schedule { flex-wrap: wrap; gap: 0.75rem; }
+.schedule-item-card-padding { padding: 0.7rem 0.75rem; }
+
+.item-info { display: flex; flex-direction: column; gap: 0.25rem; text-align: left; min-width: 160px; flex: 1 1 50%; }
+.item-info strong { font-size: 1rem; color: var(--text-main); font-weight: 700; word-break: break-all; }
+.item-info span, .item-info .corp-sub-text { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+.item-sub-desc { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
+.item-sub-time { font-size: 0.75rem; color: var(--primary); font-weight: 600; margin-top: 2px; }
+/* 나의 예약: 입/퇴실 '실제 | 예정' 인라인 표기 */
+.item-sub-time .time-checkin, .item-sub-time .time-checkout { color: var(--text-main); font-weight: 700; line-height: 1.6; }
+.item-sub-time .time-expected-inline { color: var(--text-muted); font-weight: 500; }
+.item-sub-time .time-pending { color: #f59e0b; font-weight: 700; }
+
+.item-action-zone { display: flex; justify-content: flex-end; align-items: center; flex: 0 0 auto; gap: 6px; }
+.item-action-text { font-size: 0.9rem; font-weight: 700; color: var(--primary); }
+
+.btn-list-action { padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 6px; color: white; border: none; cursor: pointer; }
+.status-badge { font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 6px; }
+.badge-done { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.badge-waiting { background:#fef3c7; color:#ea580c; border:1px solid #fde68a; }
+
+/* 그룹/사전예약 리스트용 */
+.group-schedule-card { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.group-schedule-header { padding: 10px 15px; background: #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; gap: 10px; }
+.group-action-wrapper { display: flex; align-items: center; gap: 4px; }
+.btn-cancel-outline { padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 6px; background: #ffffff; color: #ef4444; border: 1px solid #fca5a5; cursor: pointer; }
+.btn-cancel-outline:hover { background: #fef2f2; border-color: #ef4444; }
+.group-member-item { border: none; border-bottom: 1px solid #e2e8f0; border-radius: 0; }
+
+.match-item { 
+    border: 1px solid #bae6fd; background: #f0f9ff; margin-bottom: 0.5rem; cursor: pointer; 
+    padding: 1rem; border-radius: var(--radius-md); text-align: left; display: flex; flex-direction: column; gap: 0.25rem; transition: all 0.2s; 
+}
+.match-item:hover { border-color: #38bdf8; background: #e0f2fe; transform: translateY(-2px); }
+.match-manager { color: #0369a1; font-weight: 700; font-size: 0.78rem; }
+.match-title { font-size: 1.05rem; color: var(--text-main); font-weight: 700; }
+.match-purpose { font-size: 0.85rem; color: var(--text-muted); }
+
+/* ==========================================
+   7. 버튼류
+   ========================================== */
+.welcome-text { text-align: center; margin-bottom: 2rem; }
+.welcome-text h2 { font-size: 1.7rem; color: var(--text-main); font-weight: 800; line-height: 1.4; }
+.welcome-text h2 span { color: var(--primary); }
+.welcome-text p { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-top: 0.6rem; }
+
+.action-buttons { display: flex; flex-direction: row; gap: 1rem; width: 100%; max-width: 31.25rem; margin: 1.25rem auto 0 auto; }
+.action-buttons-margin { max-width: 100%; margin-top: 2rem; }
+
+/* 꽉 찬 메인 버튼류 */
+button, .btn-guest-main, .btn-guest-sub, .btn-emp-main { 
+    border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; 
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); border-radius: var(--radius-md); font-weight: 700; font-size: 1rem;
+}
+button:active, .btn-guest-main:active, .btn-guest-sub:active, .btn-emp-main:active { transform: scale(0.98); }
+
+.btn-guest-main { flex: 1; flex-direction: column; padding: 1.25rem 0.85rem; background: var(--primary); color: #ffffff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12); }
+.btn-guest-main:hover { background: var(--primary-hover); }
+.btn-guest-sub { flex: 1; flex-direction: column; padding: 1.25rem 0.85rem; background: #f1f5f9; color: #475569; border: 1px solid var(--border-color); }
+.btn-guest-sub:hover { background: #e2e8f0; color: var(--text-main); }
+.btn-emp-main { width: 100%; padding: 0.85rem 1rem; background: #10b981; color: #ffffff; }
+.btn-emp-main:hover { background: #059669; }
+
+/* 점선(동반객 추가) 버튼 기본 디자인 */
+button.btn-add-comp-outline, button.btn-add-comp-outline-solid { 
+    flex: none !important; 
+    height: 42px !important; 
+    padding: 0;
+    flex-direction: row;
+    background: transparent; 
+    border: 2px dashed #94a3b8; 
+    color: #64748b; 
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
+
+/* ==========================================
+   8. 관리자/보안실 테이블 및 유틸리티
+   ========================================== */
+.admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; width: 100%; }
+.admin-header-title { display: flex; align-items: center; }
+.btn-excel { background: #10b981; color: white; padding: 0.6rem 1rem; font-size: 0.9rem; border-radius: 6px; }
+
+.filter-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.25rem; border: 1px solid var(--border-color); }
+.filter-inner { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; font-weight: 700; }
+.btn-home { color: var(--primary); text-decoration: none; font-size: 0.9rem; font-weight: 700; }
+
+.table-responsive { width: 100%; overflow-x: auto; background: white; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
+.modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+.modern-table th { background: #f8fafc; padding: 0.85rem 1rem; color: #475569; font-weight: 700; border-bottom: 2px solid var(--border-color); }
+.modern-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color); color: #334155; }
+
+.sec-table-container { max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; }
+.sec-table-container.h-500 { max-height: 500px; }
+.sec-table-head { position: sticky; top: 0; z-index: 1; }
+.sec-btn-approve, .sec-btn-approve-item { color:white; padding: 6px 10px; border-radius: 6px; font-weight:bold; width: 100%; font-size: 0.85rem; }
+.sec-group-row { background-color: #f8fafc; border-top: 2px solid #cbd5e1; }
+.sec-item-grouped { background-color: #ffffff; }
+
+/* ==========================================
+   9. 각종 인라인 분리용 유틸리티 클래스 (JS 이관 스타일)
+   ========================================== */
+.display-none { display: none !important; }
+.display-flex { display: flex !important; }
+.display-block { display: block !important; }
+.hidden { display: none !important; }
+
+.mb-0 { margin-bottom: 0; }
+.mb-10 { margin-bottom: 10px; }
+.mb-15 { margin-bottom: 15px; }
+.mb-30 { margin-bottom: 30px; }
+.mt-15 { margin-top: 15px; }
+.p-10 { padding: 10px; }
+
+.bg-blue { background: #2563eb !important; }
+.bg-orange { background: #f59e0b !important; }
+.bg-green { background: #10b981 !important; }
+.bg-green-dark { background: #059669 !important; }
+.bg-orange-dark { background: #d97706 !important; }
+
+.fw-bold { font-weight: bold; }
+.fw-600 { font-weight: 600; }
+.fs-8 { font-size: 0.8rem; }
+.fs-10 { font-size: 1rem; }
+.text-left { text-align: left; }
+.w-100 { width: 100%; }
+
+.companion-box-style { background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #cbd5e1; position: relative; }
+.btn-comp-delete { position: absolute; top: 12px; right: 12px; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; font-weight: bold; color: #ef4444; }
+.comp-title-blue { color: #2563eb; margin-top: 0; margin-bottom: 10px; }
+.empty-comp-msg { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2rem 1rem !important; }
+
+.warning-box { border: 2px solid #f59e0b; padding: 10px; border-radius: 8px; background: #fffbeb; }
+.warning-text { color: #d97706; font-weight: bold; }
+
+/* 💡 좌측 폼 내부로 들어간 개인정보 동의 영역 (모던 콜아웃 스타일 유지) */
+.privacy-consent-box { 
+    width: 100%; 
+    padding: 1.25rem; 
+    background: #f8fafc; 
+    border: 1px solid #e2e8f0; 
+    border-left: 4px solid var(--primary); /* 좌측 파란색 포인트 라인 */
+    border-radius: var(--radius-md); 
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.privacy-text { 
+    font-size: 0.85rem; 
+    color: #475569; 
+    margin-bottom: 0; 
+    line-height: 1.5; 
+    word-break: keep-all; 
+}
+.region-badge-warning { background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+
+.ind-panel { width: 100%; background: #f8fafc; border-top: 1px dashed #cbd5e1; padding: 8px 10px; margin-top: 8px; border-radius: 6px; }
+.ind-panel-title { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
+.ind-panel-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.ind-panel-name { font-size: 0.85rem; color: #334155; font-weight: bold; }
+.ind-panel-corp { color: #64748b; font-size: 0.8em; font-weight: normal; }
+.ind-panel-actions { display: flex; gap: 4px; align-items: center; }
+.btn-ind-action { padding: 2px 6px !important; font-size: 0.75rem !important; }
+.badge-ind-status { padding: 2px 6px; font-size: 0.7rem; }
+
+.pagination-nav-bar { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 15px; padding: 6px 0; width: 100%; }
+.btn-page { padding: 4px 10px; font-size: 0.85rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; color: #475569; cursor: pointer; font-weight: 700; }
+.btn-page:disabled { opacity: 0.5; cursor: not-allowed; }
+.page-indicator { font-size: 0.88rem; font-weight: 800; color: #334155; }
+
+.sec-header-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+.sec-reg-form { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
+.sec-reg-actions { text-align: right; margin-top: 15px; }
+.btn-sec-action { padding: 8px 20px; border-radius: 4px; font-size: 0.9rem; margin-left: 8px; font-weight: bold; border: none; cursor: pointer; color: white;}
+
+/* --------------------------------------------------------------------
+   🗂️ 보안실(경비실) ERP 사이드바 레이아웃 (admin 사이드바 디자인 참조)
+   - 좌측 사이드바 메뉴로 '실시간 승인 요청' ↔ '전체 출입 기록' 탭 전환
+   -------------------------------------------------------------------- */
+
+/* 🔒 경비실 카드 전용 (card-emp-wide 대신 card-security-wide 사용 → 직원 대시보드 카드와 분리)
+   - 기본 .card 그룹과 동일한 값으로 시작하되, 여기 값을 바꾸면 경비실 카드만 변경된다. */
+.card-security-wide {
+    background: var(--card-bg); border-radius: var(--radius-xl); padding: 1.75rem 2rem;
+    box-shadow: var(--shadow-md); border: 1px solid var(--border-color); width: 100%; margin: 0 auto;
+}
+
+/* 🔒 경비실 상단 요약 통계 헤더 (다크 네이비 카드) */
+.sec-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+.sec-stat-card {
+    background: #1e293b; border-radius: var(--radius-md); padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    border-left: 4px solid #475569; box-shadow: var(--shadow-md);
+}
+.sec-stat-card .sec-stat-label { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; }
+.sec-stat-card .sec-stat-value { font-size: 1.9rem; font-weight: 800; color: #fff; line-height: 1; }
+.sec-stat-card.stat-pending { border-left-color: #ef4444; }
+.sec-stat-card.stat-pending .sec-stat-value { color: #f87171; }
+.sec-stat-card.stat-onsite { border-left-color: #3b82f6; }
+.sec-stat-card.stat-onsite .sec-stat-value { color: #60a5fa; }
+.sec-stat-card.stat-overdue { border-left-color: #e11d48; }
+.sec-stat-card.stat-overdue .sec-stat-value { color: #fb7185; }
+
+/* 🔒 경비실 실시간 대기열 헤더 + 자동 새로고침 인디케이터 (security.css 에만 있던 정의를 이관) */
+.sec-live-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.sec-live-title { color: #ef4444; font-size: 1.1rem; font-weight: 800; margin: 0; }
+.sec-live-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); }
+.sec-logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.sec-logs-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0; }
+
+/* 작은 인라인 스피너 (로딩용 .spinner 를 대기열 인디케이터 크기로 축소) */
+.sec-spinner {
+    width: 0.9rem !important; height: 0.9rem !important;
+    border-width: 2px !important; margin: 0 !important;
+    border-color: #fecaca; border-top-color: #ef4444 !important;
+    display: inline-block; vertical-align: middle;
+}
+
+/* 🔒 경비실 퇴실 지연 탭 */
+.sec-nav-badge-warn { background: #f59e0b; }               /* 지연 배지는 주황색 */
+.sec-nav-item.active .sec-nav-badge-warn { background: #fff; color: #d97706; }
+.sec-overdue-hint { font-size: 0.85rem; color: var(--text-muted); background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.5; }
+.sec-overdue-badge { display: inline-block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 800; font-size: 0.8rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.sec-overdue-row td { background: #fffaf5; }               /* 지연 행 은은한 배경 강조 */
+
+/* 🔒 경비실 화면(.sec-erp-layout) 내 모든 테이블 셀 가운데 정렬
+   - 대기열/전체기록/퇴실지연 3개 테이블 모두 적용
+   - .sec-erp-layout 하위로 한정되어, min-w-700 을 공유하는 다른 화면(전체기록 모달)은 영향 없음 */
+.sec-erp-layout .modern-table th,
+.sec-erp-layout .modern-table td { text-align: center; vertical-align: middle; }
+
+.sec-erp-layout { display: flex; gap: 22px; align-items: stretch; min-height: 560px; }
+
+/* 좌측 사이드바 (admin 의 다크 네이비 톤 차용) */
+.sec-erp-sidebar {
+    flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px;
+    background: #1e293b; border-radius: var(--radius-md); padding: 1.1rem 0.9rem;
+    color: #fff; box-shadow: var(--shadow-md);
+}
+.sec-erp-brand { display: flex; align-items: center; gap: 10px; padding: 0.2rem 0.4rem 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.sec-erp-brand-icon { font-size: 1.6rem; line-height: 1; }
+.sec-erp-brand-text { display: flex; flex-direction: column; line-height: 1.35; }
+.sec-erp-brand-text strong { font-size: 1rem; font-weight: 800; color: #fff; }
+.sec-erp-brand-text .sec-region-text { color: #93c5fd; font-size: 0.8rem; font-weight: 700; }
+
+.sec-erp-nav { display: flex; flex-direction: column; gap: 0.4rem; }
+.sec-nav-item {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 0.8rem 0.9rem; border: none; border-radius: 0.6rem; background: transparent;
+    text-align: left; cursor: pointer; color: #cbd5e1; font-weight: 700; font-size: 0.92rem; transition: all 0.18s ease;
+}
+.sec-nav-item:hover:not(.active) { background: rgba(255,255,255,0.1); color: #fff; }
+.sec-nav-item.active { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(37,99,235,0.25); }
+
+/* 대기 건수 배지 */
+.sec-nav-badge {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    background: #ef4444; color: #fff; font-size: 0.72rem; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.sec-nav-item.active .sec-nav-badge { background: #fff; color: #ef4444; }
+
+.sec-erp-sidebar-action { margin-top: auto; }
+.sec-erp-sidebar-action .w-100 { width: 100%; }
+
+/* 우측 콘텐츠 및 탭 패널 */
+.sec-erp-content { flex: 1; min-width: 0; }
+.sec-tab-panel { display: none; }
+.sec-tab-panel.active { display: block; animation: fadeIn 0.25s ease-in-out; }
+
+/* 📱 태블릿/모바일: 사이드바를 상단 가로 탭으로 전환 */
+@media (max-width: 900px) {
+    .sec-erp-layout { flex-direction: column; gap: 16px; min-height: 0; }
+    .sec-erp-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0.8rem; }
+    .sec-erp-brand { flex: 1 1 100%; border-bottom: none; padding: 0 0.2rem 0.6rem; }
+    .sec-erp-nav { flex-direction: row; flex: 1 1 100%; gap: 6px; }
+    .sec-nav-item { flex: 1; justify-content: center; }
+    .sec-erp-sidebar-action { margin-top: 0; flex: 1 1 100%; }
+    .sec-erp-content { padding-left: 0; }
+    .sec-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+    .sec-stat-card { padding: 12px 14px; }
+    .sec-stat-card .sec-stat-value { font-size: 1.5rem; }
+}
+
+/* 애니메이션 */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.shimmer-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 0; }
+.spinner { width: 2rem; height: 2rem; border: 3.5px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 0.85rem; }
+
+
+/* ====================================================================
+   🖥️ 10. PC 데스크톱 다단 레이아웃
+   ==================================================================== */
+@media (min-width: 991px) {
+    /* 데스크탑 최대 너비를 줄여서 시선의 분산을 막고 밀도감을 높임 */
+    .container-wide { max-width: 70rem; transition: max-width 0.25s ease; } 
+    /* 🔒 경비실 관제 화면은 표가 넓어 화면을 거의 꽉 채운다 (container-wide 를 덮어씀) */
+    .container-security-wide { max-width: 95vw; }
+    /* 🔒 직원 대시보드 한정: 동반 방문객 창(#emp-companion-zone)이 열려 있으면(=display-none 없음) 70rem→85rem 확장.
+       card-emp-wide 로 한정하여 손님 입실폼(card-guest-wide)에는 영향 없음. */
+    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) { max-width: 85rem; }
+    
+    /* 좌측 폼 영역과 리스트 영역 너비 비율 (정확한 5:5 대칭) */
+    .card-wide #emp-form-zone, .card-wide #guest-form-zone,
+    .card-emp-wide #emp-form-zone, .card-guest-wide #guest-form-zone,
+    .card-security-wide #secRegFormZone { flex: 1; }
+    
+    .card-wide #emp-list-zone, .card-security-wide #emp-list-zone { 
+        flex: 1; 
+        height: 100%; 
+    }
+    
+    /* 우측 동반 일행 컨테이너를 '기준점(Relative)'으로 변환하고 Flexbox 해제 */
+    .card-wide #guest-companion-zone, .card-emp-wide #emp-companion-zone { 
+        flex: 1; 
+        position: relative !important;
+    }
+    /* 손님 화면: 동반 영역은 항상 노출 */
+    .card-wide #guest-companion-zone { display: block !important; }
+    /* 임직원 화면: '동반 일행 추가' 클릭 전에는 숨김(display-none) 상태 유지.
+       클릭 시 emp.js 가 display-none 을 제거하면 그때 노출된다. (구분줄도 함께 표시됨) */
+    .card-emp-wide #emp-companion-zone:not(.display-none) { display: block !important; }
+
+    /* 1. 상단 제목: 공중에 띄워서 맨 위에 고정 */
+    #guest-companion-zone .zone-title, 
+    #emp-companion-zone .comp-zone-header {
+        position: absolute !important;
+        top: 0 !important; left: 0 !important; right: 0 !important;
+        height: 35px !important; margin: 0 !important;
+    }
+
+    /* 2. 하단 추가 버튼: 공중에 띄워서 부모 컨테이너의 맨 바닥에 고정 */
+    #guest-companion-zone button.btn-add-comp-outline,
+    #emp-companion-zone button.btn-add-comp-outline-solid {
+        position: absolute !important;
+        bottom: 0 !important; left: 0 !important; right: 0 !important;
+        height: 42px !important; margin: 0 !important; width: 100% !important;
+    }
+
+    /* 3. 스크롤 박스: 상단 제목과 하단 버튼 사이의 남은 공간을 알아서 꽉 채움 */
+    /* 좌측 폼 영역이 길어지면 부모의 높이가 늘어나고, 이 스크롤 영역도 자동으로 확 늘어납니다! */
+    #guest-companion-zone .guest-comp-scroll-box,
+    #emp-companion-zone .emp-comp-scroll-box {
+        position: absolute !important;
+        top: 45px !important;    
+        bottom: 55px !important; 
+        left: 0 !important; right: 0 !important;
+        height: auto !important; max-height: none !important;
+        width: 100% !important; margin: 0 !important;
+    }
+
+    /* 모바일 전용 요소 숨김 */
+    .mobile-tabs, .mobile-bs-close, .bs-overlay, .bs-handle, .mobile-only-btn { display: none !important; }
+    
+    #my-schedule-list { display: flex; flex-direction: column; gap: 0.85rem; }
+    .normal-member-item { margin-bottom: 0; }
+}
+
+
+/* ====================================================================
+   📱 11. 모바일 하이브리드 UI 레이아웃 최적화 (640px 이하)
+   ==================================================================== */
+@media (max-width: 640px) {
+    body { padding: 1.25rem 0.75rem; justify-content: flex-start; }
+    .card, .card-wide, .card-emp-wide, .card-guest-wide, .card-security-wide { padding: 1.5rem 1.1rem; } 
+    
+    .app-header h1 { font-size: 1.35rem; } 
+    .welcome-text h2 { font-size: 1.4rem; } 
+    .zone-title { font-size: 1.05rem; } 
+    
+    .dashboard-split-wrapper { flex-direction: column; gap: 0; }
+    
+    /* 모바일 2x2 배열 유지 및 간격 축소 */
+    .input-row-group { flex-direction: row !important; gap: 0.5rem; }
+    
+    /* 입력창 폰트 및 여백 콤팩트화 */
+    .input-group input, .input-group select { 
+        padding: 0.8rem 0.6rem !important; 
+        font-size: 0.9rem !important; 
+    }
+    
+    /* 라벨 콤팩트화 */
+    .input-group label {
+        font-size: 1rem !important;
+    }
+    
+    /* 액션 버튼 가로 배치 */
+    .action-buttons { 
+        flex-direction: row !important; 
+        gap: 0.5rem; 
+        max-width: 100%; 
+        margin-top: 15px; 
+    }
+    
+    .btn-guest-main, .btn-guest-sub, .btn-emp-main, .action-buttons button {
+        width: 100%; 
+        padding: 1rem 0.5rem; 
+        font-size: 0.9rem; 
+        flex: 1;
+    }
+    
+    .purpose-button-group { gap: 0.6rem !important; }
+    .btn-choice { font-size: 1rem !important; padding: 0.8rem 0.35rem !important; }
+
+    .mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
+    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; }
+    .mobile-tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    
+    .desktop-only-title { display: none; } 
+    .mobile-tab-content { display: none; }
+    .mobile-tab-content.active { display: flex; }
+    #emp-divider-line, #guest-divider-line, #emp-divider-comp { display: none; }
+
+    .mobile-bs-close { display: flex; width: 100%; margin-top: 15px; }
+    
+    .bs-overlay { 
+        display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+        background: rgba(15, 23, 42, 0.6); z-index: 1000; opacity: 0; pointer-events: none; 
+        backdrop-filter: blur(2px); transition: opacity 0.3s ease; 
+    }
+    
+    /* 바텀시트를 Flex로 바꾸고, 전체 틀이 스크롤 되지 않도록 hidden 처리 */
+    .bs-sheet { 
+        position: fixed !important; bottom: 0; left: 0; width: 100vw !important; 
+        max-height: 85vh; 
+        overflow: hidden !important; 
+        background: #fff !important; border-radius: 24px 24px 0 0 !important; 
+        padding: 1.5rem !important; z-index: 1001; transform: translateY(100%); 
+        transition: transform 0.3s ease; margin: 0 !important; 
+        display: flex !important; 
+        flex-direction: column;
+    }
+    
+    .bs-handle, .zone-title, .btn-add-comp-outline, .mobile-bs-close {
+        flex-shrink: 0 !important; 
+    }
+
+    .guest-comp-scroll-box, .emp-comp-scroll-box {
+        flex: 1 1 auto !important; 
+        overflow-y: auto !important; 
+        min-height: 0 !important; 
+        margin-bottom: 10px; 
+    }
+
+    .bs-handle { display: block; width: 45px; height: 5px; background: #cbd5e1; border-radius: 3px; margin: 0 auto 1.5rem auto; }
+
+    body.bs-active { overflow: hidden; }
+    body.bs-active .bs-overlay { opacity: 1; pointer-events: auto; }
+    body.bs-active .bs-sheet { transform: translateY(0); }
+
+    /* 나의 예약 카드: 모바일에서도 데스크탑처럼 좌(정보)·우(버튼) 배치 유지, 버튼 영역은 내용 크기만큼만 */
+    .result-item-schedule { flex-direction: row; align-items: center; flex-wrap: nowrap; }
+    .item-action-zone { width: auto; justify-content: flex-end; margin-top: 0; flex: 0 0 auto; }
+    .group-schedule-header { flex-direction: column; align-items: flex-start; }
+    .group-action-wrapper { width: 100%; justify-content: flex-end; margin-top: 8px; }
+}
+/* 🔎 손님 방문 상태 조회 결과 박스 */
+.visitor-info-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem 1.4rem; text-align: center; box-shadow: var(--shadow-md); margin-top: 0.5rem; }
+.visitor-info-box .greet { font-size: 1.15rem; margin: 0 0 0.5rem; color: var(--text-main); }
+.visitor-info-box .badge-company { display: inline-block; font-size: 0.85rem; font-weight: 700; color: var(--primary); background: #eff6ff; padding: 0.25rem 0.7rem; border-radius: 999px; }
+.visitor-info-box .status-line { font-size: 1.05rem; font-weight: 800; margin: 0.9rem 0 0.35rem; color: var(--text-main); }
+.visitor-info-box .status-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.55; margin: 0 0 0.6rem; }
+.visitor-info-box .time-info { font-size: 0.82rem; color: var(--text-muted); margin: 0; }
+
+/* 🔳 손님 개인 QR 박스 */
+.guest-qr-box { text-align: center; margin: 1rem 0; padding: 1rem; background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-md); box-sizing: border-box; min-width: 0; overflow: hidden; }
+.guest-qr-img { width: 100%; max-width: 200px; height: auto; aspect-ratio: 1 / 1; object-fit: contain; display: block; margin: 0 auto 0.6rem; }
+.guest-qr-hint { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+/* 🔳 그룹 전원 QR 나열 */
+.guest-qr-guide { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 1rem 0 0.6rem; text-align: center; }
+.guest-qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.guest-qr-name { font-size: 0.9rem; font-weight: 700; color: var(--text-main); margin: 0 0 0.4rem; }
+
+/* 사전 등록 조회: 이미 접수(입실대기) 표시 */
+.match-status-wait { display: inline-block; margin-top: 6px; font-size: 0.8rem; font-weight: 700; color: #d97706; }
+
+/* 상태 자동 갱신(폴링) 안내 문구 */
+.poll-live-hint { margin: 0.6rem 0 0; font-size: 0.82rem; font-weight: 600; color: var(--primary); }

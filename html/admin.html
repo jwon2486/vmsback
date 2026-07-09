@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🏢 에스엔시스 VMS - 통합 관리자 시스템</title>
+    <script src="/js/admin.js" defer></script>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="brand">
+                <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()" aria-label="메뉴 열기">☰</button>
+                <img src="/logo/SnSYS_logo.png" alt="회사 로고" />
+                <div class="title">
+                    <strong>S&SYS VMS 관리자</strong>
+                    <span class="desktop-only">통합 출입 및 인력 관리 시스템</span>
+                </div>
+            </div>
+            <div class="top-actions">
+                <div class="pill">👤 최고 관리자</div>
+            </div>
+        </header>
+
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
+
+        <main class="shell">
+            <div class="erp-layout">
+                <aside class="erp-sidebar" id="erpSidebar">
+                    <nav class="erp-nav">
+                        <button id="menuVisitor" class="nav-item active" onclick="switchTab('visitor')">📊 출입 기록 관리</button>
+                        <button id="menuEmployee" class="nav-item" onclick="switchTab('employee')">👥 임직원 정보 관리</button>
+                        <button class="nav-item" onclick="location.href='/emp'">🏠 VMS 메인화면</button>
+                    </nav>
+                    
+                    <div id="sidebarExcelBox" class="erp-sidebar-actions excel-sidebar-container">
+                        <div class="excel-upload-box">
+                            <label class="excel-upload-label">📊 사원 엑셀 일괄 등록</label>
+                            <input type="file" id="uploadFile" accept=".xlsx, .xls" class="excel-file-input">
+                            <button class="btn btn-secondary btn-full" onclick="uploadEmployeeFile()">업로드 실행</button>
+                        </div>
+                    </div>
+                </aside>
+
+                <section class="erp-content">
+                    
+                    <div id="tabContentVisitor" class="tab-panel">
+                        <div class="admin-header">
+                            <h2>📊 방문객 출입 기록</h2>
+                            <button class="btn-excel" onclick="downloadExcel()">📊 엑셀 저장</button>
+                        </div>
+                        
+                        <div class="filter-bar">
+                            <label class="filter-label">📅 기록 조회 필터: </label>
+                            <div class="date-range-picker-box">
+                                <input type="date" id="adminStartDate" onchange="loadAdminLogs()">
+                                <span class="range-tilde">~</span>
+                                <input type="date" id="adminEndDate" onchange="loadAdminLogs()">
+                            </div>
+                        </div>
+
+                        <div class="mobile-scroll-helper scroll-guide-text">💡 좌우로 스크롤하면 상세 내역을 볼 수 있습니다.</div>
+
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>순번</th>
+                                        <th>방문일</th>
+                                        <th>이름</th>
+                                        <th>소속</th>
+                                        <th>방문 목적</th>
+                                        <th>사내 담당자</th>
+                                        <th>입실 시간</th>
+                                        <th>퇴실 시간</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminLogBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="tabContentEmployee" class="tab-panel section-hidden">
+                        <div class="admin-header">
+                            <h2>👥 사내 임직원 관리</h2>
+                            <button class="btn btn-primary" onclick="openAddModal()">➕ 신규 사원 등록</button>
+                        </div>
+
+                        <div class="toolbar">
+                            <div class="search-box">
+                                <input type="text" id="empSearchInput" onkeyup="searchEmployees()" placeholder="사번, 성명 또는 부서 실시간 검색...">
+                            </div>
+                        </div>
+
+                        <div class="mobile-scroll-helper scroll-guide-text">💡 좌우로 스크롤하면 임직원 정보를 편집할 수 있습니다.</div>
+
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>사번</th>
+                                        <th>성명</th>
+                                        <th>지역</th>
+                                        <th>소속 부서</th>
+                                        <th>구분</th>
+                                        <th>직급</th>
+                                        <th>VMS 권한</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="employeeTableBody"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="pagination-container" id="employeePagination"></div>
+                    </div>
+
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- 💡 [수정됨] Level 2 폐지 및 Level 4 보안실 등급 추가 -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-window">
+            <div class="modal-header" id="modalTitle">임직원 정보 설정</div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="field"><label>사번 (ID)</label><input type="text" id="empId"></div>
+                    <div class="field"><label>성명</label><input type="text" id="empName"></div>
+                    <div class="field"><label>지역</label><input type="text" id="empRegion" placeholder="예: 테크센터"></div>
+                    <div class="field"><label>부서</label><input type="text" id="empDept" placeholder="예: 개발팀"></div>
+                    <div class="field"><label>구분</label><input type="text" id="empType" placeholder="직영 / 협력사"></div>
+                    <div class="field"><label>직급</label><input type="text" id="empRank" placeholder="예: 과장"></div>
+                    <div class="field full">
+                        <label>VMS 권한 등급</label>
+                        <select id="empLevel">
+                            <option value="1">1 (일반 임직원 - 방문객 예약 및 조회)</option>
+                            <option value="3">3 (최고 관리자 - VMS 전체 제어)</option>
+                            <option value="4">4 (보안실 - 지역별 출입 관제 및 대면 승인)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="saveEmployee()">저장하기</button>
+                <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

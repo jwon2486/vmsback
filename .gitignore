@@ -1,0 +1,28 @@
+# ── 데이터는 코드와 분리한다 ──
+# db.sqlite 는 배포 저장소에 커밋하지 않는다.
+#   운영 데이터는 GitHub 백업 저장소(VMS-Backup)가 자동 백업/복원으로 전담한다.
+#   (여기에 커밋하면 '커밋 깜빡 → 유실' 문제가 그대로 재발하므로 제외)
+db.sqlite
+db.sqlite.snapshot
+*.sqlite-wal
+*.sqlite-shm
+
+# 세션 키 등 비밀값
+.secret_key
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+
+# 노드(레거시) — Render 가 Python 대신 Node 로 오인식하지 않도록 제외
+node_modules/
+package.json
+package-lock.json
+script.js
+
+# 도구/에디터 설정
+.claude/
+
+# 배포에 불필요한 잡파일
+*.lnk
+
