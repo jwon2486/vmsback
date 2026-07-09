@@ -159,7 +159,7 @@ def init_db():
 #   - 로컬/내부망 테스트: GITHUB_TOKEN 미설정 → 백업/복원 모두 자동 비활성
 #     (로컬 db.sqlite 를 그대로 사용하므로 운영 데이터와 완전히 분리된다).
 # ====================================================================
-GITHUB_REPO   = os.environ.get("GITHUB_REPO", "jwon2486/VMS-Backup")   # 백업 전용 저장소
+GITHUB_REPO   = os.environ.get("GITHUB_REPO", "jwon2486/vms-db")   # 백업 전용 저장소
 GITHUB_BRANCH = os.environ.get("GITHUB_BRANCH", "main")
 GITHUB_PATH   = os.environ.get("GITHUB_DB_PATH", "db.sqlite")          # 저장소 내 파일명
 GITHUB_TOKEN  = os.environ.get("GITHUB_TOKEN")                          # 있으면 운영(백업 활성)
