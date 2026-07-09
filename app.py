@@ -18,8 +18,10 @@ import qrcode.image.svg
 # 콘솔 로그 인코딩 고정: Windows 기본 콘솔(cp949)에서 이모지/특수문자 print 시
 # UnicodeEncodeError 로 프로세스가 죽는 것을 방지 (Render(Linux)는 이미 UTF-8).
 try:
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+    # line_buffering=True: 파이프(Render)에서도 줄바꿈마다 즉시 flush →
+    #   종료 직전 로그가 버퍼에 갇힌 채 프로세스가 죽는 것을 방지.
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+    sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
 except Exception:
     pass
 
@@ -1365,14 +1367,18 @@ if __name__ == '__main__':
         if GITHUB_TOKEN:
             import signal
             def _graceful_backup(signum, frame):
-                print("🧹 [종료] SIGTERM 감지 → 종료 직전 백업 시도")
+                print("🧹 [종료] SIGTERM 감지 → 종료 직전 백업 시도", flush=True)
                 try:
                     backup_db_to_github()
                 except Exception as e:
-                    print(f"❌ [종료] 종료 직전 백업 실패: {e}")
+                    print(f"❌ [종료] 종료 직전 백업 실패: {e}", flush=True)
                 finally:
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     os._exit(0)
             signal.signal(signal.SIGTERM, _graceful_backup)
+            # 등록 확인용: 시작 로그에 이 줄이 보이면 종료 훅이 정상 설치된 것.
+            print("🔧 [종료훅] SIGTERM 백업 핸들러 등록 완료", flush=True)
 
     # 포트: Render 는 PORT 환경변수를 주입한다. 로컬/내부망은 5000 기본.
     port = int(os.environ.get("PORT", 5000))
