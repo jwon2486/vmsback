@@ -439,8 +439,10 @@ function showCheckinForm(passedName = '', passedContact = '') {
                         <div class="input-group"><label>차량 번호</label><input type="text" id="vehicle_no" placeholder="없을 시 비워두세요"></div>
                     </div>
 
-                    <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
-                    <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
+                    <div class="input-row-group">
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
+                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
+                    </div>
 
                     <div class="input-group">
                         <label>사내 방문 담당자 성명 <span class="req-star">*</span></label>
