@@ -127,7 +127,7 @@ function showIntegratedEmpDashboard() {
                     
                     <div class="input-row-group">
                         <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="vName" placeholder="성함 입력" autocomplete="off"></div>
-                        <div class="input-group"><label>방문객 연락처 <span class="req-star">*</span></label><input type="text" id="vContact" placeholder="- 없이 숫자만 입력" autocomplete="off"></div>
+                        <div class="input-group"><label>방문객 연락처 <span class="req-star">*</span></label>${phoneInputHtml('vContact')}</div>
                     </div>
                     
                     <div class="input-row-group">
@@ -537,7 +537,6 @@ async function handleStaffCancelSchedule(id, name) {
 async function submitNewSchedule() {
     const visitDateEl = document.getElementById('visitDate');
     const vNameEl = document.getElementById('vName');
-    const vContactEl = document.getElementById('vContact');
     const vCompanyEl = document.getElementById('vCompany');
     const vVehicleEl = document.getElementById('vVehicle');
     const vPurposeEl = document.getElementById('vPurpose');
@@ -550,13 +549,13 @@ async function submitNewSchedule() {
         return alert("방문 거점을 반드시 선택해 주세요.");
     }
 
-    if (!visitDateEl || !vNameEl || !vContactEl || !vCompanyEl || !vPurposeEl) {
+    if (!visitDateEl || !vNameEl || !vCompanyEl || !vPurposeEl) {
         return alert("시스템 입력란을 찾을 수 없습니다.");
     }
 
     const visit_date = visitDateEl.value;
     const name = vNameEl.value.trim();
-    const contact = vContactEl.value.trim();
+    const contact = readPhone('vContact');
     const company = vCompanyEl.value.trim();
     const vehicle_no = vVehicleEl ? (vVehicleEl.value.trim() || '없음') : '없음';
     const purpose = vPurposeEl.value.trim();
@@ -608,7 +607,7 @@ async function submitNewSchedule() {
         if (result.success) {
             alert(result.message);
             vNameEl.value = '';
-            vContactEl.value = '';
+            clearPhone('vContact');
             vCompanyEl.value = '';
             if (vVehicleEl) vVehicleEl.value = '';
             

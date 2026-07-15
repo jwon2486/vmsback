@@ -66,7 +66,7 @@ function showSecurityDashboard() {
                 <div class="input-row-group">
                     <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="secRegDate" value="${weekRange.todayKst}"></div>
                     <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="secRegName" placeholder="성함 입력" autocomplete="off"></div>
-                    <div class="input-group"><label>연락처 <span class="req-star">*</span></label><input type="text" id="secRegContact" placeholder="- 없이 숫자만" autocomplete="off"></div>
+                    <div class="input-group"><label>연락처 <span class="req-star">*</span></label>${phoneInputHtml('secRegContact')}</div>
                 </div>
                 <div class="input-row-group">
                     <div class="input-group"><label>소속 회사명 <span class="req-star">*</span></label><input type="text" id="secRegCompany" placeholder="소속 회사" autocomplete="off"></div>
@@ -479,7 +479,7 @@ function toggleSecRegForm() {
 async function submitSecReg() {
     const date = document.getElementById('secRegDate').value;
     const name = document.getElementById('secRegName').value.trim();
-    const contact = document.getElementById('secRegContact').value.trim();
+    const contact = readPhone('secRegContact');
     const company = document.getElementById('secRegCompany').value.trim();
     const vehicle = document.getElementById('secRegVehicle').value.trim() || '없음';
     const manager = document.getElementById('secRegManager').value.trim();
@@ -507,7 +507,7 @@ async function submitSecReg() {
         if (result.success) {
             alert(result.message);
             document.getElementById('secRegName').value = '';
-            document.getElementById('secRegContact').value = '';
+            clearPhone('secRegContact');
             document.getElementById('secRegCompany').value = '';
             document.getElementById('secRegVehicle').value = '';
             document.getElementById('secRegManager').value = '';

@@ -431,7 +431,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
 
                     <div class="input-row-group">
                         <div class="input-group"><label>성명 <span class="req-star">*</span></label><input type="text" id="name" value="${passedName}" placeholder="예) 홍길동"></div>
-                        <div class="input-group"><label>본인 연락처 <span class="req-star">*</span></label><input type="text" id="contact" value="${passedContact}" placeholder="- 없이 숫자만 입력"></div>
+                        <div class="input-group"><label>본인 연락처 <span class="req-star">*</span></label>${phoneInputHtml('contact', passedContact)}</div>
                     </div>
                     
                     <div class="input-row-group">
@@ -522,7 +522,6 @@ async function submitCheckin() {
 
     const nameEl = document.getElementById('name');
     const companyEl = document.getElementById('company');
-    const contactEl = document.getElementById('contact');
     const vehicleNoEl = document.getElementById('vehicle_no');
     const managerTextEl = document.getElementById('manager_text');
     const purposeEl = document.getElementById('purpose');
@@ -534,11 +533,11 @@ async function submitCheckin() {
         return alert('현재 방문하신 센터(거점)를 꼭 선택해 주세요!');
     }
 
-    if (!nameEl || !companyEl || !contactEl || !managerTextEl) return;
+    if (!nameEl || !companyEl || !managerTextEl) return;
 
     const name = nameEl.value.trim();
     const company = companyEl.value.trim();
-    const contact = contactEl.value.trim();
+    const contact = readPhone('contact');
     const vehicle_no = vehicleNoEl ? (vehicleNoEl.value.trim() || '없음') : '없음';
     const manager_text = managerTextEl.value.trim();
     const purpose = purposeEl.value;

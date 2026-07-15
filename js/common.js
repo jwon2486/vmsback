@@ -92,6 +92,48 @@ function readTimeSelect(prefix) {
     return String(h).padStart(2, '0') + ':' + String(parseInt(mv, 10)).padStart(2, '0');
 }
 
+// 📱 전화번호 3박스 입력 (010-1234-5678). 앞 박스가 차면 자동으로 다음 칸으로 이동.
+//   - 저장은 숫자만 결합 (readPhone) → 기존 '숫자만' 저장 방식과 동일.
+//   - value 를 주면 3박스로 분할해 채운다(사전 입력/수정 대비).
+function phoneInputHtml(prefix, value) {
+    const v = (value || '').replace(/\D/g, '');
+    const box = (n, ml, val, ph) =>
+        `<input type="tel" inputmode="numeric" id="${prefix}_p${n}" class="phone-box" maxlength="${ml}" value="${val}" placeholder="${ph}" oninput="phoneAdvance(this)" onkeydown="phoneBack(event,this)">`;
+    return `
+        <div class="phone-group" id="${prefix}_phone">
+            ${box(1, 3, v.slice(0, 3), '010')}
+            <span class="phone-sep">-</span>
+            ${box(2, 4, v.slice(3, 7), '1234')}
+            <span class="phone-sep">-</span>
+            ${box(3, 4, v.slice(7, 11), '5678')}
+        </div>`;
+}
+function phoneAdvance(el) {
+    el.value = el.value.replace(/\D/g, '');           // 숫자만 허용
+    if (el.value.length >= el.maxLength) {
+        const boxes = Array.from(el.closest('.phone-group').querySelectorAll('.phone-box'));
+        const i = boxes.indexOf(el);
+        if (i > -1 && i < boxes.length - 1) boxes[i + 1].focus();
+    }
+}
+function phoneBack(e, el) {
+    if (e.key === 'Backspace' && el.value === '') {   // 빈 칸에서 백스페이스 → 이전 칸으로
+        const boxes = Array.from(el.closest('.phone-group').querySelectorAll('.phone-box'));
+        const i = boxes.indexOf(el);
+        if (i > 0) boxes[i - 1].focus();
+    }
+}
+function readPhone(prefix) {
+    const a = document.getElementById(prefix + '_p1');
+    const b = document.getElementById(prefix + '_p2');
+    const c = document.getElementById(prefix + '_p3');
+    if (!a || !b || !c) return '';
+    return (a.value + b.value + c.value).replace(/\D/g, '');
+}
+function clearPhone(prefix) {
+    ['_p1', '_p2', '_p3'].forEach(s => { const el = document.getElementById(prefix + s); if (el) el.value = ''; });
+}
+
 // 서버 세션에 귀속된 손님 거점명을 받아와 currentRegion 에 채운다.
 async function loadGuestRegion() {
     try {
