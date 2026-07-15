@@ -16,34 +16,66 @@ let currentRegion = null;
 //   사업장이 늘거나 이름이 바뀌면 여기만 고치면 된다.
 const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 조선소'];
 
-// 🕒 시간 선택 드롭다운 (오전/오후 + 시 + 5분 단위 분).
-//   - 네이티브 <input type=time> 은 드롭다운 분 단위를 step 으로 못 바꾸므로 직접 구성.
-//   - prefix 로 3개 select 를 만든다: {prefix}_ap / {prefix}_h / {prefix}_m
+// 🕒 시간 선택기 — 크롬 기본 시간 픽커 스타일의 커스텀 '컬럼 스크롤' 드롭다운.
+//   - 네이티브 <input type=time> 은 분 단위를 못 바꾸므로 동일한 컬럼 UI 를 직접 구현.
+//   - [오전/오후] [시 01~12] [분 00,05,…,55] 3열. 선택값은 hidden input({prefix}_ap/_h/_m)에 저장.
 function timeSelectHtml(prefix) {
-    let hours = '';
-    for (let h = 1; h <= 12; h++) {
-        hours += `<option value="${h}">${String(h).padStart(2, '0')}시</option>`;
-    }
-    let mins = '';
-    for (let m = 0; m < 60; m += 5) {
-        mins += `<option value="${m}">${String(m).padStart(2, '0')}분</option>`;
-    }
+    const apCol = [['AM', '오전'], ['PM', '오후']]
+        .map(([v, l]) => `<div class="tp-opt" onclick="tpSelect('${prefix}','ap','${v}',this)">${l}</div>`).join('');
+    let hCol = '';
+    for (let h = 1; h <= 12; h++)
+        hCol += `<div class="tp-opt" onclick="tpSelect('${prefix}','h','${h}',this)">${String(h).padStart(2, '0')}</div>`;
+    let mCol = '';
+    for (let m = 0; m < 60; m += 5)
+        mCol += `<div class="tp-opt" onclick="tpSelect('${prefix}','m','${m}',this)">${String(m).padStart(2, '0')}</div>`;
     return `
-        <div class="time-select-group">
-            <select id="${prefix}_ap" class="time-sel">
-                <option value="" selected disabled>오전/오후</option>
-                <option value="AM">오전</option>
-                <option value="PM">오후</option>
-            </select>
-            <select id="${prefix}_h" class="time-sel">
-                <option value="" selected disabled>시</option>
-                ${hours}
-            </select>
-            <select id="${prefix}_m" class="time-sel">
-                <option value="" selected disabled>분</option>
-                ${mins}
-            </select>
+        <div class="tp-wrap" id="${prefix}_wrap">
+            <input type="hidden" id="${prefix}_ap">
+            <input type="hidden" id="${prefix}_h">
+            <input type="hidden" id="${prefix}_m">
+            <button type="button" class="tp-field" id="${prefix}_display" onclick="tpToggle('${prefix}')">
+                <span class="tp-placeholder">시간 선택</span>
+            </button>
+            <div class="tp-panel" id="${prefix}_panel">
+                <div class="tp-col">${apCol}</div>
+                <div class="tp-col">${hCol}</div>
+                <div class="tp-col">${mCol}</div>
+            </div>
         </div>`;
+}
+
+// 픽커 열기/닫기 (다른 픽커는 닫음)
+function tpToggle(prefix) {
+    const panel = document.getElementById(prefix + '_panel');
+    if (!panel) return;
+    const willOpen = !panel.classList.contains('open');
+    document.querySelectorAll('.tp-panel.open').forEach(p => p.classList.remove('open'));
+    if (willOpen) panel.classList.add('open');
+}
+
+// 컬럼 항목 선택 → hidden input 갱신 + 필드 표시 갱신
+function tpSelect(prefix, type, value, el) {
+    document.getElementById(prefix + '_' + type).value = value;
+    el.parentElement.querySelectorAll('.tp-opt').forEach(o => o.classList.remove('sel'));
+    el.classList.add('sel');
+    const ap = document.getElementById(prefix + '_ap').value;
+    const h = document.getElementById(prefix + '_h').value;
+    const m = document.getElementById(prefix + '_m').value;
+    if (ap && h !== '' && m !== '') {
+        const apLabel = ap === 'AM' ? '오전' : '오후';
+        document.getElementById(prefix + '_display').innerHTML =
+            `<span class="tp-value">${apLabel} ${String(h).padStart(2, '0')}:${String(parseInt(m, 10)).padStart(2, '0')}</span>`;
+    }
+}
+
+// 픽커 바깥 클릭 시 열린 패널 닫기 (문서에 1회만 바인딩)
+if (!window.__tpOutsideBound) {
+    window.__tpOutsideBound = true;
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.tp-wrap')) {
+            document.querySelectorAll('.tp-panel.open').forEach(p => p.classList.remove('open'));
+        }
+    });
 }
 
 // 세 드롭다운 값을 24시간 "HH:MM" 로 변환. 하나라도 미선택이면 '' (미입력) 반환.

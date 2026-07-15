@@ -643,3 +643,24 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 /* 시간 선택 드롭다운(오전·오후/시/분) 가로 배치 */
 .time-select-group { display: flex; gap: 6px; align-items: center; }
 .time-select-group .time-sel { flex: 1; min-width: 0; }
+
+/* 커스텀 시간 픽커 (크롬 스타일 컬럼: 오전·오후 / 시 / 5분 단위 분) */
+.tp-wrap { position: relative; width: 100%; }
+.tp-field {
+    width: 100%; text-align: left; font-family: inherit;
+    padding: 0.9rem 1rem; border: 1px solid #cbd5e1; border-radius: var(--radius-md);
+    font-size: 0.95rem; font-weight: 500; background: #f8fafc; cursor: pointer; transition: all 0.2s ease;
+}
+.tp-field:hover { border-color: var(--primary); }
+.tp-placeholder { color: #94a3b8; }
+.tp-value { color: var(--text-main); font-weight: 700; }
+.tp-panel {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; width: 100%; box-sizing: border-box;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14); z-index: 100; padding: 6px;
+}
+.tp-panel.open { display: flex; gap: 4px; }
+.tp-col { flex: 1; max-height: 180px; overflow-y: auto; }
+.tp-opt { padding: 0.55rem 0; text-align: center; border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; color: #334155; }
+.tp-opt:hover { background: rgba(37, 99, 235, 0.08); }
+.tp-opt.sel { background: var(--primary); color: #ffffff; }
