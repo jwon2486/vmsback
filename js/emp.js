@@ -25,8 +25,8 @@ function addEmpCompanionField() {
         <button type="button" onclick="removeEmpCompanionField('${id}')" class="btn-comp-delete">삭제</button>
         <h4 class="comp-title-blue">👤 동반 방문객 ${window.empCompanionCount}</h4>
         <div class="input-row-group mb-10">
-            <div class="input-group"><label class="fs-8">성명 *</label><input type="text" class="emp-comp-name comp-input-style" placeholder="동반인 성명"></div>
-            <div class="input-group"><label class="fs-8">연락처 *</label><input type="text" class="emp-comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
+            <div class="input-group"><label class="fs-8">성명 <span class="req-star">*</span></label><input type="text" class="emp-comp-name comp-input-style" placeholder="동반인 성명"></div>
+            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label><input type="text" class="emp-comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
         </div>
         <div class="input-row-group mb-0">
             <div class="input-group"><label class="fs-8">소속 회사명</label><input type="text" class="emp-comp-company comp-input-style" placeholder="미입력시 대표자와 동일"></div>
@@ -97,7 +97,7 @@ function showIntegratedEmpDashboard() {
         ).join('');
         regionSelectorHtml = `
             <div class="input-group mb-15">
-                <label>방문 거점 선택 *</label>
+                <label>방문 거점 선택 <span class="req-star">*</span></label>
                 <select id="empRegionSelect">
                     ${empRegionOptions}
                 </select>
@@ -118,25 +118,25 @@ function showIntegratedEmpDashboard() {
                     
                     ${regionSelectorHtml}
                     
-                    <div class="input-group"><label>방문 일자 *</label><input type="date" id="visitDate" value="${today}"></div>
+                    <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="visitDate" value="${today}"></div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 *</label><input type="time" id="expectedCheckin"></div>
-                        <div class="input-group"><label>퇴실 예정시간 *</label><input type="time" id="expectedCheckout"></div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckin"></div>
+                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckout"></div>
                     </div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문객 이름 *</label><input type="text" id="vName" placeholder="성함 입력" autocomplete="off"></div>
-                        <div class="input-group"><label>방문객 연락처 *</label><input type="text" id="vContact" placeholder="- 없이 숫자만 입력" autocomplete="off"></div>
+                        <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="vName" placeholder="성함 입력" autocomplete="off"></div>
+                        <div class="input-group"><label>방문객 연락처 <span class="req-star">*</span></label><input type="text" id="vContact" placeholder="- 없이 숫자만 입력" autocomplete="off"></div>
                     </div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>소속 회사명 *</label><input type="text" id="vCompany" placeholder="회사명 입력" autocomplete="off"></div>
+                        <div class="input-group"><label>소속 회사명 <span class="req-star">*</span></label><input type="text" id="vCompany" placeholder="회사명 입력" autocomplete="off"></div>
                         <div class="input-group"><label>차량 번호</label><input type="text" id="vVehicle" placeholder="없을 시 비워두세요" autocomplete="off"></div>
                     </div>
 
                     <div class="input-group">
-                        <label>방문 목적 *</label>
+                        <label>방문 목적 <span class="req-star">*</span></label>
                         <input type="hidden" id="vPurpose" value="회의/미팅">
                         <div class="purpose-button-group">
                             <button type="button" class="btn-choice active" onclick="selectPurpose(this, '회의/미팅', 'vPurpose')">🤝 회의/미팅</button>

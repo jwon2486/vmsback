@@ -633,3 +633,9 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 
 /* 상태 자동 갱신(폴링) 안내 문구 */
 .poll-live-hint { margin: 0.6rem 0 0; font-size: 0.82rem; font-weight: 600; color: var(--primary); }
+/* 필수 입력 항목 표시(*) 강조 — 경고용 빨강 */
+.req-star {
+    color: #E53935; /* rgb(229, 57, 53) */
+    font-weight: 700;
+    margin-left: 1px;
+}

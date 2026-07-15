@@ -64,17 +64,17 @@ function showSecurityDashboard() {
             <div id="secRegFormZone" class="display-none form-container sec-reg-form">
                 <h3 class="fs-10 my-title-color mb-15">📝 경비실 방문객 수동 예약</h3>
                 <div class="input-row-group">
-                    <div class="input-group"><label>방문 일자 *</label><input type="date" id="secRegDate" value="${weekRange.todayKst}"></div>
-                    <div class="input-group"><label>방문객 이름 *</label><input type="text" id="secRegName" placeholder="성함 입력" autocomplete="off"></div>
-                    <div class="input-group"><label>연락처 *</label><input type="text" id="secRegContact" placeholder="- 없이 숫자만" autocomplete="off"></div>
+                    <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="secRegDate" value="${weekRange.todayKst}"></div>
+                    <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="secRegName" placeholder="성함 입력" autocomplete="off"></div>
+                    <div class="input-group"><label>연락처 <span class="req-star">*</span></label><input type="text" id="secRegContact" placeholder="- 없이 숫자만" autocomplete="off"></div>
                 </div>
                 <div class="input-row-group">
-                    <div class="input-group"><label>소속 회사명 *</label><input type="text" id="secRegCompany" placeholder="소속 회사" autocomplete="off"></div>
+                    <div class="input-group"><label>소속 회사명 <span class="req-star">*</span></label><input type="text" id="secRegCompany" placeholder="소속 회사" autocomplete="off"></div>
                     <div class="input-group"><label>차량 번호</label><input type="text" id="secRegVehicle" placeholder="없을 시 비워둠" autocomplete="off"></div>
-                    <div class="input-group"><label>사내 담당자 성명 *</label><input type="text" id="secRegManager" placeholder="만날 직원 성명" autocomplete="off"></div>
+                    <div class="input-group"><label>사내 담당자 성명 <span class="req-star">*</span></label><input type="text" id="secRegManager" placeholder="만날 직원 성명" autocomplete="off"></div>
                 </div>
                 <div class="input-group mb-15">
-                    <label>방문 목적 *</label>
+                    <label>방문 목적 <span class="req-star">*</span></label>
                     <select id="secRegPurpose">
                         <option value="회의/미팅">🤝 회의/미팅</option>
                         <option value="제품 납품">📦 제품 납품</option>

@@ -358,8 +358,8 @@ function addCompanionField() {
         <button type="button" onclick="removeCompanionField('${id}')" class="btn-comp-delete">삭제</button>
         <h4 class="comp-title-blue mb-15 comp-dynamic-title">👤 동반 방문객</h4>
         <div class="input-row-group mb-10">
-            <div class="input-group"><label class="fs-8">성명 *</label><input type="text" class="comp-name comp-input-style" placeholder="동반인 성명"></div>
-            <div class="input-group"><label class="fs-8">연락처 *</label><input type="text" class="comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
+            <div class="input-group"><label class="fs-8">성명 <span class="req-star">*</span></label><input type="text" class="comp-name comp-input-style" placeholder="동반인 성명"></div>
+            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label><input type="text" class="comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
         </div>
         <div class="input-row-group mb-0">
             <div class="input-group"><label class="fs-8">소속 회사명</label><input type="text" class="comp-company comp-input-style" value="${defaultCompany}" placeholder="회사명 입력"></div>
@@ -409,7 +409,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
         // QR 없이 직접 접속한 경우: 손님이 직접 사업장 선택 (value=사내 거점명, 표시=지명 병기)
         regionSelectorHtml = `
             <div class="input-group mb-15 warning-box">
-                <label class="warning-text">📍 현재 방문하신 사업장을 선택해주세요 *</label>
+                <label class="warning-text">📍 현재 방문하신 사업장을 선택해주세요 <span class="req-star">*</span></label>
                 <select id="guestRegionSelect">
                     <option value="">-- 방문하신 사업장을 선택하세요 --</option>
                     <option value="테크센터">동탄 (테크센터)</option>
@@ -430,12 +430,12 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     ${regionSelectorHtml}
 
                     <div class="input-row-group">
-                        <div class="input-group"><label>성명 *</label><input type="text" id="name" value="${passedName}" placeholder="예) 홍길동"></div>
-                        <div class="input-group"><label>본인 연락처 *</label><input type="text" id="contact" value="${passedContact}" placeholder="- 없이 숫자만 입력"></div>
+                        <div class="input-group"><label>성명 <span class="req-star">*</span></label><input type="text" id="name" value="${passedName}" placeholder="예) 홍길동"></div>
+                        <div class="input-group"><label>본인 연락처 <span class="req-star">*</span></label><input type="text" id="contact" value="${passedContact}" placeholder="- 없이 숫자만 입력"></div>
                     </div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>소속 회사명 *</label><input type="text" id="company" placeholder="예) 소속 기업명 입력"></div>
+                        <div class="input-group"><label>소속 회사명 <span class="req-star">*</span></label><input type="text" id="company" placeholder="예) 소속 기업명 입력"></div>
                         <div class="input-group"><label>차량 번호</label><input type="text" id="vehicle_no" placeholder="없을 시 비워두세요"></div>
                     </div>
 
@@ -445,12 +445,12 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     </div>
 
                     <div class="input-group">
-                        <label>사내 방문 담당자 성명 *</label>
+                        <label>사내 방문 담당자 성명 <span class="req-star">*</span></label>
                         <input type="text" id="manager_text" placeholder="만나실 직원의 성명을 정확히 적어주세요">
                     </div>
 
                     <div class="input-group mb-20">
-                        <label>방문 목적 *</label>
+                        <label>방문 목적 <span class="req-star">*</span></label>
                         <input type="hidden" id="purpose" value="회의/미팅">
                         <div class="purpose-button-group">
                             <button type="button" class="btn-choice active" onclick="selectPurpose(this, '회의/미팅', 'purpose')">🤝 회의/미팅</button>
