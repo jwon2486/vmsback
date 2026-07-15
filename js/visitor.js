@@ -440,8 +440,8 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     </div>
 
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckin"></div>
-                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckout"></div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckin"></div>
+                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckout"></div>
                     </div>
 
                     <div class="input-group">
