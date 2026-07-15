@@ -585,18 +585,18 @@ async function submitNewSchedule() {
         const cCompany = compCompanies[i].value.trim() || company; 
         const cVehicle = compVehicles[i].value.trim() || '없음';
 
-        if(cName && cContact) {
-            visitorsArray.push({
-                visit_date: visit_date,
-                name: cName,
-                contact: cContact,
-                company: cCompany,
-                vehicle_no: cVehicle,
-                purpose: purpose,
-                expected_checkin: expected_checkin,
-                expected_checkout: expected_checkout
-            });
-        }
+        if (!cName && !cContact) continue;  // 완전히 빈 동반인 행은 건너뜀
+        if (!cName || !cContact) return alert(`동반 방문객 ${i + 1}의 성명과 연락처를 모두 입력해 주세요.`);
+        visitorsArray.push({
+            visit_date: visit_date,
+            name: cName,
+            contact: cContact,
+            company: cCompany,
+            vehicle_no: cVehicle,
+            purpose: purpose,
+            expected_checkin: expected_checkin,
+            expected_checkout: expected_checkout
+        });
     }
 
     try {

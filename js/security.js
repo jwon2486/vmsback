@@ -485,7 +485,7 @@ async function submitSecReg() {
     const manager = document.getElementById('secRegManager').value.trim();
     const purpose = document.getElementById('secRegPurpose').value;
 
-    if (!date || !name || !contact || !company || !manager) {
+    if (!date || !name || !contact || !company || !manager || !purpose) {
         return alert('필수 입력 항목(* 표시)을 모두 채워주세요.');
     }
 

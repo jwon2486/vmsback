@@ -548,7 +548,7 @@ async function submitCheckin() {
     const expected_checkin = expectedCheckinEl ? expectedCheckinEl.value.trim() : '';
     const expected_checkout = expectedCheckoutEl ? expectedCheckoutEl.value.trim() : '';
     
-    if (!name || !company || !contact || !manager_text) return alert('필수 항목을 모두 입력해 주세요.');
+    if (!name || !company || !contact || !manager_text || !purpose) return alert('필수 항목(* 표시)을 모두 입력해 주세요.');
     if (!expected_checkin || !expected_checkout) return alert('방문 예정시간과 퇴실 예정시간을 입력해 주세요.');
 
     let visitorsArray = [{
@@ -566,18 +566,18 @@ async function submitCheckin() {
         const cCompany = compCompanies[i].value.trim() || company;
         const cVehicle = compVehicles[i].value.trim() || '없음';
 
-        if(cName && cContact) {
-            visitorsArray.push({
-                name: cName,
-                company: cCompany,
-                contact: cContact,
-                vehicle_no: cVehicle,
-                manager_text: manager_text,
-                purpose: purpose,
-                expected_checkin: expected_checkin,
-                expected_checkout: expected_checkout
-            });
-        }
+        if (!cName && !cContact) continue;  // 완전히 빈 동반인 행은 건너뜀
+        if (!cName || !cContact) return alert(`동반 방문객 ${i + 1}의 성명과 연락처를 모두 입력해 주세요.`);
+        visitorsArray.push({
+            name: cName,
+            company: cCompany,
+            contact: cContact,
+            vehicle_no: cVehicle,
+            manager_text: manager_text,
+            purpose: purpose,
+            expected_checkin: expected_checkin,
+            expected_checkout: expected_checkout
+        });
     }
 
     try {
