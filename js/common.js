@@ -16,6 +16,50 @@ let currentRegion = null;
 //   사업장이 늘거나 이름이 바뀌면 여기만 고치면 된다.
 const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 조선소'];
 
+// 🕒 시간 선택 드롭다운 (오전/오후 + 시 + 5분 단위 분).
+//   - 네이티브 <input type=time> 은 드롭다운 분 단위를 step 으로 못 바꾸므로 직접 구성.
+//   - prefix 로 3개 select 를 만든다: {prefix}_ap / {prefix}_h / {prefix}_m
+function timeSelectHtml(prefix) {
+    let hours = '';
+    for (let h = 1; h <= 12; h++) {
+        hours += `<option value="${h}">${String(h).padStart(2, '0')}시</option>`;
+    }
+    let mins = '';
+    for (let m = 0; m < 60; m += 5) {
+        mins += `<option value="${m}">${String(m).padStart(2, '0')}분</option>`;
+    }
+    return `
+        <div class="time-select-group">
+            <select id="${prefix}_ap" class="time-sel">
+                <option value="" selected disabled>오전/오후</option>
+                <option value="AM">오전</option>
+                <option value="PM">오후</option>
+            </select>
+            <select id="${prefix}_h" class="time-sel">
+                <option value="" selected disabled>시</option>
+                ${hours}
+            </select>
+            <select id="${prefix}_m" class="time-sel">
+                <option value="" selected disabled>분</option>
+                ${mins}
+            </select>
+        </div>`;
+}
+
+// 세 드롭다운 값을 24시간 "HH:MM" 로 변환. 하나라도 미선택이면 '' (미입력) 반환.
+function readTimeSelect(prefix) {
+    const ap = document.getElementById(prefix + '_ap');
+    const hEl = document.getElementById(prefix + '_h');
+    const mEl = document.getElementById(prefix + '_m');
+    if (!ap || !hEl || !mEl) return '';
+    const apv = ap.value, hv = hEl.value, mv = mEl.value;
+    if (!apv || hv === '' || mv === '') return '';
+    let h = parseInt(hv, 10);
+    if (apv === 'AM') { if (h === 12) h = 0; }          // 오전 12시 = 00시
+    else { if (h !== 12) h += 12; }                      // 오후 1~11시 = 13~23시 (오후 12시=12시)
+    return String(h).padStart(2, '0') + ':' + String(parseInt(mv, 10)).padStart(2, '0');
+}
+
 // 서버 세션에 귀속된 손님 거점명을 받아와 currentRegion 에 채운다.
 async function loadGuestRegion() {
     try {

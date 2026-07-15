@@ -120,10 +120,8 @@ function showIntegratedEmpDashboard() {
                     
                     <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="visitDate" value="${today}"></div>
                     
-                    <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckin"></div>
-                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckout"></div>
-                    </div>
+                    <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
+                    <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
                     
                     <div class="input-row-group">
                         <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="vName" placeholder="성함 입력" autocomplete="off"></div>
@@ -562,10 +560,8 @@ async function submitNewSchedule() {
     const purpose = vPurposeEl.value.trim();
     const created_by = proxyStaffIdEl.value; 
 
-    const expectedCheckinEl = document.getElementById('expectedCheckin');
-    const expectedCheckoutEl = document.getElementById('expectedCheckout');
-    const expected_checkin = expectedCheckinEl ? expectedCheckinEl.value.trim() : '';
-    const expected_checkout = expectedCheckoutEl ? expectedCheckoutEl.value.trim() : '';
+    const expected_checkin = readTimeSelect('expectedCheckin');
+    const expected_checkout = readTimeSelect('expectedCheckout');
 
     if (!visit_date || !name || !contact || !company || !purpose) return alert('필수 예약 정보(* 표시)를 모두 채워주세요.');
     if (!expected_checkin || !expected_checkout) return alert('방문 예정시간과 퇴실 예정시간을 모두 입력해 주세요.');

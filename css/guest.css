@@ -639,3 +639,7 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     font-weight: 700;
     margin-left: 1px;
 }
+
+/* 시간 선택 드롭다운(오전·오후/시/분) 가로 배치 */
+.time-select-group { display: flex; gap: 6px; align-items: center; }
+.time-select-group .time-sel { flex: 1; min-width: 0; }

@@ -439,10 +439,8 @@ function showCheckinForm(passedName = '', passedContact = '') {
                         <div class="input-group"><label>차량 번호</label><input type="text" id="vehicle_no" placeholder="없을 시 비워두세요"></div>
                     </div>
 
-                    <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckin"></div>
-                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" step="300" id="expectedCheckout"></div>
-                    </div>
+                    <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
+                    <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
 
                     <div class="input-group">
                         <label>사내 방문 담당자 성명 <span class="req-star">*</span></label>
@@ -543,10 +541,8 @@ async function submitCheckin() {
     const manager_text = managerTextEl.value.trim();
     const purpose = purposeEl.value;
 
-    const expectedCheckinEl = document.getElementById('expectedCheckin');
-    const expectedCheckoutEl = document.getElementById('expectedCheckout');
-    const expected_checkin = expectedCheckinEl ? expectedCheckinEl.value.trim() : '';
-    const expected_checkout = expectedCheckoutEl ? expectedCheckoutEl.value.trim() : '';
+    const expected_checkin = readTimeSelect('expectedCheckin');
+    const expected_checkout = readTimeSelect('expectedCheckout');
     
     if (!name || !company || !contact || !manager_text || !purpose) return alert('필수 항목(* 표시)을 모두 입력해 주세요.');
     if (!expected_checkin || !expected_checkout) return alert('방문 예정시간과 퇴실 예정시간을 입력해 주세요.');
