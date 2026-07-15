@@ -440,8 +440,8 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     </div>
 
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간</label><input type="time" id="expectedCheckin"></div>
-                        <div class="input-group"><label>퇴실 예정시간</label><input type="time" id="expectedCheckout"></div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckin"></div>
+                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label><input type="time" id="expectedCheckout"></div>
                     </div>
 
                     <div class="input-group">
@@ -549,7 +549,8 @@ async function submitCheckin() {
     const expected_checkout = expectedCheckoutEl ? expectedCheckoutEl.value.trim() : '';
     
     if (!name || !company || !contact || !manager_text) return alert('필수 항목을 모두 입력해 주세요.');
-    
+    if (!expected_checkin || !expected_checkout) return alert('방문 예정시간과 퇴실 예정시간을 입력해 주세요.');
+
     let visitorsArray = [{
         name, company, contact, vehicle_no, manager_text, purpose, expected_checkin, expected_checkout
     }];
