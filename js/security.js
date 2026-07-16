@@ -29,11 +29,11 @@ function showSecurityDashboard() {
             </div>
             <nav class="sec-erp-nav">
                 <button id="secMenuQueue" class="sec-nav-item active" onclick="switchSecTab('queue')">
-                    <span>🚨 실시간 승인 요청</span>
+                    <span>🚨 승인 요청</span>
                     <span id="secQueueCount" class="sec-nav-badge display-none">0</span>
                 </button>
                 <button id="secMenuLogs" class="sec-nav-item" onclick="switchSecTab('logs')">
-                    <span>📊 전체 출입 기록</span>
+                    <span>📊 출입 기록</span>
                 </button>
                 <button id="secMenuOverdue" class="sec-nav-item" onclick="switchSecTab('overdue')">
                     <span>⏰ 퇴실 지연</span>

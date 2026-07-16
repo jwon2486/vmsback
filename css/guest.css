@@ -697,9 +697,12 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .min-w-700 { min-width: 700px; }
 
 @media (max-width: 640px) {
-    /* 사이드바 메뉴를 세로로 쌓아 '실시간 승인 요청' 같은 긴 항목의 줄바뀜 제거 */
-    .sec-erp-nav { flex-direction: column; }
-    .sec-nav-item { flex: none; width: 100%; justify-content: space-between; padding: 0.75rem 0.95rem; }
+    /* 사이드바 메뉴를 한 줄(가로)로 합치고 콤팩트하게 → 세로 3줄의 빈 공간 제거 */
+    .sec-erp-nav { flex-direction: row; gap: 5px; }
+    .sec-nav-item { flex: 1; justify-content: center; gap: 4px; padding: 0.55rem 0.25rem; font-size: 0.75rem; }
+    .sec-nav-item > span:first-child { white-space: nowrap; }
+    /* 방문객 수동 예약 버튼 축소 */
+    .sec-erp-sidebar-action button { padding: 0.55rem 0.5rem; font-size: 0.82rem; }
     .sec-erp-sidebar { padding: 0.7rem; }
     .sec-erp-brand { padding: 0 0.2rem 0.5rem; }
 
