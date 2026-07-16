@@ -98,7 +98,7 @@ function readTimeSelect(prefix) {
 function phoneInputHtml(prefix, value) {
     const v = (value || '').replace(/\D/g, '');
     const box = (n, ml, val, ph) =>
-        `<input type="tel" inputmode="numeric" id="${prefix}_p${n}" class="phone-box" maxlength="${ml}" value="${val}" placeholder="${ph}" oninput="phoneAdvance(this)" onkeydown="phoneBack(event,this)">`;
+        `<input type="tel" inputmode="numeric" id="${prefix}_p${n}" class="phone-box" maxlength="${ml}" value="${val}" placeholder="${ph}" oninput="phoneAdvance(this)" onkeydown="phoneKey(event,this)">`;
     return `
         <div class="phone-group" id="${prefix}_phone">
             ${box(1, 3, v.slice(0, 3), '010')}
@@ -116,11 +116,23 @@ function phoneAdvance(el) {
         if (i > -1 && i < boxes.length - 1) boxes[i + 1].focus();
     }
 }
-function phoneBack(e, el) {
-    if (e.key === 'Backspace' && el.value === '') {   // 빈 칸에서 백스페이스 → 이전 칸으로
-        const boxes = Array.from(el.closest('.phone-group').querySelectorAll('.phone-box'));
-        const i = boxes.indexOf(el);
-        if (i > 0) boxes[i - 1].focus();
+function phoneKey(e, el) {
+    const boxes = Array.from(el.closest('.phone-group').querySelectorAll('.phone-box'));
+    const i = boxes.indexOf(el);
+    // 빈 칸에서 백스페이스 → 이전 칸의 마지막 숫자를 바로 지우고 이동 (칸 경계 없이 연속 삭제)
+    if (e.key === 'Backspace' && el.value === '' && i > 0) {
+        const prev = boxes[i - 1];
+        prev.value = prev.value.slice(0, -1);
+        prev.focus();
+        e.preventDefault();
+    // ← 칸 맨 앞에서 왼쪽 화살표 → 이전 칸
+    } else if (e.key === 'ArrowLeft' && el.selectionStart === 0 && i > 0) {
+        boxes[i - 1].focus();
+        e.preventDefault();
+    // → 칸 맨 뒤에서 오른쪽 화살표 → 다음 칸
+    } else if (e.key === 'ArrowRight' && el.selectionStart === el.value.length && i < boxes.length - 1) {
+        boxes[i + 1].focus();
+        e.preventDefault();
     }
 }
 function readPhone(prefix) {
