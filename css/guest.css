@@ -701,8 +701,11 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .sec-erp-nav { flex-direction: row; gap: 5px; }
     .sec-nav-item { flex: 1; justify-content: center; gap: 4px; padding: 0.55rem 0.25rem; font-size: 0.75rem; }
     .sec-nav-item > span:first-child { white-space: nowrap; }
-    /* 방문객 수동 예약 버튼 축소 */
-    .sec-erp-sidebar-action button { padding: 0.55rem 0.5rem; font-size: 0.82rem; }
+    /* 방문객 수동 예약 버튼 축소: 너비를 내용에 맞게(auto) + 가운데 배치 (기존 100% 해제) */
+    .sec-erp-sidebar-action { text-align: center; }
+    .sec-erp-sidebar-action button,
+    .sec-erp-sidebar-action .w-100 { width: auto !important; display: inline-flex; align-items: center;
+        gap: 4px; padding: 0.5rem 1.1rem; font-size: 0.82rem; }
     .sec-erp-sidebar { padding: 0.7rem; }
     .sec-erp-brand { padding: 0 0.2rem 0.5rem; }
 
