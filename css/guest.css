@@ -680,3 +680,7 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .card:not(.card-wide):not(.card-emp-wide):not(.card-guest-wide):not(.card-security-wide) {
     max-width: 30rem;   /* ≈ 480px, 로그인/조회 폼에 적당한 폭 */
 }
+
+/* 시간 픽커 컬럼: 스크롤 기능은 유지하고 스크롤바 UI 만 숨김 */
+.tp-col { scrollbar-width: none; -ms-overflow-style: none; }
+.tp-col::-webkit-scrollbar { display: none; }
