@@ -665,7 +665,7 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .tp-opt:hover { background: rgba(37, 99, 235, 0.08); }
 .tp-opt.sel { background: var(--primary); color: #ffffff; }
 
-/* 전화번호 3박스 입력 (010-1234-5678, 자동 이동) */
+/* 전화번호 3박스 입력 (010-1235-5678, 자동 이동) */
 .phone-group { display: flex; align-items: center; gap: 4px; }
 .phone-box {
     flex: 1; min-width: 0; text-align: center; font-family: inherit;
@@ -674,3 +674,9 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 }
 .phone-box:focus { border-color: var(--primary); background: #ffffff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08); }
 .phone-sep { color: #94a3b8; font-weight: 700; }
+
+/* 단순 단일 컬럼 폼(조회·검색·로그인·상태)은 좁은 중앙 카드로.
+   넓은 대시보드/2단 화면(card-wide 계열)은 제외되어 그대로 넓게 유지된다. */
+.card:not(.card-wide):not(.card-emp-wide):not(.card-guest-wide):not(.card-security-wide) {
+    max-width: 30rem;   /* ≈ 480px, 로그인/조회 폼에 적당한 폭 */
+}
