@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>출입 스캐너 | S&SYS VMS</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', system-ui, sans-serif; }
+        body { min-height: 100vh; background: #0f172a; color: #e2e8f0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+        .brand { font-size: 1.4rem; font-weight: 800; color: #93c5fd; letter-spacing: 1px; margin-bottom: 0.3rem; }
+        .sub { color: #64748b; margin-bottom: 2rem; font-size: 0.95rem; }
+        .scan-card { width: 100%; max-width: 520px; background: #1e293b; border: 1px solid #334155;
+            border-radius: 20px; padding: 2.5rem 2rem; text-align: center; }
+        .hint { font-size: 1.05rem; color: #94a3b8; }
+        .hint .big { display: block; font-size: 1.5rem; font-weight: 700; color: #e2e8f0; margin-top: 0.6rem; }
+        .result { margin-top: 1.8rem; min-height: 120px; border-radius: 14px; padding: 1.4rem;
+            display: flex; flex-direction: column; justify-content: center; gap: 0.4rem; }
+        .result.idle { background: transparent; }
+        .result .name { font-size: 1.8rem; font-weight: 800; }
+        .result .msg { font-size: 1.05rem; }
+        .ok-in { background: #064e3b; color: #6ee7b7; }
+        .ok-out { background: #1e3a8a; color: #93c5fd; }
+        .warn { background: #78350f; color: #fcd34d; }
+        .err { background: #7f1d1d; color: #fca5a5; }
+        .foot { margin-top: 1.5rem; font-size: 0.85rem; color: #475569; }
+        .sink { width: 100%; margin-top: 1.5rem; padding: 0.85rem 1rem; border-radius: 10px;
+            border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 1rem; text-align: center; outline: none; }
+        .sink:focus { border-color: #3b82f6; }
+        .sink::placeholder { color: #475569; }
+    </style>
+</head>
+<body>
+    <div class="brand">S&amp;SYS VMS</div>
+    <div class="sub">출입 QR 스캐너 (보안 데스크)</div>
+    <div class="scan-card">
+        <div class="hint">방문객 QR을 스캐너에 대주세요<span class="big">📷 스캔 대기중</span></div>
+        <div id="result" class="result idle"></div>
+        <input id="sink" class="sink" autocomplete="off" placeholder="여기에 QR이 입력됩니다 (수동 입력도 가능)">
+    </div>
+    <div class="foot">스캔이 안 되면 이 입력창을 클릭해 포커스를 맞춰 주세요</div>
+
+    <script>
+        const sink = document.getElementById('sink');
+        const result = document.getElementById('result');
+
+        function keepFocus() { sink.focus(); }
+        keepFocus();
+        document.addEventListener('click', keepFocus);
+        sink.addEventListener('blur', () => setTimeout(keepFocus, 50));
+
+        // 하드웨어 리더기는 QR 내용을 타이핑한 뒤 Enter 를 보낸다 → Enter 에서 처리.
+        sink.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const raw = sink.value.trim();
+                sink.value = '';
+                if (raw) submitScan(raw);
+            }
+        });
+
+        async function submitScan(raw) {
+            render('스캔됨', '조회 중...', 'idle');
+            try {
+                const res = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: raw })
+                });
+                const d = await res.json();
+                if (d.success && d.action === '입실')       render(d.name, d.message, 'ok-in');
+                else if (d.success && d.action === '퇴실')  render(d.name, d.message, 'ok-out');
+                else if (d.success && d.already)            render(d.name, d.message, 'warn');
+                else                                        render(d.name || '오류', d.message || '처리 실패', 'err');
+            } catch (e) {
+                render('통신 오류', '서버에 연결하지 못했습니다.', 'err');
+            }
+            keepFocus();
+        }
+
+        function render(name, msg, cls) {
+            result.className = 'result ' + cls;
+            result.innerHTML = '';
+            const n = document.createElement('div'); n.className = 'name'; n.textContent = name;
+            const m = document.createElement('div'); m.className = 'msg';  m.textContent = msg;
+            result.append(n, m);
+        }
+    </script>
+</body>
+</html>

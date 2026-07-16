@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, render_template, send_file, send_from
 import sqlite3
 import sys
 import os
+import re
 import json
 import uuid 
 from datetime import datetime, timedelta, timezone
@@ -1126,6 +1127,60 @@ def scan_landing():
     """QR 스캔(=링크 접속) 진입점. 손님 화면(guest.html)을 그대로 열어주고,
     프론트가 URL 의 token 파라미터를 읽어 상태/행동 화면을 띄운다."""
     return render_template('guest.html')
+
+# ====================================================================
+# 🖥️ [데스크 스캐너] PC 하드웨어 리더기 전용 페이지 + 스캔 처리 API
+#   - /scan : 보안 데스크 PC 에서 열어두는 키오스크 페이지(포커스된 입력창이 리더기 입력을 받음).
+#   - /api/scan : 스캔된 토큰으로 현재 상태에 맞는 입/퇴실 '요청'을 생성. 최종 승인은 보안실 대시보드에서.
+# ====================================================================
+@app.route('/scan', methods=['GET'])
+def scan_desk_page():
+    return render_template('scan.html')
+
+@app.route('/api/scan', methods=['POST'])
+def scan_action():
+    data = request.json or {}
+    raw = (data.get('token') or '').strip()
+    # 리더기가 전체 URL(.../v/scan?token=XYZ)을 타이핑했을 수도 있으니 token 값만 추출.
+    m = re.search(r'token=([A-Za-z0-9]+)', raw)
+    token = m.group(1) if m else raw
+    if not token:
+        return jsonify({"success": False, "message": "토큰이 없습니다."}), 400
+
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT id, name, company, status FROM visitor_log WHERE token = ?", (token,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "message": "유효하지 않은 QR 입니다."}), 404
+
+    v = dict(row)
+    status = v['status']
+    now_kst = get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')
+
+    if status in ('사전예약',):
+        conn.execute("UPDATE visitor_log SET status = '입실대기' WHERE id = ?", (v['id'],))
+        conn.commit(); conn.close()
+        return jsonify({"success": True, "name": v['name'], "company": v.get('company'),
+                        "action": "입실", "message": f"{v['name']} 님 입실 요청 접수 — 보안실 승인 대기"})
+    elif status == '입실완료':
+        conn.execute("UPDATE visitor_log SET status = '퇴실대기' WHERE id = ?", (v['id'],))
+        conn.commit(); conn.close()
+        return jsonify({"success": True, "name": v['name'], "company": v.get('company'),
+                        "action": "퇴실", "message": f"{v['name']} 님 퇴실 요청 접수 — 보안실 승인 대기"})
+    elif status == '입실대기':
+        conn.close()
+        return jsonify({"success": True, "already": True, "name": v['name'],
+                        "message": f"{v['name']} 님은 이미 입실 승인 대기중입니다."})
+    elif status == '퇴실대기':
+        conn.close()
+        return jsonify({"success": True, "already": True, "name": v['name'],
+                        "message": f"{v['name']} 님은 이미 퇴실 승인 대기중입니다."})
+    else:  # 퇴실완료 / 만료 등
+        conn.close()
+        return jsonify({"success": False, "name": v['name'],
+                        "message": f"{v['name']} 님은 처리할 수 없는 상태입니다 ({status})."})
 
 # ====================================================================
 # 📊 사내 전체 방문객 데이터 조회 (임직원 공용)
