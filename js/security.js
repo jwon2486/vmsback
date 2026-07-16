@@ -46,6 +46,12 @@ function showSecurityDashboard() {
         </aside>
 
         <section class="sec-erp-content">
+            <div class="sec-scan-bar">
+                <span class="sec-scan-icon">📷</span>
+                <input id="secScanInput" class="sec-scan-input" autocomplete="off"
+                       placeholder="QR 스캔 대기 — 리더기로 방문객 QR을 스캔하세요 (수동 입력 후 Enter 도 가능)">
+                <span id="secScanResult" class="sec-scan-result"></span>
+            </div>
             <div class="sec-stat-grid">
                 <div class="sec-stat-card stat-pending">
                     <span class="sec-stat-label">🚨 승인 대기</span>
@@ -187,6 +193,7 @@ function showSecurityDashboard() {
     fetchSecurityQueue();
     loadSecurityAllLogs();
     loadSecurityOverdue();
+    initSecScan();
 
     if (securityRefreshTimer) clearInterval(securityRefreshTimer);
     securityRefreshTimer = setInterval(() => {
@@ -194,6 +201,53 @@ function showSecurityDashboard() {
         loadSecurityAllLogs(true);
         loadSecurityOverdue(true);
     }, 10000);
+}
+
+// 📷 대시보드 내장 스캔 입력: 하드웨어 리더기 입력을 받아 /api/scan 처리 (별도 페이지 불필요)
+function secKeepScanFocus() {
+    const el = document.getElementById('secScanInput');
+    if (el) el.focus();
+}
+
+function initSecScan() {
+    const el = document.getElementById('secScanInput');
+    if (!el) return;
+    setTimeout(secKeepScanFocus, 150);   // 렌더 직후 자동 포커스
+    el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const raw = el.value.trim();
+            el.value = '';
+            if (raw) secSubmitScan(raw);
+        }
+    });
+    // 빈 영역 클릭 시 스캔칸으로 포커스 복귀(입력/버튼 클릭은 방해하지 않음). 문서에 1회만 바인딩.
+    if (!window.__secScanFocusBound) {
+        window.__secScanFocusBound = true;
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('secScanInput')) return;      // 보안실 화면 아닐 때는 무시
+            if (!e.target.closest('input, select, textarea, button, a')) secKeepScanFocus();
+        });
+    }
+}
+
+async function secSubmitScan(raw) {
+    const rEl = document.getElementById('secScanResult');
+    const show = (msg, cls) => { if (rEl) { rEl.textContent = msg; rEl.className = 'sec-scan-result ' + cls; } };
+    try {
+        const res = await fetch('/api/scan', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: raw })
+        });
+        const d = await res.json();
+        show(d.message || (d.success ? '처리되었습니다.' : '처리 실패'),
+             d.success ? (d.already ? 'warn' : 'ok') : 'err');
+        fetchSecurityQueue();
+        loadSecurityAllLogs();
+        loadSecurityOverdue();
+    } catch (e) {
+        show('통신 오류가 발생했습니다.', 'err');
+    }
+    secKeepScanFocus();
 }
 
 // 🗂️ 사이드바 탭 전환: 'queue' / 'logs' / 'overdue'

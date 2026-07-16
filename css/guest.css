@@ -712,3 +712,20 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .sec-stat-grid { gap: 8px; }
     .sec-stat-card .sec-stat-label { font-size: 0.78rem; }
 }
+
+/* 경비실 대시보드 내장 스캔 입력 바 */
+.sec-scan-bar { display: flex; align-items: center; gap: 10px; background: #0f172a; border: 1px solid #1e40af;
+    border-radius: 12px; padding: 0.7rem 0.9rem; margin-bottom: 16px; }
+.sec-scan-icon { font-size: 1.3rem; }
+.sec-scan-input { flex: 1; min-width: 0; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+    border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.95rem; outline: none; }
+.sec-scan-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+.sec-scan-input::placeholder { color: #64748b; }
+.sec-scan-result { font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
+.sec-scan-result.ok { color: #34d399; }
+.sec-scan-result.warn { color: #fbbf24; }
+.sec-scan-result.err { color: #f87171; }
+@media (max-width: 640px) {
+    .sec-scan-bar { flex-wrap: wrap; }
+    .sec-scan-result { flex: 1 1 100%; }
+}
