@@ -444,25 +444,48 @@ async function loadSecurityOverdue(isAuto = false) {
     }
 }
 
-async function approveSecurityAction(id, targetStatus) {
-    if(!confirm(`대면 확인을 완료하셨습니까? 현 시점 기준으로 ${targetStatus} 승인 처리됩니다.`)) return;
-    await fetch('/api/security/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, target_status: targetStatus })
-    });
+async function approveSecurityAction(id, targetStatus, force = false) {
+    if(!force && !confirm(`대면 확인을 완료하셨습니까? 현 시점 기준으로 ${targetStatus} 승인 처리됩니다.`)) return;
+    try {
+        const res = await fetch('/api/security/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, target_status: targetStatus, force })
+        });
+        const d = await res.json();
+        // 조기 입실 경고 → 확인 시 강제(force) 재승인
+        if (!d.success && d.early) {
+            if (confirm(d.message)) return approveSecurityAction(id, targetStatus, true);
+            return;
+        }
+        if (!d.success) { alert(d.message || '승인 처리에 실패했습니다. (권한/상태를 확인하세요)'); return; }
+    } catch (e) {
+        alert('승인 처리 중 통신 오류가 발생했습니다.');
+        return;
+    }
     fetchSecurityQueue();
     loadSecurityAllLogs();
     loadSecurityOverdue();
 }
 
-async function approveSecurityGroup(groupId, targetStatus) {
-    if(!confirm(`해당 그룹 인원 중 '대기상태'인 사람 전체를 일괄 ${targetStatus} 처리 하시겠습니까?`)) return;
-    await fetch('/api/security/approve-group', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: groupId, target_status: targetStatus })
-    });
+async function approveSecurityGroup(groupId, targetStatus, force = false) {
+    if(!force && !confirm(`해당 그룹 인원 중 '대기상태'인 사람 전체를 일괄 ${targetStatus} 처리 하시겠습니까?`)) return;
+    try {
+        const res = await fetch('/api/security/approve-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group_id: groupId, target_status: targetStatus, force })
+        });
+        const d = await res.json();
+        if (!d.success && d.early) {
+            if (confirm(d.message)) return approveSecurityGroup(groupId, targetStatus, true);
+            return;
+        }
+        if (!d.success) { alert(d.message || '그룹 승인 처리에 실패했습니다.'); return; }
+    } catch (e) {
+        alert('그룹 승인 처리 중 통신 오류가 발생했습니다.');
+        return;
+    }
     fetchSecurityQueue();
     loadSecurityAllLogs();
     loadSecurityOverdue();
