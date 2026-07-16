@@ -684,3 +684,8 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 /* 시간 픽커 컬럼: 스크롤 기능은 유지하고 스크롤바 UI 만 숨김 */
 .tp-col { scrollbar-width: none; -ms-overflow-style: none; }
 .tp-col::-webkit-scrollbar { display: none; }
+
+/* 이름|연락처 한 줄에서 연락처(전화 3박스) 칸을 더 넓게 배분 → 번호 잘림 방지.
+   연락처는 3박스+하이픈이라 이름칸보다 넓어야 한다. (이름칸은 상대적으로 좁아짐) */
+.input-row-group .input-group:has(.phone-group) { flex: 1.7; }
+.phone-box { font-size: 0.9rem; letter-spacing: -0.02em; }
