@@ -666,10 +666,10 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .tp-opt.sel { background: var(--primary); color: #ffffff; }
 
 /* 전화번호 3박스 입력 (010-1234-5678, 자동 이동) */
-.phone-group { display: flex; align-items: center; gap: 6px; }
+.phone-group { display: flex; align-items: center; gap: 4px; }
 .phone-box {
     flex: 1; min-width: 0; text-align: center; font-family: inherit;
-    padding: calc(0.9rem - 2px) 0.4rem; border: 1px solid #cbd5e1; border-radius: var(--radius-md);
+    padding: calc(0.9rem - 2px) 0.15rem; border: 1px solid #cbd5e1; border-radius: var(--radius-md);
     font-size: 0.95rem; font-weight: 500; background: #f8fafc; outline: none; transition: all 0.2s ease;
 }
 .phone-box:focus { border-color: var(--primary); background: #ffffff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08); }
