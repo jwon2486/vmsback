@@ -26,7 +26,7 @@ function addEmpCompanionField() {
         <h4 class="comp-title-blue">👤 동반 방문객 ${window.empCompanionCount}</h4>
         <div class="input-row-group mb-10">
             <div class="input-group"><label class="fs-8">성명 <span class="req-star">*</span></label><input type="text" class="emp-comp-name comp-input-style" placeholder="동반인 성명"></div>
-            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label><input type="text" class="emp-comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
+            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label>${phoneInputHtml(id + '_ct')}</div>
         </div>
         <div class="input-row-group mb-0">
             <div class="input-group"><label class="fs-8">소속 회사명</label><input type="text" class="emp-comp-company comp-input-style" placeholder="미입력시 대표자와 동일"></div>
@@ -571,16 +571,13 @@ async function submitNewSchedule() {
         visit_date, name, contact, company, vehicle_no, purpose, expected_checkin, expected_checkout
     }];
 
-    const compNames = document.querySelectorAll('.emp-comp-name');
-    const compContacts = document.querySelectorAll('.emp-comp-contact');
-    const compCompanies = document.querySelectorAll('.emp-comp-company');
-    const compVehicles = document.querySelectorAll('.emp-comp-vehicle');
-
-    for(let i=0; i<compNames.length; i++) {
-        const cName = compNames[i].value.trim();
-        const cContact = compContacts[i].value.trim();
-        const cCompany = compCompanies[i].value.trim() || company; 
-        const cVehicle = compVehicles[i].value.trim() || '없음';
+    const compBoxes = document.querySelectorAll('.companion-box');
+    for (let i = 0; i < compBoxes.length; i++) {
+        const row = compBoxes[i];
+        const cName = row.querySelector('.emp-comp-name').value.trim();
+        const cContact = readPhoneIn(row);
+        const cCompany = row.querySelector('.emp-comp-company').value.trim() || company;
+        const cVehicle = row.querySelector('.emp-comp-vehicle').value.trim() || '없음';
 
         if (!cName && !cContact) continue;  // 완전히 빈 동반인 행은 건너뜀
         if (!cName || !cContact) return alert(`동반 방문객 ${i + 1}의 성명과 연락처를 모두 입력해 주세요.`);

@@ -145,6 +145,13 @@ function readPhone(prefix) {
 function clearPhone(prefix) {
     ['_p1', '_p2', '_p3'].forEach(s => { const el = document.getElementById(prefix + s); if (el) el.value = ''; });
 }
+// 동적 행(동반객 등): id 없이 컨테이너 안의 .phone-box 3칸을 합쳐 숫자만 반환.
+function readPhoneIn(container) {
+    if (!container) return '';
+    const boxes = container.querySelectorAll('.phone-box');
+    if (boxes.length < 3) return '';
+    return Array.from(boxes).map(b => b.value).join('').replace(/\D/g, '');
+}
 
 // 서버 세션에 귀속된 손님 거점명을 받아와 currentRegion 에 채운다.
 async function loadGuestRegion() {

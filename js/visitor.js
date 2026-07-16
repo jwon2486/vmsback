@@ -164,7 +164,7 @@ function showNameVerifyForm() {
             </div>
             <div class="input-group">
                 <label>전화번호</label>
-                <input type="tel" id="checkContact" placeholder="- 없이 숫자만 입력" autocomplete="off">
+                ${phoneInputHtml('checkContact')}
             </div>
         </div>
         <div class="action-buttons">
@@ -176,11 +176,10 @@ function showNameVerifyForm() {
 
 async function verifyVisitorName() {
     const checkNameInput = document.getElementById("checkName");
-    const checkContactInput = document.getElementById("checkContact");
     if (!checkNameInput) return;
-    
+
     const name = checkNameInput.value.trim();
-    const contact = checkContactInput ? checkContactInput.value.trim() : '';
+    const contact = readPhone('checkContact');
     if (!name) return alert('성명을 입력해 주세요.');
     if (!contact) return alert('전화번호를 입력해 주세요.');
 
@@ -359,7 +358,7 @@ function addCompanionField() {
         <h4 class="comp-title-blue mb-15 comp-dynamic-title">👤 동반 방문객</h4>
         <div class="input-row-group mb-10">
             <div class="input-group"><label class="fs-8">성명 <span class="req-star">*</span></label><input type="text" class="comp-name comp-input-style" placeholder="동반인 성명"></div>
-            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label><input type="text" class="comp-contact comp-input-style" placeholder="- 없이 숫자만"></div>
+            <div class="input-group"><label class="fs-8">연락처 <span class="req-star">*</span></label>${phoneInputHtml(id + '_ct')}</div>
         </div>
         <div class="input-row-group mb-0">
             <div class="input-group"><label class="fs-8">소속 회사명</label><input type="text" class="comp-company comp-input-style" value="${defaultCompany}" placeholder="회사명 입력"></div>
@@ -552,16 +551,13 @@ async function submitCheckin() {
         name, company, contact, vehicle_no, manager_text, purpose, expected_checkin, expected_checkout
     }];
 
-    const compNames = document.querySelectorAll('.comp-name');
-    const compContacts = document.querySelectorAll('.comp-contact');
-    const compCompanies = document.querySelectorAll('.comp-company');
-    const compVehicles = document.querySelectorAll('.comp-vehicle');
-    
-    for(let i=0; i<compNames.length; i++) {
-        const cName = compNames[i].value.trim();
-        const cContact = compContacts[i].value.trim();
-        const cCompany = compCompanies[i].value.trim() || company;
-        const cVehicle = compVehicles[i].value.trim() || '없음';
+    const compBoxes = document.querySelectorAll('.companion-box');
+    for (let i = 0; i < compBoxes.length; i++) {
+        const row = compBoxes[i];
+        const cName = row.querySelector('.comp-name').value.trim();
+        const cContact = readPhoneIn(row);
+        const cCompany = row.querySelector('.comp-company').value.trim() || company;
+        const cVehicle = row.querySelector('.comp-vehicle').value.trim() || '없음';
 
         if (!cName && !cContact) continue;  // 완전히 빈 동반인 행은 건너뜀
         if (!cName || !cContact) return alert(`동반 방문객 ${i + 1}의 성명과 연락처를 모두 입력해 주세요.`);
@@ -676,7 +672,7 @@ function showSearchForm() {
             </div>
             <div class="input-group">
                 <label>전화번호</label>
-                <input type="tel" id="searchContact" placeholder="등록한 전화번호 (숫자만, 예: 01012345678)" autocomplete="off">
+                ${phoneInputHtml('searchContact')}
             </div>
         </div>
         <div class="action-buttons">
@@ -701,12 +697,11 @@ function getStatusView(status) {
 
 async function searchVisitor() {
     const nameEl = document.getElementById('searchName');
-    const contactEl = document.getElementById('searchContact');
     const resultDiv = document.getElementById('searchResult');
     if (!resultDiv) return;
 
     const name = nameEl ? nameEl.value.trim() : '';
-    const contact = contactEl ? contactEl.value.trim() : '';
+    const contact = readPhone('searchContact');
     if (!name || !contact) {
         resultDiv.innerHTML = `<div class="no-data-box"><span class="icon">✏️</span><p>성명과 전화번호를 모두 입력해 주세요.</p></div>`;
         return;
