@@ -689,3 +689,26 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
    연락처는 3박스+하이픈이라 이름칸보다 넓어야 한다. (이름칸은 상대적으로 좁아짐) */
 .input-row-group .input-group:has(.phone-group) { flex: 1.7; }
 .phone-box { font-size: 0.9rem; letter-spacing: -0.02em; }
+
+/* ====================================================================
+   📱 경비실(보안 데스크) 대시보드 모바일 최적화
+   ==================================================================== */
+/* 표 최소폭 → 좁은 화면에서는 셀을 눌러담지 않고 가로 스크롤 (기존엔 규칙이 없어 눌러담김) */
+.min-w-700 { min-width: 700px; }
+
+@media (max-width: 640px) {
+    /* 사이드바 메뉴를 세로로 쌓아 '실시간 승인 요청' 같은 긴 항목의 줄바뀜 제거 */
+    .sec-erp-nav { flex-direction: column; }
+    .sec-nav-item { flex: none; width: 100%; justify-content: space-between; padding: 0.75rem 0.95rem; }
+    .sec-erp-sidebar { padding: 0.7rem; }
+    .sec-erp-brand { padding: 0 0.2rem 0.5rem; }
+
+    /* 표: 폰트/셀 여백 콤팩트 (가로 스크롤로 열 유지) */
+    .sec-erp-layout .modern-table { font-size: 0.84rem; }
+    .sec-erp-layout .modern-table th,
+    .sec-erp-layout .modern-table td { padding: 0.55rem 0.5rem; white-space: nowrap; }
+
+    /* 통계 카드 여백 정리 */
+    .sec-stat-grid { gap: 8px; }
+    .sec-stat-card .sec-stat-label { font-size: 0.78rem; }
+}
