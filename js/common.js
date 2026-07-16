@@ -38,10 +38,21 @@ function timeSelectHtml(prefix) {
             </button>
             <div class="tp-panel" id="${prefix}_panel">
                 <div class="tp-col">${apCol}</div>
-                <div class="tp-col">${hCol}</div>
-                <div class="tp-col">${mCol}</div>
+                <div class="tp-col" data-base="12">${hCol}</div>
+                <div class="tp-col" data-base="12">${mCol}</div>
             </div>
         </div>`;
+}
+
+// 컬럼 바닥 근처에서 원본 묶음(00~55 / 01~12)을 한 벌 더 덧붙여 '무한 스크롤' 느낌.
+//   - 아래에 추가하므로 스크롤 위치가 튀지 않아 버벅임 없음.
+function tpAppendBatch(col) {
+    const base = parseInt(col.dataset.base || '0', 10);
+    if (!base) return;
+    const opts = col.querySelectorAll('.tp-opt');
+    for (let k = 0; k < base && k < opts.length; k++) {
+        col.appendChild(opts[k].cloneNode(true));   // inline onclick 도 함께 복제됨
+    }
 }
 
 // 픽커 열기/닫기 (다른 픽커는 닫음)
@@ -50,7 +61,18 @@ function tpToggle(prefix) {
     if (!panel) return;
     const willOpen = !panel.classList.contains('open');
     document.querySelectorAll('.tp-panel.open').forEach(p => p.classList.remove('open'));
-    if (willOpen) panel.classList.add('open');
+    if (willOpen) {
+        panel.classList.add('open');
+        // 스크롤 시 바닥 근처면 묶음 추가 (리스너는 컬럼당 1회만 등록)
+        panel.querySelectorAll('.tp-col[data-base]').forEach(col => {
+            if (!col.dataset.loopBound) {
+                col.dataset.loopBound = '1';
+                col.addEventListener('scroll', () => {
+                    if (col.scrollTop + col.clientHeight >= col.scrollHeight - 40) tpAppendBatch(col);
+                });
+            }
+        });
+    }
 }
 
 // 컬럼 항목 선택 → hidden input 갱신 + 필드 표시 갱신
