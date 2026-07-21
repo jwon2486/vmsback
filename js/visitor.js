@@ -114,11 +114,9 @@ async function showScanStatus(token, fromPoll = false) {
         <div class="action-buttons visitor-btn-margin"><button onclick="goGuestHome()" class="btn-guest-sub">처음 화면으로</button></div>
     `;
 
-    // 입실완료 상태면 스캔 핵심 행동(퇴실) 팝업 — 최초 스캔 시에만(폴링 갱신 시에는 X)
+    // 입실완료 상태면 스캔 즉시 퇴실 요청 (확인 팝업 생략, 최초 스캔 시에만 · 폴링 갱신 시에는 X)
     if (sv.canCheckout && !fromPoll) {
-        setTimeout(() => {
-            if (confirm('퇴실 신청을 하시겠습니까?')) submitCheckout(v.id);
-        }, 300);
+        setTimeout(() => submitCheckout(v.id), 300);
     }
 
     // 대기 상태면 자동 갱신 시작
