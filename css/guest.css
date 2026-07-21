@@ -720,8 +720,10 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 }
 
 /* 경비실 대시보드 내장 스캔 입력 바 */
-.sec-scan-bar { display: flex; align-items: center; gap: 10px; background: #0f172a; border: 1px solid #1e40af;
-    border-radius: 12px; padding: 0.7rem 0.9rem; margin-bottom: 16px; }
+/* 스캔바는 화면에서 숨김(공간 미차지). 단, 안의 입력창은 포커스 가능해야 리더기 입력을 받는다.
+   → display:none 은 포커스가 안 되므로 '보이지 않지만 존재하는' 방식으로 숨긴다. */
+.sec-scan-bar { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0;
+    padding: 0; margin: -1px; border: 0; pointer-events: none; }
 .sec-scan-icon { font-size: 1.3rem; }
 .sec-scan-input { flex: 1; min-width: 0; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
     border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.95rem; outline: none; }

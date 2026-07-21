@@ -206,7 +206,7 @@ function showSecurityDashboard() {
 // 📷 대시보드 내장 스캔 입력: 하드웨어 리더기 입력을 받아 /api/scan 처리 (별도 페이지 불필요)
 function secKeepScanFocus() {
     const el = document.getElementById('secScanInput');
-    if (el) el.focus();
+    if (el) el.focus({ preventScroll: true });   // 숨은 입력이라 포커스 시 스크롤 튐 방지
 }
 
 function initSecScan() {
@@ -231,21 +231,20 @@ function initSecScan() {
 }
 
 async function secSubmitScan(raw) {
-    const rEl = document.getElementById('secScanResult');
-    const show = (msg, cls) => { if (rEl) { rEl.textContent = msg; rEl.className = 'sec-scan-result ' + cls; } };
     try {
         const res = await fetch('/api/scan', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: raw })
         });
         const d = await res.json();
-        show(d.message || (d.success ? '처리되었습니다.' : '처리 실패'),
-             d.success ? (d.already ? 'warn' : 'ok') : 'err');
+        // 스캔바가 숨겨져 있으므로: 신규 접수(성공)는 대기열 갱신으로 확인,
+        //   중복/실패만 알림으로 알려 준다.
+        if (!d.success || d.already) alert(d.message || '처리할 수 없습니다.');
         fetchSecurityQueue();
         loadSecurityAllLogs();
         loadSecurityOverdue();
     } catch (e) {
-        show('통신 오류가 발생했습니다.', 'err');
+        alert('스캔 처리 중 통신 오류가 발생했습니다.');
     }
     secKeepScanFocus();
 }
