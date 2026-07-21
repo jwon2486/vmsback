@@ -250,6 +250,8 @@ async function showPrecheckStatus(id, fromPoll = false) {
     }
 
     const v = s.visitor;
+    // 🔖 조회로 확인된 내 방문 건을 이 기기에도 기억 (다른 사람이 대신 등록해준 건도 내 폰에 저장)
+    if (v.status !== '퇴실완료' && v.status !== '만료') localStorage.setItem('my_visitor_id', v.id);
     const sv = getStatusView(v.status);
     const checkoutBtn = sv.canCheckout
         ? `<div class="action-buttons"><button onclick="submitCheckout(${v.id})" class="btn-guest-main">지금 퇴실 요청하기</button></div>`
@@ -495,7 +497,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
                 </div>
 
                 <div id="companion-container" class="results-container schedule-list-scroll-box guest-comp-scroll-box">
-                    <div class="no-data-box empty-comp-msg" id="empty-companion-msg"><p>우측 하단 버튼을 눌러 동반 일행을 추가하세요.</p></div>
+                    <div class="no-data-box empty-comp-msg" id="empty-companion-msg"><p>하단 버튼을 눌러 동반 일행을 추가하세요.</p></div>
                 </div>
                 <button type="button" onclick="addCompanionField()" class="btn-guest-sub btn-add-comp-outline mt-15">
                     ➕ 인원 계속 추가
@@ -718,6 +720,8 @@ async function searchVisitor() {
 
         // 이름+전화번호 정확 일치라 사실상 1건. 가장 최근 건 기준으로 상태 표시.
         const v = list[0];
+        // 🔖 조회로 확인된 내 방문 건을 이 기기에도 기억 (재접속 시 자동 복원용)
+        if (v.status !== '퇴실완료' && v.status !== '만료') localStorage.setItem('my_visitor_id', v.id);
         const sv = getStatusView(v.status);
         const checkoutBtn = sv.canCheckout
             ? `<div class="action-buttons"><button onclick="submitCheckout(${v.id})" class="btn-guest-main">지금 퇴실 요청하기</button></div>`
