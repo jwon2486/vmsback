@@ -737,3 +737,7 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .sec-scan-bar { flex-wrap: wrap; }
     .sec-scan-result { flex: 1 1 100%; }
 }
+
+/* 방문객 상태 화면 인라인 안내 배너 (퇴실 요청 접수 등) */
+.guest-flash { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700;
+    padding: 0.7rem 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; text-align: center; font-size: 0.95rem; }

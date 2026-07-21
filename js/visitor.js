@@ -35,6 +35,9 @@ function goGuestHome() { stopVisitorPolling(); window.location.href = '/'; }
 //  - 입실완료·퇴실완료·만료로 바뀌면(=대기 아님) 폴링을 멈추고 화면을 갱신.
 let visitorPollTimer = null;
 
+// 상태 화면에 1회 표시할 인라인 안내(예: 퇴실 요청 접수). alert 대체용.
+let guestFlash = '';
+
 function stopVisitorPolling() {
     if (visitorPollTimer) { clearInterval(visitorPollTimer); visitorPollTimer = null; }
 }
@@ -100,8 +103,11 @@ async function showScanStatus(token, fromPoll = false) {
     const waitingHint = isWaitingStatus(v.status)
         ? `<p class="poll-live-hint">🔄 승인되면 자동으로 갱신됩니다. 이 화면을 열어두세요.</p>`
         : '';
+    const flashHtml = guestFlash ? `<div class="guest-flash">✅ ${guestFlash}</div>` : '';
+    guestFlash = '';   // 1회 표시 후 소비
     appCard.innerHTML = `
         <h2 class="guest-title-bold-style">방문 상태 확인</h2>
+        ${flashHtml}
         <div class="visitor-info-box">
             <p class="greet"><strong>${v.name}</strong> 님</p>
             <span class="badge-company">${v.company || '-'}</span>
@@ -266,8 +272,11 @@ async function showPrecheckStatus(id, fromPoll = false) {
     const groupBtn = (v.group_size && v.group_size >= 2)
         ? `<div class="action-buttons"><button onclick="showGroupQr(${v.id})" class="btn-guest-sub">👥 일행 전체 QR 보기</button></div>`
         : '';
+    const flashHtml = guestFlash ? `<div class="guest-flash">✅ ${guestFlash}</div>` : '';
+    guestFlash = '';   // 1회 표시 후 소비
     appCard.innerHTML = `
         <h2 class="guest-title-bold-style">방문 상태 확인</h2>
+        ${flashHtml}
         <div class="visitor-info-box">
             <p class="greet"><strong>${v.name}</strong> 님</p>
             <span class="badge-company">${v.company || '-'}</span>
@@ -650,9 +659,8 @@ async function submitCheckout(id) {
         });
         const result = await res.json();
         if (result.success) {
-            if (localStorage.getItem('my_visitor_id') == id) localStorage.removeItem('my_visitor_id');
-            alert(result.message);
-            // 퇴실 요청 접수(퇴실대기) → 상태 화면 표시. 최종 승인되면 자동 갱신됨.
+            // 퇴실 요청 접수(퇴실대기) → 상태 화면에 인라인 안내로 표시 (alert 팝업 제거)
+            guestFlash = result.message || '퇴실 요청이 접수되었습니다.';
             showPrecheckStatus(id);
         }
     } catch (e) {}
