@@ -126,9 +126,9 @@ function showSecurityDashboard() {
                 <div class="sec-logs-header">
                     <h3 class="sec-logs-title">📊 전체 출입 기록 <span class="sec-region-text">(${empRegion})</span></h3>
                     <div class="date-range-picker-box flex-center-gap">
-                        <input type="date" id="secLogStartDate" value="${weekRange.monday}" onchange="loadSecurityAllLogs()" class="sec-date-input">
+                        <input type="date" id="secLogStartDate" value="${weekRange.todayKst}" onchange="loadSecurityAllLogs()" class="sec-date-input">
                         <span class="range-tilde">~</span>
-                        <input type="date" id="secLogEndDate" value="${weekRange.friday}" onchange="loadSecurityAllLogs()" class="sec-date-input">
+                        <input type="date" id="secLogEndDate" value="${weekRange.todayKst}" onchange="loadSecurityAllLogs()" class="sec-date-input">
                     </div>
                 </div>
                 <div class="table-responsive sec-table-container h-500">

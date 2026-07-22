@@ -84,8 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const endEl = document.getElementById('adminEndDate');
     if (startEl && endEl) {
         const weekRange = getKstThisWeekRange();
-        startEl.value = weekRange.monday;
-        endEl.value = weekRange.friday;
+        startEl.value = weekRange.todayKst;
+        endEl.value = weekRange.todayKst;
     }
 
     if (sessionStorage.getItem('emp_session')) {
@@ -111,7 +111,7 @@ async function loadAdminLogs() {
     
     const tbody = document.getElementById('adminLogBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
         const res = await fetch(`/api/admin/logs?start_date=${startDate}&end_date=${endDate}`);
@@ -134,31 +134,36 @@ async function loadAdminLogs() {
 
         let html = '';
         if (sorted.length === 0) {
-            html = '<tr><td colspan="8" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
+            html = '<tr><td colspan="11" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
-                const checkoutDisplay = v.checkout_time ? v.checkout_time : '<span class="stay-badge">상주중</span>';
                 const managerDisplay = v.emp_name
-                    ? `${v.emp_name} <span class="manager-dept-info">(${v.emp_dept || '부서없음'})</span>` 
-                    : '<span class="no-manager-dash">-</span>'; 
-                
+                    ? `${v.emp_name} <span class="manager-dept-info">(${v.emp_dept || '부서없음'})</span>`
+                    : '<span class="no-manager-dash">-</span>';
+                const visitCountDisplay = v.visit_count != null
+                    ? (v.visit_count >= 2 ? `<b>${v.visit_count}회</b>` : `${v.visit_count}회`)
+                    : '-';
+
                 html += `
                     <tr>
                         <td>${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td>${v.visit_date}</td>
                         <td class="text-bold">${v.name}</td>
+                        <td>${v.contact || '-'}</td>
+                        <td>${visitCountDisplay}</td>
                         <td>${v.company}</td>
                         <td><span class="purpose-tag">${v.purpose}</span></td>
                         <td>${managerDisplay}</td>
-                        <td>${v.checkin_time}</td>
-                        <td>${checkoutDisplay}</td>
+                        <td>${v.checkin_time || '-'}</td>
+                        <td>${v.checkout_time || '-'}</td>
+                        <td><b>${v.status}</b></td>
                     </tr>
                 `;
             });
         }
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
     }
 }
 
