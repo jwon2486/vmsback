@@ -1225,6 +1225,43 @@ def admin_logs():
     return jsonify([dict(log) for log in logs])
 
 # ====================================================================
+# 🧾 특정 방문객의 방문 이력 조회 (이름+연락처 기준) — 관리자/경비실 공용
+#   - 출입기록 표에서 사람을 클릭하면 그 사람의 전체 방문 이력을 팝업으로 보여준다.
+# ====================================================================
+@app.route('/api/visitor/history', methods=['GET'])
+def visitor_history():
+    if 'user' not in session:
+        return jsonify({"success": False}), 401
+
+    name = request.args.get('name', '').strip()
+    contact = request.args.get('contact', '').strip()
+    start = request.args.get('start_date', '').strip()
+    end = request.args.get('end_date', '').strip()
+    if not name:
+        return jsonify({"success": False, "message": "이름이 없습니다."}), 400
+
+    q = """
+        SELECT v.visit_date, v.company, v.purpose, v.contact,
+               v.checkin_time, v.checkout_time, v.status, v.region,
+               e.name AS emp_name, e.dept AS emp_dept
+        FROM visitor_log v LEFT JOIN employees e ON v.created_by = e.id
+        WHERE v.name = ?
+    """
+    params = [name]
+    if contact:
+        q += " AND IFNULL(v.contact, '') = ?"; params.append(contact)
+    if start:
+        q += " AND v.visit_date >= ?"; params.append(start)
+    if end:
+        q += " AND v.visit_date <= ?"; params.append(end)
+    q += " ORDER BY v.visit_date DESC, v.id DESC"
+
+    conn = get_db_connection()
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return jsonify({"success": True, "name": name, "list": [dict(r) for r in rows]})
+
+# ====================================================================
 # 📊 [최고 관리자 전용] 엑셀 다운로드
 # ====================================================================
 @app.route('/api/admin/excel-download', methods=['GET'])

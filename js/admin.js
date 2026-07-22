@@ -148,7 +148,7 @@ async function loadAdminLogs() {
                     <tr>
                         <td>${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td>${v.visit_date}</td>
-                        <td class="text-bold">${v.name}</td>
+                        <td><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
                         <td>${v.contact || '-'}</td>
                         <td>${visitCountDisplay}</td>
                         <td>${v.company}</td>
