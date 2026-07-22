@@ -626,10 +626,20 @@ function showRegistrationComplete(members, message) {
         <div class="visitor-info-box">
             <p class="status-line"><b>🟡 입실 승인 대기중</b></p>
             <p class="status-desc">${message || '입실 요청이 접수되었습니다. 경비실 승인을 기다려 주세요.'}</p>
+            <p class="poll-live-hint">🔄 승인되면 자동으로 갱신됩니다. 이 화면을 열어두세요.</p>
         </div>
         ${qrListHtml}
         <div class="action-buttons visitor-btn-margin"><button onclick="goGuestHome()" class="btn-guest-sub">처음 화면으로</button></div>
     `;
+
+    // ⏱️ 입실 승인 대기 폴링: 경비가 승인하면(입실완료) 자동으로 퇴실 화면으로 전환
+    const repId = (Array.isArray(members) && members[0]) ? members[0].id : null;
+    if (repId) {
+        startVisitorPolling(() => fetchStatusById(repId), (v) => {
+            if (v && v.status === '입실완료') showCheckoutPage(v);
+            else showPrecheckStatus(repId);
+        });
+    }
 }
 
 function showCheckoutPage(visitor) {
