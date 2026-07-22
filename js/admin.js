@@ -126,10 +126,10 @@ async function loadAdminLogs() {
         const logs = await res.json();
 
         // 순번: 서버가 계산한 '그 달 절대 순번'(month_seq) 사용 (경비실·엑셀과 동일 규칙).
-        //  - 날짜 필터와 무관하게 매달 1일부터의 절대 위치. 표시는 오래된순(방문일→id) 정렬.
+        //  - 날짜 필터와 무관하게 매달 1일부터의 절대 위치. 표시는 최신순(방문일→id 내림차순).
         const sorted = [...logs].sort((a, b) => {
-            if (a.visit_date !== b.visit_date) return a.visit_date < b.visit_date ? -1 : 1;
-            return (a.id || 0) - (b.id || 0);
+            if (a.visit_date !== b.visit_date) return a.visit_date > b.visit_date ? -1 : 1;
+            return (b.id || 0) - (a.id || 0);
         });
 
         let html = '';
