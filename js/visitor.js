@@ -658,7 +658,22 @@ function showCheckoutPage(visitor) {
             <button onclick="submitCheckout(${visitor.id})" class="btn-guest-main">네, 지금 퇴실 요청합니다</button>
             <button onclick="showSearchForm()" class="btn-guest-sub">제 정보가 아닙니다 (다시 검색)</button>
         </div>
+        <p class="poll-live-hint">🔄 처리 상황이 바뀌면 자동으로 갱신됩니다. 이 화면을 열어두세요.</p>
     `;
+
+    // ⏱️ 5초 폴링: 데스크 스캔으로 퇴실대기가 되거나(요청 접수), 경비 승인으로 상태가 바뀌면
+    //   상태 화면으로 자동 전환(그 화면이 승인→완료까지 이어서 갱신).
+    stopVisitorPolling();
+    visitorPollTimer = setInterval(async () => {
+        try {
+            const v = await fetchStatusById(visitor.id);
+            if (!v) return;
+            if (v.status !== '입실완료') {   // 입실완료가 아니게 됨 → 상황 변화
+                stopVisitorPolling();
+                showPrecheckStatus(visitor.id);
+            }
+        } catch (e) {}
+    }, 5000);
 }
 
 async function submitCheckout(id) {
