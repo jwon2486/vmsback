@@ -10,6 +10,7 @@
     function rangeStart(key) {
         const t = new Date();
         const d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+        if (key === '오늘') return fmt(d);
         if (key === '1주') d.setDate(d.getDate() - 7);
         else if (key === '1달') d.setMonth(d.getMonth() - 1);
         else if (key === '3달') d.setMonth(d.getMonth() - 3);
@@ -55,7 +56,7 @@
         const rangesEl = overlay.querySelector('#vh-ranges');
         const today = fmt(new Date());
 
-        ['1주', '1달', '3달', '6달', '1년', '전체'].forEach(key => {
+        ['오늘', '1주', '1달', '3달', '6달', '1년', '전체'].forEach(key => {
             const b = document.createElement('button');
             b.textContent = key;
             b.style.cssText = 'padding:0.4rem 0.7rem;border:1px solid #cbd5e1;background:#fff;border-radius:20px;cursor:pointer;font-size:0.85rem;color:#475569;';
@@ -126,10 +127,10 @@
         overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
         document.addEventListener('keydown', function onEsc(e) { if (e.key === 'Escape') { const o = document.getElementById('vh-overlay'); if (o) o.remove(); document.removeEventListener('keydown', onEsc); } });
 
-        // 기본: 전체 이력
-        startEl.value = '';
-        endEl.value = '';
-        highlight(rangesEl.querySelector('button:last-child'));   // '전체' 강조
+        // 기본: 오늘
+        startEl.value = today;
+        endEl.value = today;
+        highlight(rangesEl.querySelector('button'));   // 첫 버튼('오늘') 강조
         load();
     };
 })();
