@@ -330,8 +330,8 @@ body {
 table { 
   width: 100%; 
   border-collapse: collapse; 
-  min-width: 56.25rem; /* 900px */            
-  table-layout: fixed;          
+  min-width: 56.25rem; /* rem 기준: 루트 폰트(clamp)로 저해상도에서 자동 축소됨 */
+  table-layout: auto;   /* 열 너비를 내용에 맞춤 → 고정폭 잘림 방지, 넘치면 가로 스크롤 */
 }
 
 table th:nth-child(1), table td:nth-child(1) { width: 4.375rem; }  
