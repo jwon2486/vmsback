@@ -658,7 +658,6 @@ function showCheckoutPage(visitor) {
             <button onclick="submitCheckout(${visitor.id})" class="btn-guest-main">네, 지금 퇴실 요청합니다</button>
             <button onclick="showSearchForm()" class="btn-guest-sub">제 정보가 아닙니다 (다시 검색)</button>
         </div>
-        <p class="poll-live-hint">🔄 처리 상황이 바뀌면 자동으로 갱신됩니다. 이 화면을 열어두세요.</p>
     `;
 
     // ⏱️ 5초 폴링: 데스크 스캔으로 퇴실대기가 되거나(요청 접수), 경비 승인으로 상태가 바뀌면
