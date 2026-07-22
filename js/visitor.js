@@ -633,9 +633,18 @@ function showRegistrationComplete(members, message) {
 }
 
 function showCheckoutPage(visitor) {
-    resetWideLayout(); 
+    resetWideLayout();
     const appCard = document.getElementById('app-card');
     if (!appCard) return;
+    const qrHtml = visitor.token
+        ? `<div class="guest-qr-box">
+               <img src="/api/qr?token=${encodeURIComponent(visitor.token)}" alt="내 방문 QR" class="guest-qr-img">
+               <p class="guest-qr-hint">이 QR을 저장해 두면 다음부터 스캔만으로 확인·퇴실할 수 있습니다.</p>
+           </div>`
+        : '';
+    const groupBtn = (visitor.group_size && visitor.group_size >= 2)
+        ? `<div class="action-buttons"><button onclick="showGroupQr(${visitor.id})" class="btn-guest-sub">👥 일행 전체 QR 보기</button></div>`
+        : '';
     appCard.innerHTML = `
         <h2 class="guest-title-bold-style">방문종료 (퇴실)</h2>
         <div class="visitor-info-box">
@@ -643,6 +652,8 @@ function showCheckoutPage(visitor) {
             <span class="badge-company">${visitor.company}</span>
             <p class="time-info">입실 처리 시간: ${visitor.checkin_time || '승인 대기 중'}</p>
         </div>
+        ${qrHtml}
+        ${groupBtn}
         <div class="action-buttons">
             <button onclick="submitCheckout(${visitor.id})" class="btn-guest-main">네, 지금 퇴실 요청합니다</button>
             <button onclick="showSearchForm()" class="btn-guest-sub">제 정보가 아닙니다 (다시 검색)</button>
