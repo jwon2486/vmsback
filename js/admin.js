@@ -77,7 +77,11 @@ function verifyAdminSessionGate() {
     return true;
 }
 
-verifyAdminSessionGate();
+// /admin 페이지에서만 클라이언트 세션 게이트(레벨3 강제) 실행.
+// /records(전체기록 iframe, 레벨3·4·5 공용)에선 서버가 이미 권한을 검증하므로 이 게이트를 돌리면 안 됨(레벨5가 튕김).
+if (window.location.pathname.startsWith('/admin')) {
+    verifyAdminSessionGate();
+}
 
 document.addEventListener("DOMContentLoaded", () => {
     const startEl = document.getElementById('adminStartDate');
@@ -94,10 +98,19 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.addEventListener("pageshow", (event) => {
-    if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+    if (window.location.pathname.startsWith('/admin') &&
+        (event.persisted || (window.performance && window.performance.navigation.type === 2))) {
         verifyAdminSessionGate();
     }
 });
+
+// 'YYYY-MM-DD HH:MM:SS' → 'HH:MM:SS' 만 반환 (방문일 컬럼에 날짜가 있어 시간만 표시).
+//  값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-') 반환. (경비실 표와 동일 규칙)
+function adminTimeOnly(val) {
+    if (!val) return '-';
+    const parts = String(val).trim().split(' ');
+    return parts.length > 1 ? parts[parts.length - 1] : val;
+}
 
 // ==========================================
 // [구역 1] 방문객 출입 기록 처리 파트 (달력 연동)
@@ -111,7 +124,7 @@ async function loadAdminLogs() {
     
     const tbody = document.getElementById('adminLogBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
         const res = await fetch(`/api/admin/logs?start_date=${startDate}&end_date=${endDate}`);
@@ -125,6 +138,21 @@ async function loadAdminLogs() {
 
         const logs = await res.json();
 
+        // 상단 요약 카드: '실제 입실한 인원'만 모집단으로 삼는다.
+        //  - 아직 안 온 예약(사전예약·입실대기)과 만료 건은 제외.
+        //  - 완료 = 퇴실완료(입·퇴실 둘 다 됨), 미완료 = 재실 중(입실완료·퇴실대기).
+        const arrived = logs.filter(v => ['입실완료', '퇴실대기', '퇴실완료'].includes(v.status));
+        const totalCount = arrived.length;
+        const completeCount = arrived.filter(v => v.status === '퇴실완료').length;
+        const incompleteCount = totalCount - completeCount;
+        const setStat = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+        setStat('adminStatTotal', totalCount);
+        setStat('adminStatComplete', completeCount);
+        setStat('adminStatIncomplete', incompleteCount);
+
         // 순번: 서버가 계산한 '그 달 절대 순번'(month_seq) 사용 (경비실·엑셀과 동일 규칙).
         //  - 날짜 필터와 무관하게 매달 1일부터의 절대 위치. 표시는 최신순(방문일→id 내림차순).
         const sorted = [...logs].sort((a, b) => {
@@ -134,11 +162,11 @@ async function loadAdminLogs() {
 
         let html = '';
         if (sorted.length === 0) {
-            html = '<tr><td colspan="11" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
+            html = '<tr><td colspan="13" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
-                    ? `${v.emp_name} <span class="manager-dept-info">(${v.emp_dept || '부서없음'})</span>`
+                    ? `<b>${v.emp_name}</b><br><span class="manager-dept-info">(${v.emp_dept || '부서없음'})</span>`
                     : '<span class="no-manager-dash">-</span>';
                 const visitCountDisplay = v.visit_count != null
                     ? (v.visit_count >= 2 ? `<b>${v.visit_count}회</b>` : `${v.visit_count}회`)
@@ -148,14 +176,22 @@ async function loadAdminLogs() {
                     <tr>
                         <td>${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td>${v.visit_date}</td>
-                        <td><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
-                        <td>${v.contact || '-'}</td>
+                        <td class="col-split-visitor"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
+                        <td class="col-split-visitor">${formatPhone(v.contact)}</td>
+                        <td class="col-merged-visitor">
+                            <span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span><br>
+                            <span class="manager-dept-info">${formatPhone(v.contact)}</span>
+                        </td>
                         <td>${visitCountDisplay}</td>
                         <td>${v.company}</td>
                         <td><span class="purpose-tag">${v.purpose}</span></td>
                         <td>${managerDisplay}</td>
-                        <td>${v.checkin_time || '-'}</td>
-                        <td>${v.checkout_time || '-'}</td>
+                        <td class="col-split-time">${adminTimeOnly(v.checkin_time)}</td>
+                        <td class="col-split-time">${adminTimeOnly(v.checkout_time)}</td>
+                        <td class="col-merged-time">
+                            <span class="time-in">입 ${adminTimeOnly(v.checkin_time)}</span><br>
+                            <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
+                        </td>
                         <td><b>${v.status}</b></td>
                     </tr>
                 `;
@@ -163,7 +199,7 @@ async function loadAdminLogs() {
         }
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
     }
 }
 
@@ -240,6 +276,8 @@ function renderEmployeeTable() {
             lvlBadge = '<span class="badge badge-lv3">최고관리자 (Lv.3)</span>';
         } else if (emp.level === 4) {
             lvlBadge = '<span class="badge badge-lv4">보안관제 (Lv.4)</span>';
+        } else if (emp.level === 5) {
+            lvlBadge = '<span class="badge badge-lv5">전체기록 열람 (Lv.5)</span>';
         } else {
             lvlBadge = '<span class="badge badge-lv1">일반임직원 (Lv.1)</span>';
         }

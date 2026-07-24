@@ -857,7 +857,7 @@ async function fetchSecurityQueue(isAuto = false) {
                         <td class="p-10 ${indentClass}"><span class="status-badge badge-done">${v.status}</span></td>
                         <td class="p-10"><b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
                         <td class="p-10">${v.vehicle_no || '-'}</td>
-                        <td class="p-10">${v.contact || '-'}</td>
+                        <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
                             ${matchStatusText}<br>
                             <span class="fs-8">(고객 입력: ${v.manager_text})</span>
@@ -1183,7 +1183,7 @@ function showCheckinForm(passedName = '') {
                 <div class="bs-handle" onclick="closeCompanionSheet()"></div>
                 <h3 class="zone-title my-title-color mb-15 desktop-only-title">👥 동반 일행 정보</h3>
                 <div id="companion-container" class="results-container schedule-list-scroll-box guest-comp-scroll-box">
-                    <div class="no-data-box empty-comp-msg" id="empty-companion-msg"><p>우측 하단 버튼을 눌러 동반 일행을 추가하세요.</p></div>
+                    <div class="no-data-box empty-comp-msg" id="empty-companion-msg"><p>하단 버튼을 눌러 동반 일행을 추가하세요.</p></div>
                 </div>
                 <button type="button" onclick="addCompanionField()" class="btn-guest-sub btn-add-comp-outline mt-15">
                     ➕ 인원 계속 추가

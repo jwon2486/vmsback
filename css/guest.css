@@ -73,6 +73,9 @@ body {
 .btn-nav-link { padding: 0.35rem 0.85rem; font-size: 0.85rem; font-weight: 700; border-radius: 8px; background: transparent; border: none; cursor: pointer; }
 .btn-link-danger { background: #fef2f2; color: var(--danger); border: 1px solid #fee2e2; }
 .btn-link-danger:hover { background: var(--danger); color: white; }
+/* 관리자 버튼: 로그아웃 버튼과 동일 스타일(.btn-nav-link) + 밝은 연두색 */
+.btn-link-admin { background: #ecfccb; color: #4d7c0f; border: 1px solid #bef264; text-decoration: none; display: inline-flex; align-items: center; }
+.btn-link-admin:hover { background: #84cc16; color: #ffffff; }
 
 /* ==========================================
    3. 메인 카드 & 레이아웃 
@@ -89,6 +92,22 @@ body {
 
 .list-header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .zone-title { font-size: 1.2rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.02em; }
+
+/* 🖥️ 데스크톱: '나의 예약' 리스트 존이 좁아 제목이 줄바꿈되므로,
+   날짜 범위 박스(picker-box-full)를 살짝 좁히고 제목은 한 줄 고정. */
+@media (min-width: 991px) {
+    .list-header-row .zone-title { white-space: nowrap; }
+    .picker-box-full { gap: 0.25rem; flex: 0 0 auto; }
+    .picker-box-full input[type="date"] { padding: 0.5rem 0.5rem; font-size: 0.82rem; }
+
+    /* 동반 입력창이 열리면 3단 레이아웃(container 85rem)이 되어 '나의 예약' 존이 더 좁아짐
+       → 그 상태에서만 날짜 박스를 추가로 더 좁혀 제목이 빠듯하지 않게 한다. */
+    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) .picker-box-full { gap: 0.2rem; }
+    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) .picker-box-full input[type="date"] {
+        padding: 0.4rem 0.3rem; font-size: 0.75rem;
+    }
+    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) .picker-box-full .range-tilde-text { font-size: 0.75rem; }
+}
 
 /* ==========================================
    4. 입력 폼 공통 스타일
@@ -239,6 +258,38 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .filter-inner { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; font-weight: 700; }
 .btn-home { color: var(--primary); text-decoration: none; font-size: 0.9rem; font-weight: 700; }
 
+/* --- 📅 날짜 셀렉터 스킨 (관리자 화면과 동일) --- */
+.date-range-picker-box { display: flex; align-items: center; gap: 0.35rem; }
+.range-tilde { font-size: 0.85rem; color: var(--text-muted); }
+.date-range-picker-box input[type="date"] {
+    padding: 0.55rem 0.875rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: #ffffff;
+    color: var(--text-main);
+    font-size: 0.875rem;
+    font-weight: 500;
+    outline: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    width: auto;
+}
+.date-range-picker-box input[type="date"]:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+.date-range-picker-box input[type="date"]:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    background: #ffffff;
+}
+.date-range-picker-box input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.date-range-picker-box input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
 .table-responsive { width: 100%; overflow-x: auto; background: white; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
 .modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
 .modern-table th { background: #f8fafc; padding: 0.85rem 1rem; color: #475569; font-weight: 700; border-bottom: 2px solid var(--border-color); }
@@ -279,12 +330,54 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .text-left { text-align: left; }
 .w-100 { width: 100%; }
 
-.companion-box-style { background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #cbd5e1; position: relative; }
+.companion-box-style { background: #ffffff; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #cbd5e1; position: relative; }
+/* 동반 입력: 좌우 배치 유지하되 전화(3박스)가 잘리지 않게 —
+   전화 박스에 최소너비(4자리 확보), 연락처 칸을 더 넓게, 성명/연락처 간격 축소. */
+.companion-box-style .input-row-group { gap: 0.5rem; }
+.companion-box-style .input-group:has(.phone-group) { flex: 2; }
+.companion-box-style .phone-box { min-width: 2.6rem; }
 .btn-comp-delete { position: absolute; top: 12px; right: 12px; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; font-weight: bold; color: #ef4444; }
+
+/* 동반 일행 입력 헤더: 제목(좌) / 전체 삭제(우) 배치 */
+.comp-zone-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+/* 전체 삭제 버튼: 개별 삭제(.btn-comp-delete)와 동일 디자인 (헤더용이라 absolute 제외) */
+.btn-comp-clear { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; font-weight: bold; color: #ef4444; cursor: pointer; }
 .comp-title-blue { color: #2563eb; margin-top: 0; margin-bottom: 10px; }
 .empty-comp-msg { border: 1px dashed #cbd5e1; border-radius: 8px; padding: 2rem 1rem !important; }
 
 .warning-box { border: 2px solid #f59e0b; padding: 10px; border-radius: 8px; background: #fffbeb; }
+
+/* 📊 전체 출입 기록 팝업: 기존엔 CSS 미정의로 오버레이가 안 되고 등록창 아래 인라인 렌더됐음.
+   → 화면 위에 뜨는 고정 오버레이 + 중앙 다이얼로그로 정의. (.display-none 클래스가 있으면 숨김 유지) */
+.modal-overlay-flex {
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.visitor-modal-window {
+    background: #fff; border-radius: 14px;
+    width: 100%; max-width: 1100px; max-height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+.visitor-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+.visitor-modal-title { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+.visitor-modal-body { padding: 0.75rem 1.25rem 1.25rem; overflow: auto; flex: 1; min-height: 0; }
+.btn-modal-close { border: none; background: transparent; font-size: 1rem; font-weight: 700; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 6px 10px; border-radius: 8px; }
+.btn-modal-close:hover { background: #f1f5f9; color: var(--danger); }
+
+/* 📊 전체기록: 관리자 tab-panel(/records)을 iframe으로 재사용하는 팝업 */
+.records-window { max-width: 1200px; width: 96vw; height: 88vh; max-height: 88vh; }
+.records-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.55rem 0.9rem; border-bottom: 1px solid var(--border-color);
+    background: #f8fafc; flex-shrink: 0;
+}
+.records-topbar-title { font-weight: 800; color: var(--text-main); font-size: 1rem; }
+.records-frame { flex: 1; width: 100%; border: none; min-height: 0; }
 .warning-text { color: #d97706; font-weight: bold; }
 
 /* 💡 좌측 폼 내부로 들어간 개인정보 동의 영역 (모던 콜아웃 스타일 유지) */
@@ -383,6 +476,39 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .sec-erp-layout .modern-table th,
 .sec-erp-layout .modern-table td { text-align: center; vertical-align: middle; }
 
+/* 🔒 경비실 표: 셀 값이 한 줄로 유지되도록 줄바꿈 방지 (한글 글자 단위 세로 쪼개짐 해소).
+   표는 최소 너비를 확보하고, 넘치면 .table-responsive 의 가로 스크롤로 처리한다. */
+.sec-erp-layout .modern-table th,
+.sec-erp-layout .modern-table td { white-space: nowrap; }
+.min-w-900 { min-width: 900px; }
+
+/* 🔒 경비실 전체 출입 기록: 입·퇴실 시간 컬럼을 화면 방향에 따라 전환
+   - 가로/데스크톱: 입실·퇴실 분리 컬럼 표시, 통합 컬럼 숨김 (기존 배치 유지)
+   - 세로: 분리 컬럼 2개 숨기고 '입·퇴실' 통합 1컬럼(2줄)만 표시 → 폭 절약 */
+.sec-erp-layout .col-merged-time { display: none; }
+@media (orientation: portrait) {
+    .sec-erp-layout .col-split-time { display: none; }
+    .sec-erp-layout .col-merged-time { display: table-cell; }
+}
+
+/* 🔒 승인 대기열(5컬럼)은 내용이 적어 좁은 화면에도 다 들어간다.
+   - 태블릿/모바일에서 min-w-700(700px) 최소너비 제한을 풀어 컨테이너 폭에 맞춤 → 가로 스크롤 제거.
+   - 전체 출입 기록 표(min-w-900, 11컬럼)는 대상이 아니라 그대로 가로 스크롤 유지. */
+@media (max-width: 900px) {
+    #secPanelQueue .modern-table { min-width: 0; }
+    #secPanelQueue .modern-table th,
+    #secPanelQueue .modern-table td { padding: 0.55rem 0.4rem; }
+}
+
+/* 🔒 경비실 화면 한정: 상단 로고 이미지만 숨김 (타이틀·부제 및 손님·임직원 화면은 유지)
+   - container-security-wide 는 security.js 에서만 부여되므로 경비실에서만 적용된다. */
+.container-security-wide .app-header .brand-logo { display: none; }
+
+/* 🔒 경비실 화면: 로고를 숨겨 콘텐츠가 짧아지면 body 의 세로 중앙정렬(justify-content:center)
+   때문에 상단 여백이 과도해져 utility-nav 가 아래로 밀린다. 상단 정렬로 바꿔 위쪽에 붙인다.
+   (경비실 화면에서만 적용 — 손님·임직원 화면은 기존 중앙정렬 유지) */
+body:has(.container-security-wide) { justify-content: flex-start; }
+
 .sec-erp-layout { display: flex; gap: 22px; align-items: stretch; min-height: 560px; }
 
 /* 좌측 사이드바 (admin 의 다크 네이비 톤 차용) */
@@ -436,6 +562,43 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .sec-stat-card .sec-stat-value { font-size: 1.5rem; }
 }
 
+/* 📱 태블릿 세로(약 10~11인치): 통계 카드 3개를 한 줄로 배치 + 여백 축소
+   - 2열(위2·아래1)로 잘려 보이던 배치를 1행 3열로 통일하고, 내용 대비 과한 패딩을 줄인다.
+   - 폭 641~900px + 세로 모드로 한정하여 스마트폰(2열)·태블릿 가로에는 영향 없음. */
+@media (min-width: 641px) and (max-width: 900px) and (orientation: portrait) {
+    .sec-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .sec-stat-card { padding: 10px 12px; gap: 5px; }
+    .sec-stat-card .sec-stat-label { font-size: 0.8rem; }
+    .sec-stat-card .sec-stat-value { font-size: 1.4rem; }
+
+    /* 📋 임직원/손님 신청 화면: 좌우 분할 대신 모바일과 동일한 단일열+탭 레이아웃 적용.
+       (641~990px 사각지대에서 폼·목록이 좌우로 눌리고 탭이 어정쩡하게 노출되던 문제 해소) */
+    .dashboard-split-wrapper { flex-direction: column; gap: 0; }
+    .desktop-only-title { display: none; }
+    #emp-divider-line, #guest-divider-line, #emp-divider-comp { display: none; }
+    .mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
+    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; }
+    .mobile-tab-btn.active { background: #fff; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+    .mobile-tab-content { display: none; }
+    .mobile-tab-content.active { display: flex; }
+
+    /* 👥 동반 일행: 모바일과 동일한 바텀시트로 동작 (뷰포트 고정 방식이라 태블릿에도 그대로 재사용) */
+    .mobile-bs-close { display: flex; width: 100%; margin-top: 15px; }
+    .bs-overlay { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(15, 23, 42, 0.6); z-index: 1000; opacity: 0; pointer-events: none;
+        backdrop-filter: blur(2px); transition: opacity 0.3s ease; }
+    .bs-sheet { position: fixed !important; bottom: 0; left: 0; width: 100vw !important; max-height: 85vh;
+        overflow: hidden !important; background: #fff !important; border-radius: 24px 24px 0 0 !important;
+        padding: 1.5rem !important; z-index: 1001; transform: translateY(100%); transition: transform 0.3s ease;
+        margin: 0 !important; display: flex !important; flex-direction: column; }
+    .bs-handle { display: block; width: 45px; height: 5px; background: #cbd5e1; border-radius: 3px; margin: 0 auto 1.5rem auto; }
+    .guest-comp-scroll-box, .emp-comp-scroll-box { flex: 1 1 auto !important; overflow-y: auto !important;
+        min-height: 0 !important; margin-bottom: 10px; }
+    body.bs-active { overflow: hidden; }
+    body.bs-active .bs-overlay { opacity: 1; pointer-events: auto; }
+    body.bs-active .bs-sheet { transform: translateY(0); }
+}
+
 /* 애니메이션 */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -454,7 +617,7 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .container-security-wide { max-width: 95vw; }
     /* 🔒 직원 대시보드 한정: 동반 방문객 창(#emp-companion-zone)이 열려 있으면(=display-none 없음) 70rem→85rem 확장.
        card-emp-wide 로 한정하여 손님 입실폼(card-guest-wide)에는 영향 없음. */
-    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) { max-width: 85rem; }
+    .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) { max-width: 92rem; }
     
     /* 좌측 폼 영역과 리스트 영역 너비 비율 (정확한 5:5 대칭) */
     .card-wide #emp-form-zone, .card-wide #guest-form-zone,

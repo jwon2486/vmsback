@@ -393,6 +393,16 @@ def admin_page():
         return redirect(url_for('guest_page'))
     return render_template('admin.html')
 
+# 📊 전체 출입 기록 전용 페이지 (관리자 tab-panel 재사용). 팝업 iframe 대상.
+#    권한: 최고 관리자(3)·경비실(4)·전체기록 열람(5). 그 외는 임직원 화면으로.
+@app.route('/records')
+def records_page():
+    if 'user' not in session:
+        return redirect(url_for('guest_page'))
+    if int(session['user'].get('level', 1)) not in (3, 4, 5):
+        return redirect(url_for('guest_page'))
+    return render_template('records.html')
+
 # ====================================================================
 # 👤 임직원 인증 및 스케줄 API
 # ====================================================================
@@ -611,9 +621,10 @@ def get_security_pending_logs():
 
     conn = get_db_connection()
     logs = conn.execute("""
-        SELECT * FROM visitor_log 
-        WHERE region = ? AND status IN ('입실대기', '퇴실대기') AND visit_date = ?
-        ORDER BY id ASC
+        SELECT v.*, e.name AS emp_name, e.dept AS emp_dept
+        FROM visitor_log v LEFT JOIN employees e ON v.created_by = e.id
+        WHERE v.region = ? AND v.status IN ('입실대기', '퇴실대기') AND v.visit_date = ?
+        ORDER BY v.id ASC
     """, (region, today_str)).fetchall()
     conn.close()
     return jsonify({"success": True, "list": [dict(log) for log in logs]})
@@ -1188,10 +1199,14 @@ def scan_action():
 @app.route('/api/admin/logs', methods=['GET'])
 def admin_logs():
     if 'user' not in session: return jsonify({"success": False}), 401
-    
+
     start_date, end_date = request.args.get('start_date', ''), request.args.get('end_date', '')
     user_level = int(session['user'].get('level', 1))
     user_region = session['user'].get('region', '')
+
+    # 🔒 전체 출입 기록 조회 권한: 최고 관리자(3)·경비실(4=자기 거점)·전체기록 열람(5). 일반 임직원(1) 등은 차단.
+    if user_level not in (3, 4, 5):
+        return jsonify({"success": False, "message": "출입 기록 조회 권한이 없습니다."}), 403
     
     conn = get_db_connection()
     query = """

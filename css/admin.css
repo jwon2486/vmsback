@@ -7,6 +7,8 @@ html {
   /* 💡 [해상도 동기화 핵심]: 화면 폭(vw)에 비례하여 기본 폰트 크기가 자동 조절됩니다.
      대형 모니터에서는 엘리먼트들이 시원하게 커지고, 노트북 등에서는 컴팩트하게 축소되어 동일 비율을 유지합니다. */
   font-size: clamp(13px, 0.8vw + 0.35rem, 16px);
+  overflow-x: hidden;   /* 모바일 브라우저(삼성 인터넷 등)는 body 만으론 가로 넘침을 못 막는 경우가 있어 html 에도 지정 */
+  max-width: 100%;
 }
 
 :root {
@@ -121,10 +123,10 @@ body {
   margin: 0 auto; 
 }
 
-.erp-layout { 
-  display: grid; 
-  grid-template-columns: clamp(210px, 16vw, 250px) 1fr; 
-  gap: 1.5rem; 
+.erp-layout {
+  display: grid;
+  grid-template-columns: clamp(210px, 16vw, 250px) minmax(0, 1fr);
+  gap: 1.5rem;
 }
 
 .erp-sidebar { 
@@ -219,8 +221,50 @@ body {
   color: var(--text);
 }
 
+/* --- [4-B. 출입 현황 요약 카드] --- */
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+.admin-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 0.25rem solid #94a3b8;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.admin-stat-card .admin-stat-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.admin-stat-card .admin-stat-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+.admin-stat-card.stat-total { border-left-color: #2563eb; }
+.admin-stat-card.stat-total .admin-stat-value { color: #2563eb; }
+.admin-stat-card.stat-complete { border-left-color: #16a34a; }
+.admin-stat-card.stat-complete .admin-stat-value { color: #16a34a; }
+.admin-stat-card.stat-incomplete { border-left-color: #ea580c; }
+.admin-stat-card.stat-incomplete .admin-stat-value { color: #ea580c; }
+
+@media (max-width: 768px) {
+  .admin-stat-grid { grid-template-columns: 1fr; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .admin-stat-card { padding: 0.75rem 1rem; }
+  .admin-stat-card .admin-stat-value { font-size: 1.5rem; }
+}
+
 /* --- [5. 필터 및 툴바 영역] --- */
-.filter-bar, .toolbar { 
+.filter-bar, .toolbar {
   background: #f8fafc;
   padding: 1rem 1.25rem;
   border-radius: var(--radius-sm);
@@ -276,12 +320,12 @@ body {
 }
 
 .date-range-picker-box input[type="date"] {
-  padding: 0.55rem 0.875rem;
+  padding: 0.55rem 0.875rem;   /* 경비실(출입 기록탭) 날짜 박스와 동일 */
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: #ffffff;
   color: var(--text);
-  font-size: 0.875rem;
+  font-size: 0.875rem;         /* 경비실과 동일 */
   font-weight: 500;
   outline: none;
   transition: all 0.2s ease;
@@ -353,19 +397,25 @@ th {
   border-bottom: 0.125rem solid var(--line); 
 }
 
-td { 
-  padding: 1.1rem 0.5rem; 
-  border-bottom: 0.0625rem solid var(--line); 
-  font-size: 0.95rem; 
-  text-align: center; 
+td {
+  height: 3.75rem;          /* 행 최소 높이 확보: 1줄·2줄 행이 같은 높이로 → 행 구분선이 고르게 보임 (내용 많으면 자동 확장) */
+  padding: 0.6rem 0.5rem;
+  border-bottom: 0.0625rem solid var(--line);
+  font-size: 0.95rem;
+  text-align: center;
+  vertical-align: middle;   /* 확보된 높이 안에서 내용을 세로 중앙 정렬 */
   color: #334155;
-  white-space: nowrap;          
-  overflow: hidden;
-  text-overflow: ellipsis;      
+  white-space: nowrap;
+  /* overflow:hidden 제거: 표 셀에 적용 시 행 높이 균등화(stretch)를 막아
+     2줄 담당자 칸만 키가 달라져 하단 구분선이 어긋나 보였음. 넘치는 표는 .table-wrapper 가로 스크롤로 처리. */
 }
 
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f8fafc; }
+
+/* 통합 컬럼(입·퇴실 / 방문객): 기본은 숨김(가로 화면은 분리 컬럼 사용). 태블릿 세로에서만 표시. */
+.col-merged-time { display: none; }
+.col-merged-visitor { display: none; }
 
 .text-bold { font-weight: 700; }
 .text-center { text-align: center; }
@@ -465,6 +515,7 @@ tr:hover td { background: #f8fafc; }
 .badge-lv3 { background: #fee2e2; color: #ef4444; border: 1px solid #fee2e2; }
 .badge-lv2 { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
 .badge-lv1 { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+.badge-lv5 { background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; }
 .stay-badge { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;}
 
 /* --- [9. 팝업 모달창 컴포넌트] --- */
@@ -505,8 +556,9 @@ tr:hover td { background: #f8fafc; }
    📱 [10. 미디어 쿼리 - 태블릿 및 모바일 변환 정렬 레이아웃]
    ==================================================================== */
 @media (max-width: 991px) {
-  .erp-layout { grid-template-columns: 1fr; gap: 1rem; }
-  
+  .erp-layout { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .erp-content { min-width: 0; }
+
   .erp-sidebar { 
     position: fixed; 
     top: 0; 
@@ -543,6 +595,16 @@ tr:hover td { background: #f8fafc; }
 
   .mobile-menu-toggle { display: block; }
   .desktop-only { display: none; }
+
+  /* 📱 태블릿 topbar: 오른쪽 '최고 관리자' 영역이 밀려 잘리지 않도록 견고화
+     - 패딩 축소로 여유 확보, 오른쪽 액션은 절대 줄어들지 않게(flex-shrink:0),
+       브랜드(로고+타이틀)는 공간이 부족하면 줄어들고 타이틀은 말줄임 처리. */
+  .topbar { padding: 0 1rem; gap: 0.5rem; }
+  .brand { min-width: 0; }
+  .brand .title { min-width: 0; }
+  .brand .title strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-actions { flex-shrink: 0; }
+  .pill { white-space: nowrap; }
 }
 
 @media (max-width: 768px) {
@@ -584,13 +646,14 @@ tr:hover td { background: #f8fafc; }
   tr:hover { background: #ffffff; transform: translateY(-1px); }
 
   td {
+    height: auto;            /* 카드뷰(각 필드=flex 한 줄)에는 표 행 최소높이 미적용 */
     text-align: left;
-    padding: 0.2rem 0;       
+    padding: 0.2rem 0;
     border-bottom: none;
-    font-size: 0.85rem;      
-    white-space: nowrap;     
+    font-size: 0.85rem;
+    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; 
+    text-overflow: ellipsis;
     display: flex;
     align-items: center;
   }
@@ -636,7 +699,8 @@ tr:hover td { background: #f8fafc; }
   #adminLogBody tr td:nth-of-type(7)::before { content: "⏰ 입실"; }
   #adminLogBody tr td:nth-of-type(7) { color: #16a34a; font-weight: 600; }
   #adminLogBody tr td:nth-of-type(8)::before { content: "🚪 퇴실"; }
-  #adminLogBody tr td:nth-of-type(8) { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  /* (구 8컬럼 카드뷰 잔재 제거) 현재 12컬럼에선 nth-of-type(8)=담당자라, 이 줄이 담당자 칸의
+     하단 테두리·패딩을 없애 '가로줄 생략' + '패딩 3값(아래 0)'을 유발했음. */
 
   .form-grid { grid-template-columns: 1fr; gap: 0.75rem; }
   .field.full { grid-column: span 1; }
@@ -658,3 +722,57 @@ tr:hover td { background: #f8fafc; }
 /* --- [11. 공용 인터랙션 애니메이션 효과] --- */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ====================================================================
+   📱 태블릿 세로(약 10~11인치): 출입 기록 화면을 경비실과 동일한 양식으로
+   - 스탯 카드 3열, 출입 기록 표는 카드형 변환 대신 가로 스크롤 표 유지
+   - 입·퇴실 시간은 통합 1컬럼(시간만)으로, 분리 컬럼은 숨김
+   ==================================================================== */
+@media (min-width: 641px) and (max-width: 900px) and (orientation: portrait) {
+  /* 통계 카드 3열(컴팩트) */
+  .admin-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+  .admin-stat-card { padding: 0.6rem 0.7rem; }
+  .admin-stat-card .admin-stat-label { font-size: 0.72rem; }
+  .admin-stat-card .admin-stat-value { font-size: 1.4rem; }
+
+  /* 기록 조회 필터: 데스크톱처럼 라벨+날짜박스를 한 줄로 유지 (≤768px 세로 스택 되돌림) */
+  .filter-bar { flex-direction: row; align-items: center; }
+  /* 삼성 인터넷 등 네이티브 날짜 위젯은 값('2026. 07. 23' + 화살표)이 넓어 자연 폭으론 잘림.
+     날짜 박스가 필터 바의 남는 폭을 채우도록 flex 로 늘려 값이 항상 보이게 한다. */
+  .filter-bar .date-range-picker-box { flex: 1; min-width: 0; }
+  .filter-bar .date-range-picker-box input[type="date"] {
+    flex: 1; min-width: 0; text-align: left; padding: 0.55rem 0.875rem; font-size: 0.875rem;
+  }
+
+  /* 출입 기록 표: 모바일 카드형(≤768px) 변환을 되돌려 가로 스크롤 표로 유지 */
+  #tabContentVisitor .table-wrapper { overflow-x: auto; border: 1px solid var(--line); background: #fff; }
+  #tabContentVisitor table { display: table; min-width: 46rem; table-layout: auto; }
+  #tabContentVisitor thead { display: table-header-group; }
+  #tabContentVisitor thead tr { display: table-row; position: static; }
+  #tabContentVisitor tbody { display: table-row-group; }
+  #tabContentVisitor tr {
+    display: table-row; background: transparent; margin: 0; padding: 0;
+    border: none; border-radius: 0; box-shadow: none; position: static;
+  }
+  /* 셀 display 복원(카드형은 th·td 를 block 으로 만든다) + 고정 컬럼폭(nth-child) 해제 */
+  #tabContentVisitor th, #tabContentVisitor td {
+    display: table-cell; width: auto; text-align: center; vertical-align: middle;
+    white-space: nowrap; overflow: visible; text-overflow: clip;
+  }
+  /* 카드형 td:nth-of-type(색상·굵기·점선·패딩) 잔여 스타일 중화.
+     잔재 규칙(#adminLogBody tr td:nth-of-type = 명시도 112)을 확실히 덮도록 #adminLogBody 로 명시도(201) 확보. */
+  #tabContentVisitor #adminLogBody td {
+    height: 3.4rem;
+    padding: 0.6rem 0.5rem; font-size: 0.85rem; color: #334155; font-weight: 400;
+    border-bottom: 1px solid var(--line); margin: 0;
+  }
+  #tabContentVisitor #adminLogBody td::before { display: none; }
+
+  /* 통합/분리 토글(입·퇴실 + 방문객): 셀 display 복원보다 뒤 + #id 스코프로 우선순위 확보 */
+  #tabContentVisitor .col-split-time { display: none; }
+  #tabContentVisitor .col-merged-time { display: table-cell; }
+  #tabContentVisitor .col-split-visitor { display: none; }
+  #tabContentVisitor .col-merged-visitor { display: table-cell; }
+  #tabContentVisitor .col-merged-time .time-in { color: #16a34a; font-weight: 700; }
+  #tabContentVisitor .col-merged-time .time-out { color: #dc2626; font-weight: 700; }
+}

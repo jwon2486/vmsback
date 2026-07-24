@@ -164,7 +164,7 @@ function showIntegratedEmpDashboard() {
                 <div class="bs-handle" onclick="closeCompanionSheet()"></div>
                 <div class="comp-zone-header">
                     <h3 class="zone-title my-title-color fs-105">👥 동반 일행 입력</h3>
-                    <button type="button" onclick="clearAllEmpCompanions()" class="btn-comp-clear">전체 취소</button>
+                    <button type="button" onclick="clearAllEmpCompanions()" class="btn-comp-clear">전체 삭제</button>
                 </div>
                 <div id="emp-companion-container" class="emp-comp-scroll-box"></div>
                 <button type="button" onclick="addEmpCompanionField()" class="btn-guest-sub btn-add-comp-outline-solid mt-10">
@@ -178,9 +178,9 @@ function showIntegratedEmpDashboard() {
                 <div class="list-header-row dept-header-column">
                     <h3 class="zone-title my-title-color">📅 나의 예약</h3>
                     <div class="date-range-picker-box picker-box-full">
-                        <input type="date" id="myStartDate" value="${weekRange.monday}" onchange="fetchFilteredMySchedule()" class="picker-date-input">
+                        <input type="date" id="myStartDate" value="${weekRange.todayKst}" onchange="fetchFilteredMySchedule()" class="picker-date-input">
                         <span class="range-tilde-text">~</span>
-                        <input type="date" id="myEndDate" value="${weekRange.friday}" onchange="fetchFilteredMySchedule()" class="picker-date-input">
+                        <input type="date" id="myEndDate" value="${weekRange.todayKst}" onchange="fetchFilteredMySchedule()" class="picker-date-input">
                     </div>
                 </div>
                 <div id="my-schedule-list" class="results-container emp-schedule-scroll-box">
@@ -335,7 +335,7 @@ function renderScheduleItems() {
             subMembers.forEach(m => {
                 const comp = m.company || '소속 미상';
                 if (!companyGroups[comp]) companyGroups[comp] = [];
-                companyGroups[comp].push(`<span class="ind-panel-name">${m.name} <span class="ind-panel-corp">(${m.contact || '-'})</span></span>`);
+                companyGroups[comp].push(`<span class="ind-panel-name">${m.name} <span class="ind-panel-corp">(${formatPhone(m.contact)})</span></span>`);
             });
 
             const combinedNamesHtml = Object.entries(companyGroups).map(([comp, namesHtmlArray]) => {
@@ -367,7 +367,7 @@ function renderScheduleItems() {
 
                     individualRowsHtml += `
                         <div class="ind-panel-row">
-                            <span class="ind-panel-name">${m.name} <span class="ind-panel-corp">(${m.company} | ${m.contact || '-'})</span></span>
+                            <span class="ind-panel-name">${m.name} <span class="ind-panel-corp">(${m.company} | ${formatPhone(m.contact)})</span></span>
                             <div class="ind-panel-actions">${indBtnHtml}</div>
                         </div>
                     `;
@@ -620,17 +620,10 @@ async function submitNewSchedule() {
 
 function openVisitorLogModal() {
     const modal = document.getElementById('allVisitorLogModal');
-    if (modal) {
-        modal.classList.remove('display-none');
-        const weekRange = getKstThisWeekRange();
-        const startEl = document.getElementById('allVisitorStartDate');
-        const endEl = document.getElementById('allVisitorEndDate');
-        if (startEl && endEl) {
-            startEl.value = weekRange.monday;
-            endEl.value = weekRange.friday;
-        }
-        loadAllVisitorLogs();
-    }
+    const frame = document.getElementById('recordsFrame');
+    // 관리자 tab-panel(/records)을 iframe으로 로드. 열 때마다 최신 데이터로 새로고침(_= 캐시버스터).
+    if (frame) frame.src = '/records?_=' + Date.now();
+    if (modal) modal.classList.remove('display-none');
 }
 
 function closeVisitorLogModal() {
@@ -657,27 +650,32 @@ async function loadAllVisitorLogs() {
         }
 
         const logs = await res.json();
+        // 관리자 화면과 동일 규칙: 순번=월 절대순번(month_seq), 최신순(방문일→id 내림차순) 정렬.
+        const sorted = [...logs].sort((a, b) => {
+            if (a.visit_date !== b.visit_date) return a.visit_date > b.visit_date ? -1 : 1;
+            return (b.id || 0) - (a.id || 0);
+        });
         let html = '';
-        if (logs.length === 0) {
+        if (sorted.length === 0) {
             html = '<tr><td colspan="11" class="text-center-p20-gray">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
-            logs.forEach(v => {
+            sorted.forEach(v => {
                 const managerDisplay = v.emp_name
-                    ? `${v.emp_name} <span class="text-gray-light">(${v.emp_dept || '부서없음'})</span>` 
-                    : '<span class="text-gray-lighter">-</span>'; 
-                
+                    ? `<b>${v.emp_name}</b><br><span class="text-gray-light">(${v.emp_dept || '부서없음'})</span>`
+                    : '<span class="text-gray-lighter">-</span>';
+
                 html += `
                     <tr class="border-bottom-eee">
-                        <td class="p-10">${v.id}</td>
+                        <td class="p-10">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
                         <td class="p-10 fw-bold">${v.name}</td>
-                        <td class="p-10">${v.contact || '-'}</td>
+                        <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
                         <td class="p-10"><span class="sec-purpose-badge">${v.purpose}</span></td>
                         <td class="p-10">${managerDisplay}</td>
-                        <td class="p-10 text-green fw-600">${v.checkin_time || '-'}</td>
-                        <td class="p-10 text-red fw-600">${v.checkout_time || '-'}</td>
+                        <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
+                        <td class="p-10 text-red fw-600">${secTimeOnly(v.checkout_time)}</td>
                         <td class="p-10"><b>${v.status}</b></td>
                     </tr>
                 `;

@@ -3,6 +3,15 @@
  * 보안실 출입 관제 및 대면 승인 처리 (인라인 CSS 완벽 제거)
  */
 
+// 'YYYY-MM-DD HH:MM:SS' → 'HH:MM:SS' 만 반환.
+//  - 표에는 이미 '방문일' 컬럼이 있어 날짜가 중복되므로 입·퇴실 셀은 시간만 표시한다.
+//  - 값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-')을 그대로 반환.
+function secTimeOnly(val) {
+    if (!val) return '-';
+    const parts = String(val).trim().split(' ');
+    return parts.length > 1 ? parts[parts.length - 1] : val;
+}
+
 function showSecurityDashboard() {
     const emp = JSON.parse(sessionStorage.getItem('emp_session'));
     const empRegion = emp.region || '테크센터'; 
@@ -41,7 +50,9 @@ function showSecurityDashboard() {
                 </button>
             </nav>
             <div class="sec-erp-sidebar-action">
+                <!-- 방문객 수동 예약: 요청에 의해 비활성화 (되살리려면 아래 버튼 주석 해제)
                 <button onclick="toggleSecRegForm()" class="btn-list-action bg-blue btn-sec-action w-100">➕ 방문객 수동 예약</button>
+                -->
             </div>
         </aside>
 
@@ -107,16 +118,15 @@ function showSecurityDashboard() {
                     <table class="modern-table w-100 min-w-700">
                         <thead class="sec-table-head">
                             <tr>
-                                <th class="p-10">요청 상태</th>
                                 <th class="p-10">방문자 (소속)</th>
                                 <th class="p-10">차량 번호</th>
                                 <th class="p-10">연락처</th>
-                                <th class="p-10">담당자 매칭</th>
-                                <th class="p-10">승인 액션</th>
+                                <th class="p-10">담당자</th>
+                                <th class="p-10">승인 상태</th>
                             </tr>
                         </thead>
                         <tbody id="securityQueueBody">
-                            <tr><td colspan="6" class="no-data-box">대기열을 불러오는 중입니다...</td></tr>
+                            <tr><td colspan="5" class="no-data-box">대기열을 불러오는 중입니다...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -142,14 +152,15 @@ function showSecurityDashboard() {
                                 <th class="p-10">방문 횟수</th>
                                 <th class="p-10">소속</th>
                                 <th class="p-10">방문 목적</th>
-                                <th class="p-10">사내 담당자</th>
-                                <th class="p-10">입실 시간</th>
-                                <th class="p-10">퇴실 시간</th>
+                                <th class="p-10">담당자</th>
+                                <th class="p-10 col-split-time">입실 시간</th>
+                                <th class="p-10 col-split-time">퇴실 시간</th>
+                                <th class="p-10 col-merged-time">입·퇴실</th>
                                 <th class="p-10">상태</th>
                             </tr>
                         </thead>
                         <tbody id="secAllLogsBody">
-                            <tr><td colspan="11" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
+                            <tr><td colspan="12" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -164,7 +175,6 @@ function showSecurityDashboard() {
                         <input type="date" id="secOverdueEndDate" value="${weekRange.todayKst}" onchange="loadSecurityOverdue()" class="sec-date-input">
                     </div>
                 </div>
-                <p class="sec-overdue-hint">💡 퇴실 예정시간이 지났는데 아직 퇴실 처리(입실완료 상태)가 안 된 방문객입니다. 기본은 오늘 기준이며, 날짜를 조정하면 해당 범위로 조회합니다.</p>
                 <div class="table-responsive sec-table-container h-500">
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
@@ -173,7 +183,7 @@ function showSecurityDashboard() {
                                 <th class="p-10">이름 (소속)</th>
                                 <th class="p-10">연락처</th>
                                 <th class="p-10">차량 번호</th>
-                                <th class="p-10">사내 담당자</th>
+                                <th class="p-10">담당자</th>
                                 <th class="p-10">입실 시간</th>
                                 <th class="p-10">퇴실 예정</th>
                                 <th class="p-10">지연 시간</th>
@@ -288,7 +298,7 @@ async function fetchSecurityQueue(isAuto = false) {
         if (pendingStatEl) pendingStatEl.textContent = totalPending;
         
         if (data.list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="no-data-box">현재 [${empRegion}] 승인 대기 중인 방문객 내역이 없습니다.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="no-data-box">현재 [${empRegion}] 승인 대기 중인 방문객 내역이 없습니다.</td></tr>`;
             return;
         }
 
@@ -309,12 +319,12 @@ async function fetchSecurityQueue(isAuto = false) {
             if (isGroup) {
                 html += `
                     <tr class="sec-group-row">
-                        <td colspan="5" class="sec-group-title">
+                        <td colspan="4" class="sec-group-title">
                             👥 그룹 방문객 (총 ${members.length}명 대기중) - 그룹장: ${members[0].name}
                         </td>
                         <td class="p-10">
                             <button onclick="approveSecurityGroup('${gId}', '${actionTarget}')" class="sec-btn-approve ${groupBtnClass}">
-                                ⚡ 일괄 ${actionTarget}
+                                ⚡ 일괄 ${actionTarget.replace('완료', '')} 승인
                             </button>
                         </td>
                     </tr>
@@ -322,29 +332,29 @@ async function fetchSecurityQueue(isAuto = false) {
             }
 
             members.forEach(v => {
-                const isMatchFailed = v.created_by === 'guard_pending';
                 const actionTargetItem = v.status === '입실대기' ? '입실완료' : '퇴실완료';
                 const btnColorClass = v.status === '입실대기' ? 'bg-green' : 'bg-orange';
-                const matchStatusText = isMatchFailed 
-                    ? '<span class="sec-match-fail">수동확인 필요</span>' 
-                    : '<span class="sec-match-success">식별완료</span>';
-                
+                // 담당자: 매칭된 직원이면 이름/(부서), 매칭 실패면 고객 입력값/(미매칭)
+                const managerName = v.emp_name || v.manager_text || '-';
+                const managerDeptLine = v.emp_name
+                    ? `<span class="fs-8 text-gray-light">(${v.emp_dept || '부서없음'})</span>`
+                    : `<span class="fs-8 sec-match-fail">(미매칭)</span>`;
+
                 const indentClass = isGroup ? 'sec-indent' : '';
                 const bgClass = isGroup ? 'sec-item-grouped' : '';
 
                 html += `
                     <tr class="sec-item-row ${bgClass}">
-                        <td class="p-10 ${indentClass}"><span class="status-badge badge-done">${v.status}</span></td>
-                        <td class="p-10"><b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
+                        <td class="p-10 ${indentClass}"><b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
                         <td class="p-10">${v.vehicle_no || '-'}</td>
-                        <td class="p-10">${v.contact || '-'}</td>
+                        <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
-                            ${matchStatusText}<br>
-                            <span class="fs-8">(고객 입력: ${v.manager_text})</span>
+                            <b>${managerName}</b><br>
+                            ${managerDeptLine}
                         </td>
                         <td class="p-10">
                             <button onclick="approveSecurityAction(${v.id}, '${actionTargetItem}')" class="sec-btn-approve-item ${btnColorClass}">
-                                ${actionTargetItem} 승인
+                                ${actionTargetItem.replace('완료', '')} 승인
                             </button>
                         </td>
                     </tr>
@@ -364,13 +374,13 @@ async function loadSecurityAllLogs(isAuto = false) {
     if (!tbody || !startDateEl || !endDateEl) return;
     
     if (!isAuto) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
     }
     
     try {
         const res = await fetch(`/api/admin/logs?start_date=${startDateEl.value}&end_date=${endDateEl.value}`);
         if (res.status === 401 || res.status === 403) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center-p20-red">조회 권한이 만료되었습니다. 재로그인 해주세요.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">조회 권한이 만료되었습니다. 재로그인 해주세요.</td></tr>';
             if (securityRefreshTimer) clearInterval(securityRefreshTimer);
             return;
         }
@@ -391,25 +401,29 @@ async function loadSecurityAllLogs(isAuto = false) {
 
         let html = '';
         if (sorted.length === 0) {
-            html = '<tr><td colspan="11" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
+            html = '<tr><td colspan="12" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
-                    ? `${v.emp_name} <span class="text-gray-light">(${v.emp_dept || '부서없음'})</span>` 
-                    : '<span class="text-gray-lighter">-</span>'; 
+                    ? `<b>${v.emp_name}</b><br><span class="fs-8 text-gray-light">(${v.emp_dept || '부서없음'})</span>`
+                    : '<span class="text-gray-lighter">-</span>';
                 
                 html += `
                     <tr class="border-bottom-eee">
                         <td class="p-10">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
                         <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
-                        <td class="p-10">${v.contact || '-'}</td>
+                        <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
                         <td class="p-10"><span class="sec-purpose-badge">${v.purpose}</span></td>
                         <td class="p-10">${managerDisplay}</td>
-                        <td class="p-10 text-green fw-600">${v.checkin_time || '-'}</td>
-                        <td class="p-10 text-red fw-600">${v.checkout_time || '-'}</td>
+                        <td class="p-10 text-green fw-600 col-split-time">${secTimeOnly(v.checkin_time)}</td>
+                        <td class="p-10 text-red fw-600 col-split-time">${secTimeOnly(v.checkout_time)}</td>
+                        <td class="p-10 col-merged-time">
+                            <span class="text-green fw-600">입 ${secTimeOnly(v.checkin_time)}</span><br>
+                            <span class="text-red fw-600">퇴 ${secTimeOnly(v.checkout_time)}</span>
+                        </td>
                         <td class="p-10"><b>${v.status}</b></td>
                     </tr>
                 `;
@@ -418,7 +432,7 @@ async function loadSecurityAllLogs(isAuto = false) {
         tbody.innerHTML = html;
     } catch (e) {
         if (!isAuto) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
         }
     }
 }
@@ -477,11 +491,11 @@ async function loadSecurityOverdue(isAuto = false) {
                 <tr class="sec-overdue-row">
                     <td class="p-10">${v.visit_date}</td>
                     <td class="p-10"><b>${v.name}</b><br><span class="text-gray-light">${v.company || '-'}</span></td>
-                    <td class="p-10">${v.contact || '-'}</td>
+                    <td class="p-10">${formatPhone(v.contact)}</td>
                     <td class="p-10">${v.vehicle_no || '-'}</td>
                     <td class="p-10">${v.manager_text || '-'}</td>
-                    <td class="p-10 text-green fw-600">${v.checkin_time || '-'}</td>
-                    <td class="p-10 fw-600">${v.expected_checkout_dt || (v.expected_checkout || '-')}</td>
+                    <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
+                    <td class="p-10 fw-600">${secTimeOnly(v.expected_checkout_dt || v.expected_checkout)}</td>
                     <td class="p-10"><span class="sec-overdue-badge">🔴 ${fmtDelay(v.overdue_minutes)} 초과</span></td>
                     <td class="p-10">
                         <button onclick="approveSecurityAction(${v.id}, '퇴실완료')" class="sec-btn-approve-item bg-orange">퇴실 처리</button>
@@ -498,7 +512,7 @@ async function loadSecurityOverdue(isAuto = false) {
 }
 
 async function approveSecurityAction(id, targetStatus, force = false) {
-    if(!force && !confirm(`대면 확인을 완료하셨습니까? 현 시점 기준으로 ${targetStatus} 승인 처리됩니다.`)) return;
+    // 버튼 클릭 즉시 처리 (라우틴 확인창 제거). 조기 입실 경고는 서버 응답(d.early)에서만 확인.
     try {
         const res = await fetch('/api/security/approve', {
             method: 'POST',
@@ -522,7 +536,7 @@ async function approveSecurityAction(id, targetStatus, force = false) {
 }
 
 async function approveSecurityGroup(groupId, targetStatus, force = false) {
-    if(!force && !confirm(`해당 그룹 인원 중 '대기상태'인 사람 전체를 일괄 ${targetStatus} 처리 하시겠습니까?`)) return;
+    // 버튼 클릭 즉시 처리 (라우틴 확인창 제거). 조기 입실 경고는 서버 응답(d.early)에서만 확인.
     try {
         const res = await fetch('/api/security/approve-group', {
             method: 'POST',

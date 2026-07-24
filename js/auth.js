@@ -10,11 +10,11 @@ function renderEmpNavbar() {
     
     let adminBtnHtml = '';
     if (emp && parseInt(emp.level) === 3) {
-        adminBtnHtml = `<a href="/admin" class="btn-link-admin btn-nav-admin-mode">⚙️ 관리자</a>`;
+        adminBtnHtml = `<a href="/admin" class="btn-nav-link btn-link-admin">관리자</a>`;
     }
     
     let allLogsBtnHtml = '';
-    if (emp && parseInt(emp.level) !== 4) {
+    if (emp && [3, 5].includes(parseInt(emp.level))) {
         allLogsBtnHtml = `<button onclick="openVisitorLogModal()" class="btn-nav-link btn-all-logs">📊 전체기록</button>`;
     }
     
