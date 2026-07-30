@@ -2,7 +2,20 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- ⚠️ viewport 메타는 '단독 접속'일 때만 주입한다.
+         이 페이지는 전체기록 팝업의 iframe 으로도 쓰이는데, 삼성 인터넷 등은 iframe 안에서도
+         viewport 메타를 적용한다. 그러면 'width=device-width' 가 iframe 폭이 아니라 '기기 폭'으로
+         레이아웃을 잡아, 팝업 폭보다 넓게 그려진 오른쪽(통계 카드 3번째·뒷 컬럼)이 잘리고
+         날짜 박스도 데스크톱 폭 기준이 되어 값('2026. 07. 30')이 잘려 보였다.
+         메타가 없으면 iframe 은 자기 요소 크기를 레이아웃 폭으로 쓰므로 팝업 폭에 맞게 반응한다. -->
+    <script>
+        if (window.self === window.top) {
+            var vp = document.createElement('meta');
+            vp.name = 'viewport';
+            vp.content = 'width=device-width, initial-scale=1.0';
+            document.head.appendChild(vp);
+        }
+    </script>
     <title>📊 전체 출입 기록</title>
     <script src="/js/visitor-history.js" defer></script>
     <script src="/js/admin.js" defer></script>

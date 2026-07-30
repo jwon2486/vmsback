@@ -337,6 +337,9 @@ body {
   outline: none;
   transition: all 0.2s ease;
   cursor: pointer;
+  /* 삼성 인터넷 등 네이티브 날짜 위젯은 값('2026. 07. 30')+화살표가 넓어 자연 폭으론 잘린다.
+     어느 화면 폭에서도 값이 온전히 보이도록 최소 폭을 확보. (좁은 모바일에선 아래에서 해제) */
+  min-width: 11rem;
 }
 
 .date-range-picker-box input[type="date"]:hover {
@@ -644,7 +647,8 @@ tr:hover td { background: #f8fafc; }
   .filter-bar, .toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.75rem; background: #fff; border-radius: var(--radius-sm); box-shadow: var(--shadow); }
   .search-box input { max-width: 100%; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
   .date-range-picker-box { width: 100%; justify-content: space-between; }
-  .date-range-picker-box input[type="date"] { flex: 1; text-align: center; padding: 0.45rem; font-size: 0.8rem; }
+  /* 좁은 모바일에선 두 박스가 폭을 나눠 쓰므로 최소 폭 해제(작은 글꼴·패딩으로 이미 값이 다 보인다) */
+  .date-range-picker-box input[type="date"] { flex: 1; min-width: 0; text-align: center; padding: 0.45rem; font-size: 0.8rem; }
   
   .table-wrapper { border: none; background: transparent; overflow: visible; }
   table, convictions, thead, tbody, th, td, tr { display: block; width: 100% !important; min-width: 0 !important; }

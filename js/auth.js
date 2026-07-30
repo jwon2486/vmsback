@@ -56,7 +56,7 @@ function showEmpLoginForm() {
                 </div>
                 <div class="input-group">
                     <label>성명</label>
-                    <input type="text" id="empName" placeholder="본인 성함 입력" value="${savedName}">
+                    <input type="text" id="empName" placeholder="본인 이름 입력" value="${savedName}">
                 </div>
             </div>
             <div class="remember-me-box remember-checkbox-layout-style">
