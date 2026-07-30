@@ -18,23 +18,44 @@ const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 조
 
 // 🕒 시간 선택기 — 크롬 기본 시간 픽커 스타일의 커스텀 '컬럼 스크롤' 드롭다운.
 //   - 네이티브 <input type=time> 은 분 단위를 못 바꾸므로 동일한 컬럼 UI 를 직접 구현.
-//   - [오전/오후] [시 01~12] [분 00,05,…,55] 3열. 선택값은 hidden input({prefix}_ap/_h/_m)에 저장.
-function timeSelectHtml(prefix) {
+//   - [오전/오후] [시 01~12] [분 00,10,…,50] 3열. 선택값은 hidden input({prefix}_ap/_h/_m)에 저장.
+// 현재 KST 시각을 '이상(올림)'인 10분 단위로 반환 → {ap, h(1~12), m}.
+//   예) 14:14 → 오후 02:20, 11:17 → 오전 11:20, 23:55 → 오전 12:00(익일)
+function roundUpToTenKst() {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const kst = new Date(utc + (9 * 60 * 60 * 1000));
+    let h = kst.getHours();
+    let m = Math.ceil(kst.getMinutes() / 10) * 10;
+    if (m >= 60) { m = 0; h = (h + 1) % 24; }
+    const ap = h < 12 ? 'AM' : 'PM';
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    return { ap: ap, h: h12, m: m };
+}
+
+// def(선택) = {ap,'AM'|'PM', h:1~12, m:0~50} 를 주면 그 값으로 기본 선택된 상태로 렌더.
+function timeSelectHtml(prefix, def) {
+    const selAp = def ? def.ap : '';
+    const selH = def ? String(def.h) : '';
+    const selM = def ? String(def.m) : '';
     const apCol = [['AM', '오전'], ['PM', '오후']]
-        .map(([v, l]) => `<div class="tp-opt" onclick="tpSelect('${prefix}','ap','${v}',this)">${l}</div>`).join('');
+        .map(([v, l]) => `<div class="tp-opt${v === selAp ? ' sel' : ''}" onclick="tpSelect('${prefix}','ap','${v}',this)">${l}</div>`).join('');
     let hCol = '';
     for (let h = 1; h <= 12; h++)
-        hCol += `<div class="tp-opt" onclick="tpSelect('${prefix}','h','${h}',this)">${String(h).padStart(2, '0')}</div>`;
+        hCol += `<div class="tp-opt${String(h) === selH ? ' sel' : ''}" onclick="tpSelect('${prefix}','h','${h}',this)">${String(h).padStart(2, '0')}</div>`;
     let mCol = '';
-    for (let m = 0; m < 60; m += 5)
-        mCol += `<div class="tp-opt" onclick="tpSelect('${prefix}','m','${m}',this)">${String(m).padStart(2, '0')}</div>`;
+    for (let m = 0; m < 60; m += 10)
+        mCol += `<div class="tp-opt${String(m) === selM ? ' sel' : ''}" onclick="tpSelect('${prefix}','m','${m}',this)">${String(m).padStart(2, '0')}</div>`;
+    const displayHtml = def
+        ? `<span class="tp-value">${def.ap === 'AM' ? '오전' : '오후'} ${String(def.h).padStart(2, '0')}:${String(def.m).padStart(2, '0')}</span>`
+        : `<span class="tp-placeholder">시간 선택</span>`;
     return `
         <div class="tp-wrap" id="${prefix}_wrap">
-            <input type="hidden" id="${prefix}_ap">
-            <input type="hidden" id="${prefix}_h">
-            <input type="hidden" id="${prefix}_m">
+            <input type="hidden" id="${prefix}_ap" value="${selAp}">
+            <input type="hidden" id="${prefix}_h" value="${selH}">
+            <input type="hidden" id="${prefix}_m" value="${selM}">
             <button type="button" class="tp-field" id="${prefix}_display" onclick="tpToggle('${prefix}')">
-                <span class="tp-placeholder">시간 선택</span>
+                ${displayHtml}
             </button>
             <div class="tp-panel" id="${prefix}_panel">
                 <div class="tp-col">${apCol}</div>
@@ -301,4 +322,114 @@ function openCompanionSheet() {
 
 function closeCompanionSheet() {
     document.body.classList.remove('bs-active');
+}
+
+// ====================================================================
+// 📍 거점별 링크·QR 안내 (직원용 보조)
+//   - 링크는 현재 접속 도메인(window.location.origin) 기준으로 생성 → IP/도메인/https 무관.
+//   - QR 이미지는 /qr/<코드>.png (qr/ 폴더에 업로드). 없으면 '준비중' 안내로 대체.
+// ====================================================================
+const REGION_QR_LIST = [
+    { code: 'dt', name: '테크센터', area: '동탄' },
+    { code: 'bs', name: '에코센터', area: '부산' },
+    { code: 'pt', name: '평택공장', area: '평택' },
+    { code: 'gj', name: '거제 조선소', area: '거제' },
+];
+
+function openRegionQrModal() {
+    const modal = document.getElementById('regionQrModal');
+    const grid = document.getElementById('regionQrGrid');
+    if (!modal || !grid) return;
+    const origin = window.location.origin;
+    grid.innerHTML = REGION_QR_LIST.map(r => {
+        const link = origin + '/v/' + r.code;
+        return `
+            <div class="region-qr-card">
+                <div class="region-qr-name">${r.name} <span class="region-qr-area">(${r.area})</span></div>
+                <div class="region-qr-imgwrap">
+                    <img class="region-qr-img" src="/api/region-qr/${r.code}" alt="${r.name} QR"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="region-qr-missing" style="display:none;">QR 생성 실패<br><small>서버 재시작 필요</small></div>
+                </div>
+                <div class="region-qr-link" title="${link}">${link}</div>
+                <button type="button" class="region-qr-copy" onclick="copyRegionInfo('${r.code}','${r.name}','${r.area}','${link}', this)">센터명·QR·링크 복사</button>
+            </div>`;
+    }).join('');
+    // QR PNG를 미리 base64 data URI 로 캐시 → '복사' 클릭 시 동기 실행되어 클립보드가 안정적.
+    window.__regionQrPng = window.__regionQrPng || {};
+    REGION_QR_LIST.forEach(r => {
+        if (window.__regionQrPng[r.code]) return;
+        fetch('/api/region-qr/' + r.code)
+            .then(res => res.ok ? res.blob() : Promise.reject())
+            .then(blobToDataUri)
+            .then(d => { window.__regionQrPng[r.code] = d; })
+            .catch(() => {});
+    });
+    modal.classList.remove('display-none');
+}
+
+function closeRegionQrModal() {
+    const modal = document.getElementById('regionQrModal');
+    if (modal) modal.classList.add('display-none');
+}
+
+// Blob → data URI (base64) 변환
+function blobToDataUri(blob) {
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+    });
+}
+
+// 센터명 + QR 이미지(PNG) + 링크를 '리치'로 복사 (카톡·메일·워드 등에 그대로 붙여넣기).
+//   - QR을 PNG base64 data URI 로 내장 → Word 등에서도 이미지가 정상 삽입됨(SVG는 미지원).
+//   - 모달 열 때 미리 캐시해 둔 data URI 를 쓰면 복사 클릭이 동기 실행되어 클립보드가 안정적.
+//   - execCommand 기반이라 http(비보안) 환경에서도 동작. 실패 시 텍스트(센터명+링크)만 폴백.
+async function copyRegionInfo(code, name, area, link, btn) {
+    const orig = btn.textContent;
+    const flash = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = orig; }, 1800); };
+    try {
+        let pngDataUri = (window.__regionQrPng || {})[code];
+        if (!pngDataUri) {
+            const res = await fetch('/api/region-qr/' + code);
+            if (!res.ok) throw new Error('qr fetch failed');
+            pngDataUri = await blobToDataUri(await res.blob());
+        }
+        const tmp = document.createElement('div');
+        tmp.setAttribute('contenteditable', 'true');
+        // 배경/글자색을 명시해, 복사 HTML에 페이지 배경색(#f8fafc)이 딸려가 Word 에서 음영으로 보이는 것을 방지.
+        tmp.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:normal;background:#ffffff;color:#000000;';
+        tmp.innerHTML =
+            '<div style="background:#ffffff;color:#000000;"><strong>' + name + ' (' + area + ')</strong></div>' +
+            '<div style="background:#ffffff;"><img src="' + pngDataUri + '" width="200" height="200" alt="' + name + ' QR"></div>' +
+            '<div style="background:#ffffff;color:#000000;">' + link + '</div>';
+        document.body.appendChild(tmp);
+        const range = document.createRange();
+        range.selectNodeContents(tmp);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const ok = document.execCommand('copy');
+        sel.removeAllRanges();
+        document.body.removeChild(tmp);
+        if (ok) { flash('복사됨 ✓'); return; }
+    } catch (e) { /* 아래 텍스트 폴백 */ }
+
+    // 폴백: 센터명 + 링크 텍스트만
+    const text = name + ' (' + area + ')\n' + link;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => flash('복사됨 ✓ (텍스트)')).catch(() => fallbackCopyLink(text, () => flash('복사됨 ✓ (텍스트)')));
+    } else {
+        fallbackCopyLink(text, () => flash('복사됨 ✓ (텍스트)'));
+    }
+}
+
+function fallbackCopyLink(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { /* noop */ }
+    document.body.removeChild(ta);
 }

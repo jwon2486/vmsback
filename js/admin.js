@@ -174,25 +174,25 @@ async function loadAdminLogs() {
 
                 html += `
                     <tr>
-                        <td>${v.month_seq != null ? v.month_seq : '-'}</td>
-                        <td>${v.visit_date}</td>
-                        <td class="col-split-visitor"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
-                        <td class="col-split-visitor">${formatPhone(v.contact)}</td>
-                        <td class="col-merged-visitor">
+                        <td data-label="순번">${v.month_seq != null ? v.month_seq : '-'}</td>
+                        <td data-label="방문일">${v.visit_date}</td>
+                        <td class="col-split-visitor" data-label="이름"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
+                        <td class="col-split-visitor" data-label="연락처">${formatPhone(v.contact)}</td>
+                        <td class="col-merged-visitor" data-label="방문객">
                             <span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span><br>
                             <span class="manager-dept-info">${formatPhone(v.contact)}</span>
                         </td>
-                        <td>${visitCountDisplay}</td>
-                        <td>${v.company}</td>
-                        <td><span class="purpose-tag">${v.purpose}</span></td>
-                        <td>${managerDisplay}</td>
-                        <td class="col-split-time">${adminTimeOnly(v.checkin_time)}</td>
-                        <td class="col-split-time">${adminTimeOnly(v.checkout_time)}</td>
-                        <td class="col-merged-time">
+                        <td data-label="방문 횟수">${visitCountDisplay}</td>
+                        <td data-label="소속">${v.company}</td>
+                        <td data-label="방문 목적"><span class="purpose-tag">${v.purpose}</span></td>
+                        <td data-label="담당자">${managerDisplay}</td>
+                        <td class="col-split-time" data-label="입실 시간">${adminTimeOnly(v.checkin_time)}</td>
+                        <td class="col-split-time" data-label="퇴실 시간">${adminTimeOnly(v.checkout_time)}</td>
+                        <td class="col-merged-time" data-label="입·퇴실">
                             <span class="time-in">입 ${adminTimeOnly(v.checkin_time)}</span><br>
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
                         </td>
-                        <td><b>${v.status}</b></td>
+                        <td data-label="상태"><b>${v.status}</b></td>
                     </tr>
                 `;
             });

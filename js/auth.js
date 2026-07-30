@@ -20,10 +20,10 @@ function renderEmpNavbar() {
     
     utilityNav.innerHTML = `
         <div class="nav-profile-info">
-            <span class="avatar">👤</span>
             <span class="user-text"><b>${emp.name} ${emp.rank || ''}</b> <span class="dept-tag">${emp.dept}</span></span>
         </div>
         <div class="nav-actions nav-actions-flex-wrapper">
+            <button onclick="openRegionQrModal()" class="btn-nav-link btn-region-qr">거점 QR 안내</button>
             ${allLogsBtnHtml}
             ${adminBtnHtml}
             <button onclick="handleEmpLogout()" class="btn-nav-link btn-link-danger">로그아웃</button>

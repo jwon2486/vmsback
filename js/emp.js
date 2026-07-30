@@ -115,13 +115,14 @@ function showIntegratedEmpDashboard() {
                 <h3 class="zone-title desktop-only-title">📋 새 방문객 예약 ${titleBadge}</h3>
                 <div class="form-container form-container-flush">
                     <input type="hidden" id="proxyStaffId" value="${emp.id}">
-                    
-                    ${regionSelectorHtml}
-                    
-                    <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="visitDate" value="${today}"></div>
+
+                    <div class="region-date-group">
+                        ${regionSelectorHtml}
+                        <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="visitDate" value="${today}"></div>
+                    </div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', roundUpToTenKst())}</div>
                         <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
                     </div>
                     

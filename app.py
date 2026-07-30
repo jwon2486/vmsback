@@ -1085,6 +1085,19 @@ def qr_image():
     from flask import Response
     return Response(buf.getvalue(), mimetype='image/svg+xml')
 
+# 📍 거점별 진입 링크(/v/<코드>)를 QR SVG 로 서버에서 즉석 생성 (외부 서비스·만료 없음).
+#    링크는 접속 호스트(request.host_url) 기준이라 IP/도메인/https 어디서든 자동 반영.
+@app.route('/api/region-qr/<region_code>', methods=['GET'])
+def region_qr_image(region_code):
+    if region_code not in REGION_MAP:
+        return "unknown region", 404
+    link = f"{request.host_url.rstrip('/')}/v/{region_code}"
+    img = qrcode.make(link, box_size=10, border=2)   # 기본 PIL 이미지 → PNG (Word 등 붙여넣기 호환)
+    buf = BytesIO()
+    img.save(buf, format='PNG')
+    from flask import Response
+    return Response(buf.getvalue(), mimetype='image/png')
+
 @app.route('/api/visitor/by-token', methods=['GET'])
 def visitor_by_token():
     """QR 토큰으로 방문 건의 현재 상태를 조회 (개인정보 최소 반환)."""

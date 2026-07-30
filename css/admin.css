@@ -688,19 +688,15 @@ tr:hover td { background: #f8fafc; }
 
   .badge, .emp-dept-label { padding: 2px 6px; font-size: 0.7rem; }
 
-  /* --- [방문객 로그 모바일 뷰 카드 마감] --- */
-  #adminLogBody tr td:nth-of-type(1)::before { content: "🔢 순번"; }
-  #adminLogBody tr td:nth-of-type(2)::before { content: "📅 방문일"; }
-  #adminLogBody tr td:nth-of-type(3)::before { content: "👤 방문자"; }
-  #adminLogBody tr td:nth-of-type(3) { font-size: 0.95rem; color: var(--brand); font-weight: 800; padding-bottom: 0.35rem; border-bottom: 1px dashed var(--line); margin-bottom: 0.35rem; }
-  #adminLogBody tr td:nth-of-type(4)::before { content: "🏢 소속사"; }
-  #adminLogBody tr td:nth-of-type(5)::before { content: "🎯 목적"; }
-  #adminLogBody tr td:nth-of-type(6)::before { content: "🧑‍💼 담당자"; }
-  #adminLogBody tr td:nth-of-type(7)::before { content: "⏰ 입실"; }
-  #adminLogBody tr td:nth-of-type(7) { color: #16a34a; font-weight: 600; }
-  #adminLogBody tr td:nth-of-type(8)::before { content: "🚪 퇴실"; }
-  /* (구 8컬럼 카드뷰 잔재 제거) 현재 12컬럼에선 nth-of-type(8)=담당자라, 이 줄이 담당자 칸의
-     하단 테두리·패딩을 없애 '가로줄 생략' + '패딩 3값(아래 0)'을 유발했음. */
+  /* --- [방문객 로그 모바일 카드] : data-label 기반 (라벨이 컬럼 순서·개수와 무관하게 항상 정확) ---
+     통합 컬럼(방문객·입퇴실)은 base 에서 이미 숨겨져, 카드엔 분리 컬럼(이름·연락처·입실·퇴실)만 노출된다. */
+  #adminLogBody tr td { font-size: 0.85rem; color: #334155; font-weight: 400; border-bottom: none; margin-bottom: 0; padding: 0.22rem 0; justify-content: flex-start; }
+  #adminLogBody tr td::before { content: attr(data-label); }
+  /* 방문자(이름)를 카드 제목처럼 강조 + 구분선 */
+  #adminLogBody tr td[data-label="이름"] { font-size: 0.98rem; font-weight: 800; color: var(--brand); padding-bottom: 0.45rem; border-bottom: 1px dashed var(--line); margin-bottom: 0.45rem; }
+  #adminLogBody tr td[data-label="입실 시간"] { color: #16a34a; font-weight: 600; }
+  #adminLogBody tr td[data-label="퇴실 시간"] { color: #dc2626; font-weight: 600; }
+  #adminLogBody tr td[data-label="상태"] { font-weight: 700; padding-top: 0.4rem; }
 
   .form-grid { grid-template-columns: 1fr; gap: 0.75rem; }
   .field.full { grid-column: span 1; }

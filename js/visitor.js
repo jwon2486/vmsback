@@ -448,7 +448,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     </div>
 
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin')}</div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', roundUpToTenKst())}</div>
                         <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
                     </div>
 

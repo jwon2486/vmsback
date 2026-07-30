@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="../css/guest.css">
 </head>
 <body>
-    <nav id="utility-nav" class="display-none"></nav>
-
     <div class="container">
+        <nav id="utility-nav" class="display-none"></nav>
+
         <div id="visitor-view" class="view-section">
             <header class="app-header">
                 <div class="brand-logo">
@@ -76,6 +76,19 @@
             </div>
             <!-- 관리자 tab-panel(/records)을 그대로 iframe으로 재사용 -->
             <iframe id="recordsFrame" class="records-frame" title="전체 출입 기록"></iframe>
+        </div>
+    </div>
+
+    <!-- 📍 거점별 링크·QR 안내 (직원용) -->
+    <div id="regionQrModal" class="modal-overlay-flex display-none">
+        <div class="visitor-modal-window region-qr-window">
+            <div class="records-topbar">
+                <span class="records-topbar-title">📍 거점별 방문객 링크·QR 안내</span>
+                <button onclick="closeRegionQrModal()" class="btn-modal-close">✖ 닫기</button>
+            </div>
+            <div class="region-qr-body">
+                <div id="regionQrGrid" class="region-qr-grid"></div>
+            </div>
         </div>
     </div>
 
