@@ -395,16 +395,22 @@ table th:nth-child(4), table td:nth-child(4) { width: 8.75rem; }
 table th:nth-child(5), table td:nth-child(5) { width: 8.75rem; } 
 table th:nth-child(6), table td:nth-child(6) { width: 10rem; } 
 table th:nth-child(7), table td:nth-child(7) { width: 9.375rem; } 
-table th:nth-child(8), table td:nth-child(8) { width: 9.375rem; } 
+table th:nth-child(8), table td:nth-child(8) { width: 9.375rem; }
 
-th { 
-  background: #f8fafc; 
-  padding: 1rem 0.5rem; 
-  text-align: center; 
-  font-size: 0.9rem; 
+/* ⚠️ 위 고정 컬럼폭은 8컬럼짜리 사원 관리 표 기준(합계 63.75rem ≈ 1020px)이다.
+   방문객 출입 기록 표는 13컬럼이라 그대로 적용하면 앞 8컬럼이 폭을 다 차지하고
+   담당자·입·퇴실·상태가 압착되어 헤더까지 줄바뀜된다. → 이 표만 자동 배분으로 되돌린다. */
+#tabContentVisitor th, #tabContentVisitor td { width: auto; }
+
+th {
+  background: #f8fafc;
+  padding: 1rem 0.5rem;
+  text-align: center;
+  font-size: 0.9rem;
   font-weight: 700;
-  color: #475569; 
-  border-bottom: 0.125rem solid var(--line); 
+  color: #475569;
+  border-bottom: 0.125rem solid var(--line);
+  white-space: nowrap;   /* 컬럼명은 짧다 — 폭이 부족하지 않은데도 줄바뀜되는 것을 막는다 */
 }
 
 td {
@@ -836,9 +842,19 @@ tr:hover td { background: #f8fafc; }
     flex: 1; min-width: 0; text-align: left; padding: 0.55rem 0.875rem; font-size: 0.875rem;
   }
 
-  /* 출입 기록 표: 모바일 카드형(≤768px) 변환을 되돌려 가로 스크롤 표로 유지 */
+  /* 출입 기록 표: 모바일 카드형(≤768px) 변환을 되돌려 가로 스크롤 표로 유지.
+     ⚠️ 카드형 base 가 'table{min-width:0 !important}' 를 걸어두므로 여기서도 !important 로 되돌려야
+        표가 뷰포트 폭으로 압착되지 않는다(압착되면 모든 셀이 줄바꿈되어 3줄씩 늘어짐). */
   #tabContentVisitor .table-wrapper { overflow-x: auto; border: 1px solid var(--line); background: #fff; }
-  #tabContentVisitor table { display: table; min-width: 46rem; table-layout: auto; }
+  /* 폭은 '내용에 맞게(max-content)'. width:auto/100% 로 두면 표가 래퍼 폭까지 늘어나면서
+     남는 폭을 순번 컬럼이 전부 흡수해(95px→192px) 정작 긴 컬럼들이 압착된다.
+     max-content 면 각 컬럼이 자연 폭을 갖고, 래퍼보다 넓어지는 좁은 태블릿에서만 가로 스크롤된다. */
+  /* min-width:100% → 데이터가 없을 때(헤더+안내문만) 표가 래퍼보다 좁게 쪼그라드는 것을 방지.
+     컬럼이 모두 auto 이므로 남는 폭은 고르게 배분된다. */
+  #tabContentVisitor table {
+    display: table; table-layout: auto;
+    width: max-content !important; min-width: 100% !important;
+  }
   #tabContentVisitor thead { display: table-header-group; }
   #tabContentVisitor thead tr { display: table-row; position: static; }
   #tabContentVisitor tbody { display: table-row-group; }
@@ -855,9 +871,25 @@ tr:hover td { background: #f8fafc; }
      잔재 규칙(#adminLogBody tr td:nth-of-type = 명시도 112)을 확실히 덮도록 #adminLogBody 로 명시도(201) 확보. */
   #tabContentVisitor #adminLogBody td {
     height: 3.4rem;
-    padding: 0.6rem 0.5rem; font-size: 0.85rem; color: #334155; font-weight: 400;
+    /* 좌우 여백을 넉넉히: 표가 max-content 폭이라 패딩이 곧 컬럼 간 숨 쉴 공간이 되고,
+       그 결과 표가 래퍼 폭을 자연스럽게 채운다(억지 stretch 없이). */
+    padding: 0.55rem 1rem; font-size: 0.8rem; color: #334155; font-weight: 400;
     border-bottom: 1px solid var(--line); margin: 0;
+    /* 카드형 규칙의 white-space:normal / 좌측정렬이 표로 새면 셀마다 2~3줄로 늘어진다. 명시도 201 로 차단. */
+    white-space: nowrap; text-align: center; justify-content: center;
   }
+  #tabContentVisitor #adminLogBody td b,
+  #tabContentVisitor #adminLogBody td .manager-dept-info { white-space: nowrap; }
+  /* 담당자: 데스크톱과 동일하게 '이름' 위 / '(부서명)' 아래 2줄 배치.
+     (모바일 카드형에서 <br> 을 숨겨 한 줄로 만들었는데, 그 규칙이 표에도 남아 한 줄로 붙어 나왔다.) */
+  #tabContentVisitor #adminLogBody td[data-label="담당자"] br { display: block; }
+  #tabContentVisitor #adminLogBody td[data-label="담당자"] .manager-dept-info { margin-left: 0; }
+  /* 헤더도 같은 밀도로(폭 낭비 축소) */
+  #tabContentVisitor thead th { padding: 0.55rem 1rem; font-size: 0.78rem; white-space: nowrap; }
+
+  /* 데스크톱 고정 컬럼폭(table th:nth-child(N))을 해제해 max-content 배분을 방해하지 않게 한다. */
+  #tabContentVisitor thead th,
+  #tabContentVisitor #adminLogBody td { width: auto; }
   #tabContentVisitor #adminLogBody td::before { display: none; }
 
   #tabContentVisitor #adminLogBody td::after { content: none; }

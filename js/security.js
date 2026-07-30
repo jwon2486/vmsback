@@ -59,7 +59,11 @@ function showSecurityDashboard() {
         <section class="sec-erp-content">
             <div class="sec-scan-bar">
                 <span class="sec-scan-icon">📷</span>
-                <input id="secScanInput" class="sec-scan-input" autocomplete="off"
+                <!-- inputmode="none": 화상 키패드를 띄우지 않는다.
+                     이 칸은 항상 포커스를 유지해야 리더기 스캔을 받을 수 있는데(secKeepScanFocus),
+                     태블릿에서는 재실중·승인 대기 같은 빈 영역만 눌러도 포커스가 여기로 와서
+                     키패드가 계속 떠버렸다. 리더기·물리 키보드 입력은 그대로 받는다. -->
+                <input id="secScanInput" class="sec-scan-input" autocomplete="off" inputmode="none"
                        placeholder="QR 스캔 대기 — 리더기로 방문객 QR을 스캔하세요 (수동 입력 후 Enter 도 가능)">
                 <span id="secScanResult" class="sec-scan-result"></span>
             </div>
