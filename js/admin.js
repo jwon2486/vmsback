@@ -112,6 +112,16 @@ function adminTimeOnly(val) {
     return parts.length > 1 ? parts[parts.length - 1] : val;
 }
 
+// 상태값 → 모바일 카드 상태 배지 색상 클래스 (진행 단계별로 색을 달리해 한눈에 구분).
+function adminStatusClass(status) {
+    const s = String(status || '');
+    if (s === '퇴실완료') return 'st-done';
+    if (s === '입실완료') return 'st-in';
+    if (s === '퇴실대기') return 'st-out-wait';
+    if (s === '입실대기' || s === '사전예약') return 'st-wait';
+    return 'st-etc';
+}
+
 // ==========================================
 // [구역 1] 방문객 출입 기록 처리 파트 (달력 연동)
 // ==========================================
@@ -124,7 +134,7 @@ async function loadAdminLogs() {
     
     const tbody = document.getElementById('adminLogBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
         const res = await fetch(`/api/admin/logs?start_date=${startDate}&end_date=${endDate}`);
@@ -162,7 +172,7 @@ async function loadAdminLogs() {
 
         let html = '';
         if (sorted.length === 0) {
-            html = '<tr><td colspan="13" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
+            html = '<tr><td colspan="14" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
@@ -172,14 +182,18 @@ async function loadAdminLogs() {
                     ? (v.visit_count >= 2 ? `<b>${v.visit_count}회</b>` : `${v.visit_count}회`)
                     : '-';
 
+                // 방문 이력 팝업 호출(이름 클릭). 따옴표·한글이 섞여도 안전하게 인코딩해 전달.
+                const historyCall = `openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name || '').replace(/'/g, '%27')}'),decodeURIComponent('${encodeURIComponent(v.contact || '').replace(/'/g, '%27')}'))`;
+                const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>`;
+
                 html += `
                     <tr>
                         <td data-label="순번">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td data-label="방문일">${v.visit_date}</td>
-                        <td class="col-split-visitor" data-label="이름"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span></td>
+                        <td class="col-split-visitor" data-label="이름">${nameLink}</td>
                         <td class="col-split-visitor" data-label="연락처">${formatPhone(v.contact)}</td>
                         <td class="col-merged-visitor" data-label="방문객">
-                            <span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span><br>
+                            ${nameLink}<br>
                             <span class="manager-dept-info">${formatPhone(v.contact)}</span>
                         </td>
                         <td data-label="방문 횟수">${visitCountDisplay}</td>
@@ -193,13 +207,26 @@ async function loadAdminLogs() {
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
                         </td>
                         <td data-label="상태"><b>${v.status}</b></td>
+                        <!-- 📱 모바일 카드 전용 헤더(이름·일행·상태·연락처·횟수를 한 블록으로).
+                             데스크톱·태블릿에선 숨김. 맨 끝에 두어 표의 고정 컬럼폭(nth-child)을 어긋나지 않게 하고,
+                             카드에선 order:-1 로 최상단에 올린다. -->
+                        <td class="col-card-head">
+                            <div class="card-head-main">
+                                <div class="card-head-id">
+                                    <span class="card-seq">#${v.month_seq != null ? v.month_seq : '-'}</span>
+                                    <span class="card-name">${nameLink}</span>
+                                </div>
+                                <span class="card-status ${adminStatusClass(v.status)}">${v.status}</span>
+                            </div>
+                            <div class="card-head-sub">${formatPhone(v.contact)} · 방문 ${v.visit_count != null ? v.visit_count : '-'}회</div>
+                        </td>
                     </tr>
                 `;
             });
         }
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
     }
 }
 
