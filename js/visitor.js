@@ -730,7 +730,7 @@ function showSearchForm() {
 function getStatusView(status) {
     switch (status) {
         case '입실대기': return { label: '🟡 입실 승인 대기중', desc: '경비실의 입실 승인을 기다리고 있습니다. 승인 완료 후 퇴실 요청이 가능합니다.', canCheckout: false };
-        case '입실완료': return { label: '🟢 입실 완료 (재실중)', desc: '정상 입실 상태입니다. 나가실 때 아래 버튼으로 퇴실 요청을 해주세요.', canCheckout: true };
+        case '입실완료': return { label: '🟢 재실중', desc: '정상 입실 상태입니다. 나가실 때 아래 버튼으로 퇴실 요청을 해주세요.', canCheckout: true };
         case '퇴실대기': return { label: '🟠 퇴실 승인 대기중', desc: '퇴실 요청이 접수되었습니다. 경비실 최종 승인 후 마감됩니다.', canCheckout: false };
         case '퇴실완료': return { label: '✅ 퇴실 완료', desc: '이미 퇴실 처리가 완료된 방문입니다.', canCheckout: false };
         case '만료':     return { label: '⛔ 만료됨', desc: '입실하지 않아 만료된 예약입니다. 방문하시려면 처음 화면에서 다시 등록해 주세요.', canCheckout: false };

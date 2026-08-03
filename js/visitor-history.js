@@ -30,6 +30,15 @@
         return p.length > 1 ? p[p.length - 1] : val;
     }
 
+    // 🏷️ 상태 '표시 라벨' 변환 (표시 전용 — DB 저장값·로직 비교값은 그대로 '입실완료' 를 쓴다)
+    //  - '입실완료' 는 "입실 절차가 끝난 상태"가 아니라 "지금 건물 안에 있는 상태"라 '재실중' 이 더 정확하다.
+    //  - 저장값을 바꾸면 기존 데이터 마이그레이션 + 전 구간 비교 로직을 모두 고쳐야 하므로 라벨만 바꾼다.
+    //  - 관리자·경비실·임직원·손님·이력 팝업 전 화면 공용. (guest/admin/records 모두 이 파일을 로드)
+    window.statusLabel = function (status) {
+        if (status === '입실완료') return '재실중';
+        return status == null ? '' : String(status);
+    };
+
     // 연락처 표시용 포맷: 숫자만 저장된 번호에 하이픈을 넣어 가독성을 높인다. (표시 전용)
     //  - 관리자/경비실/손님/임직원 모든 화면 공용. admin.html·guest.html 양쪽이 이 파일을 로드한다.
     //  - 조회 매칭 키(openVisitorHistory 등)로 쓰는 값은 원본(숫자)을 그대로 사용해야 한다.
@@ -142,7 +151,7 @@
                     '<td style="padding:0.5rem 0.4rem;white-space:nowrap;">' + mgr + '</td>' +
                     '<td style="padding:0.5rem 0.4rem;white-space:nowrap;color:#059669;">' + esc(timeOnly(v.checkin_time)) + '</td>' +
                     '<td style="padding:0.5rem 0.4rem;white-space:nowrap;color:#dc2626;">' + esc(timeOnly(v.checkout_time)) + '</td>' +
-                    '<td style="padding:0.5rem 0.4rem;white-space:nowrap;font-weight:700;">' + esc(v.status || '-') + '</td>' +
+                    '<td style="padding:0.5rem 0.4rem;white-space:nowrap;font-weight:700;">' + esc(window.statusLabel(v.status) || '-') + '</td>' +
                     '</tr>';
             }).join('');
             bodyEl.innerHTML =

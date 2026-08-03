@@ -206,7 +206,7 @@ async function loadAdminLogs() {
                             <span class="time-in">입 ${adminTimeOnly(v.checkin_time)}</span><br>
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
                         </td>
-                        <td data-label="상태"><b>${v.status}</b></td>
+                        <td data-label="상태"><b>${statusLabel(v.status)}</b></td>
                         <!-- 📱 모바일 카드 전용 헤더(이름·일행·상태·연락처·횟수를 한 블록으로).
                              데스크톱·태블릿에선 숨김. 맨 끝에 두어 표의 고정 컬럼폭(nth-child)을 어긋나지 않게 하고,
                              카드에선 order:-1 로 최상단에 올린다. -->
@@ -216,7 +216,7 @@ async function loadAdminLogs() {
                                     <span class="card-seq">#${v.month_seq != null ? v.month_seq : '-'}</span>
                                     <span class="card-name">${nameLink}</span>
                                 </div>
-                                <span class="card-status ${adminStatusClass(v.status)}">${v.status}</span>
+                                <span class="card-status ${adminStatusClass(v.status)}">${statusLabel(v.status)}</span>
                             </div>
                             <div class="card-head-sub">${formatPhone(v.contact)} · 방문 ${v.visit_count != null ? v.visit_count : '-'}회</div>
                         </td>

@@ -67,19 +67,20 @@ function showSecurityDashboard() {
                        placeholder="QR 스캔 대기 — 리더기로 방문객 QR을 스캔하세요 (수동 입력 후 Enter 도 가능)">
                 <span id="secScanResult" class="sec-scan-result"></span>
             </div>
+            <!-- 요약 카드 = 해당 탭 바로가기. button 으로 두어 키보드 포커스·엔터도 동작한다. -->
             <div class="sec-stat-grid">
-                <div class="sec-stat-card stat-pending">
+                <button type="button" class="sec-stat-card stat-pending" onclick="switchSecTab('queue')" title="승인 요청 탭으로 이동">
                     <span class="sec-stat-label">🚨 승인 대기</span>
                     <span class="sec-stat-value" id="secStatPending">-</span>
-                </div>
-                <div class="sec-stat-card stat-onsite">
+                </button>
+                <button type="button" class="sec-stat-card stat-onsite" onclick="switchSecTab('logs')" title="출입 기록 탭으로 이동">
                     <span class="sec-stat-label">🏢 현재 재실중</span>
                     <span class="sec-stat-value" id="secStatOnsite">-</span>
-                </div>
-                <div class="sec-stat-card stat-overdue">
+                </button>
+                <button type="button" class="sec-stat-card stat-overdue" onclick="switchSecTab('overdue')" title="퇴실 지연 탭으로 이동">
                     <span class="sec-stat-label">⏰ 퇴실 지연</span>
                     <span class="sec-stat-value" id="secStatOverdue">-</span>
-                </div>
+                </button>
             </div>
 
             <div id="secRegFormZone" class="display-none form-container sec-reg-form">
@@ -411,7 +412,16 @@ async function loadSecurityAllLogs(isAuto = false) {
                 const managerDisplay = v.emp_name
                     ? `<b>${v.emp_name}</b><br><span class="fs-8 text-gray-light">(${v.emp_dept || '부서없음'})</span>`
                     : '<span class="text-gray-lighter">-</span>';
-                
+
+                // 🚪 재실 중(입실완료)이면 퇴실 예정시간 전이라도 즉시 퇴실 처리할 수 있게 버튼 노출.
+                //    (손님이 퇴실 신청을 깜빡하고 나가버린 경우를 경비실에서 바로 정리)
+                //    별도 컬럼 없이 '상태' 셀 안, 상태값 아래에 배치한다.
+                //    퇴실이 끝났거나(퇴실완료) 대상이 아닌 상태면 버튼 영역 자체를 렌더하지 않는다.
+                //    ('퇴실대기'는 승인 대기열 탭에서 처리하므로 여기서는 노출하지 않는다.)
+                const checkoutBtn = v.status === '입실완료'
+                    ? `<div class="sec-status-action"><button onclick="approveSecurityAction(${v.id}, '퇴실완료')" class="sec-btn-approve-item bg-orange">퇴실 처리</button></div>`
+                    : '';
+
                 html += `
                     <tr class="border-bottom-eee">
                         <td class="p-10">${v.month_seq != null ? v.month_seq : '-'}</td>
@@ -428,7 +438,7 @@ async function loadSecurityAllLogs(isAuto = false) {
                             <span class="text-green fw-600">입 ${secTimeOnly(v.checkin_time)}</span><br>
                             <span class="text-red fw-600">퇴 ${secTimeOnly(v.checkout_time)}</span>
                         </td>
-                        <td class="p-10"><b>${v.status}</b></td>
+                        <td class="p-10"><b>${statusLabel(v.status)}</b>${checkoutBtn}</td>
                     </tr>
                 `;
             });
@@ -500,7 +510,7 @@ async function loadSecurityOverdue(isAuto = false) {
                     <td class="p-10">${v.manager_text || '-'}</td>
                     <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
                     <td class="p-10 fw-600">${secTimeOnly(v.expected_checkout_dt || v.expected_checkout)}</td>
-                    <td class="p-10"><span class="sec-overdue-badge">🔴 ${fmtDelay(v.overdue_minutes)} 초과</span></td>
+                    <td class="p-10"><span class="sec-overdue-badge">${fmtDelay(v.overdue_minutes)}</span></td>
                     <td class="p-10">
                         <button onclick="approveSecurityAction(${v.id}, '퇴실완료')" class="sec-btn-approve-item bg-orange">퇴실 처리</button>
                     </td>

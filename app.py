@@ -1320,7 +1320,10 @@ def admin_excel():
     
     df = pd.DataFrame([dict(log) for log in logs])
     _cols = ['순번', '방문일', '이름', '소속', '방문 목적', '사내 담당자', '방문 예정시간', '퇴실 예정시간', '입실 시간', '퇴실 시간', '현재 상태']
-    if not df.empty: df.columns = _cols
+    if not df.empty:
+        df.columns = _cols
+        # 화면과 동일한 표시 라벨 사용 (DB 저장값은 '입실완료' 그대로, 표시만 '재실중')
+        df['현재 상태'] = df['현재 상태'].replace({'입실완료': '재실중'})
     else: df = pd.DataFrame(columns=_cols)
         
     output = BytesIO()

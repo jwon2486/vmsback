@@ -496,11 +496,19 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 
 /* 🔒 경비실 상단 요약 통계 헤더 (다크 네이비 카드) */
 .sec-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+/* 요약 카드는 해당 탭으로 이동하는 <button> 이다.
+   버튼 기본 스타일(테두리·가운데 정렬·폰트 상속 안 함)을 지워 기존 카드 모양을 그대로 유지한다. */
 .sec-stat-card {
     background: #1e293b; border-radius: var(--radius-md); padding: 16px 18px;
     display: flex; flex-direction: column; gap: 8px;
     border-left: 4px solid #475569; box-shadow: var(--shadow-md);
+    border-top: none; border-right: none; border-bottom: none;
+    width: 100%; text-align: left; font-family: inherit;
+    cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+.sec-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28); }
+.sec-stat-card:active { transform: translateY(0); }
+.sec-stat-card:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
 .sec-stat-card .sec-stat-label { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; }
 .sec-stat-card .sec-stat-value { font-size: 1.9rem; font-weight: 800; color: #fff; line-height: 1; }
 .sec-stat-card.stat-pending { border-left-color: #ef4444; }
@@ -544,11 +552,25 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .sec-erp-layout .modern-table td { white-space: nowrap; }
 .min-w-900 { min-width: 900px; }
 
-/* 🔒 경비실 전체 출입 기록: 입·퇴실 시간 컬럼을 화면 방향에 따라 전환
-   - 가로/데스크톱: 입실·퇴실 분리 컬럼 표시, 통합 컬럼 숨김 (기존 배치 유지)
-   - 세로: 분리 컬럼 2개 숨기고 '입·퇴실' 통합 1컬럼(2줄)만 표시 → 폭 절약 */
+/* 🔒 경비실 표(.sec-table-container): 셀의 '좌우' 여백만 축소해 표 폭을 약 5% 줄인다.
+   좌우 기본값은 .modern-table 의 1rem(16px) → 14px. (사방 10px 인 .p-10 은 명시도에서 밀려 미적용)
+   상하(0.85rem)는 그대로 두어 행 높이·가독성은 유지한다.
+   컬럼 12개 기준 좌우 24군데 × 2px = 약 48px 감소. */
+.sec-table-container .modern-table th,
+.sec-table-container .modern-table td { padding-left: 14px; padding-right: 14px; }
+
+/* 🔒 '상태' 셀 안의 퇴실 처리 버튼: 상태값 아래 줄에 배치.
+   재실 중이 아닐 때는 JS 가 이 영역 자체를 렌더하지 않아 자연히 숨겨진다(빈 자리도 없음). */
+.sec-status-action { margin-top: 6px; }
+
+/* 🔒 경비실 전체 출입 기록: 입·퇴실 시간 컬럼을 통합/분리 전환
+   - 데스크톱(마우스) 가로: 입실·퇴실 분리 컬럼 표시, 통합 컬럼 숨김 (기존 배치 유지)
+   - 세로 화면 + 터치 기기(태블릿)는 가로여도: 분리 컬럼 2개를 숨기고
+     '입·퇴실' 통합 1컬럼(2줄)만 표시 → 폭 절약
+   'pointer: coarse' 를 함께 둔 이유: 가로 태블릿은 폭이 넓어 데스크톱으로 걸리는 바람에
+   세로일 때와 컬럼 구성이 달라졌다. 터치 기기는 방향과 무관하게 통합 컬럼으로 통일한다. */
 .sec-erp-layout .col-merged-time { display: none; }
-@media (orientation: portrait) {
+@media (orientation: portrait), (pointer: coarse) {
     .sec-erp-layout .col-split-time { display: none; }
     .sec-erp-layout .col-merged-time { display: table-cell; }
 }
@@ -622,6 +644,19 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     .sec-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
     .sec-stat-card { padding: 12px 14px; }
     .sec-stat-card .sec-stat-value { font-size: 1.5rem; }
+}
+
+/* 👆 가로 태블릿: 폭은 900px 을 넘지만 터치 기기이므로 사이드바를 모바일과 동일하게
+   '상단 가로 탭'으로 전환한다. (폭만으로 판정하면 데스크톱으로 걸려 세로 사이드바가 남는다)
+   통계 카드 열 수 등 폭에 따라 달라지는 부분은 넓은 화면에 맞춰 그대로 둔다. */
+@media (min-width: 901px) and (pointer: coarse) {
+    .sec-erp-layout { flex-direction: column; gap: 16px; min-height: 0; }
+    .sec-erp-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0.8rem; }
+    .sec-erp-brand { flex: 1 1 100%; border-bottom: none; padding: 0 0.2rem 0.6rem; }
+    .sec-erp-nav { flex-direction: row; flex: 1 1 100%; gap: 6px; }
+    .sec-nav-item { flex: 1; justify-content: center; }
+    .sec-erp-sidebar-action { margin-top: 0; flex: 1 1 100%; }
+    .sec-erp-content { padding-left: 0; }
 }
 
 /* 📱 태블릿 세로(약 10~11인치): 통계 카드 3개를 한 줄로 배치 + 여백 축소
@@ -970,3 +1005,18 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 /* 방문객 상태 화면 인라인 안내 배너 (퇴실 요청 접수 등) */
 .guest-flash { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700;
     padding: 0.7rem 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; text-align: center; font-size: 0.95rem; }
+
+/* ====================================================================
+   🖥️ 경비실 데스크톱: 전체 텍스트 10% 확대 (루트 16px → 17.6px)
+   - 이 화면의 크기는 대부분 rem(루트의 배수)이라, 루트만 올리면 글자·간격이
+     함께 비례 확대되어 균형이 깨지지 않는다.
+   - 적용 범위를 '경비실 화면'으로 한정: .container-security-wide 는 security.js 가
+     경비실 대시보드를 그릴 때만 .container 에 부여한다.
+     → 손님·임직원 화면(같은 guest.html)과 관리자 화면(admin.css)은 영향 없음.
+   - 표 폭: 경비실 표의 최소너비는 .min-w-900 / .min-w-700 로 'px' 지정이라
+     루트를 올려도 커지지 않는다. (관리자의 table{min-width:56.25rem} 은 admin.css 소속이라 무관)
+     넘치는 경우는 기존대로 .table-responsive 의 가로 스크롤이 처리한다.
+   ==================================================================== */
+@media (min-width: 1200px) {
+    html:has(.container-security-wide) { font-size: 17.6px; }
+}

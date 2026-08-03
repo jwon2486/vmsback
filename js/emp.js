@@ -317,7 +317,7 @@ function renderScheduleItems() {
             } else if (v.status === '퇴실대기') {
                 actionHtml = `<span class="status-badge badge-waiting">퇴실 대기중</span>`;
             } else {
-                actionHtml = `<span class="status-badge badge-done">${v.status}</span>`;
+                actionHtml = `<span class="status-badge badge-done">${statusLabel(v.status)}</span>`;
             }
             
             // 입실/퇴실을 각각 '실제 | 예정' 한 줄로 표기 (실제값 없으면 대기중/-)
@@ -363,7 +363,7 @@ function renderScheduleItems() {
                     } else if (m.status === '입실대기' || m.status === '퇴실대기') {
                         indBtnHtml = `<span class="status-badge badge-waiting badge-ind-status">대기중</span>`;
                     } else {
-                        indBtnHtml = `<span class="status-badge badge-done badge-ind-status">${m.status}</span>`;
+                        indBtnHtml = `<span class="status-badge badge-done badge-ind-status">${statusLabel(m.status)}</span>`;
                     }
 
                     individualRowsHtml += `
@@ -677,7 +677,7 @@ async function loadAllVisitorLogs() {
                         <td class="p-10">${managerDisplay}</td>
                         <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
                         <td class="p-10 text-red fw-600">${secTimeOnly(v.checkout_time)}</td>
-                        <td class="p-10"><b>${v.status}</b></td>
+                        <td class="p-10"><b>${statusLabel(v.status)}</b></td>
                     </tr>
                 `;
             });
