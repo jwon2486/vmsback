@@ -559,6 +559,39 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .sec-table-container .modern-table th,
 .sec-table-container .modern-table td { padding-left: 14px; padding-right: 14px; }
 
+/* 📄 출입 기록 표 페이지네이션 (10건 단위). 관리자 화면(admin.css)과 동일한 조작 방식. */
+.pagination-container {
+    display: flex; justify-content: center; align-items: center; gap: 6px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);
+}
+.pagination-container button {
+    min-width: 36px; height: 36px; padding: 0 8px;
+    border: 1px solid var(--border-color); background: #fff; border-radius: 8px;
+    cursor: pointer; font-weight: 700; color: #64748b; font-size: 0.85rem;
+    font-family: inherit; transition: all 0.15s ease;
+}
+.pagination-container button:hover:not(:disabled) { background: #f1f5f9; color: #334155; }
+.pagination-container button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.pagination-container button:disabled { opacity: 0.45; cursor: default; }
+
+/* 🗺️ 거점(사업장) 필터 버튼 — 경비실 '출입 기록' 탭.
+   기록 조회는 관리자(3)·전체기록 열람(5)과 동일하게 전 사업장이 기본이며,
+   버튼으로 센터별로 좁혀 볼 수 있다. (승인 권한은 자기 센터로 별도 제한) */
+.region-filter-bar {
+    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    background: #f8fafc; border: 1px solid var(--border-color);
+    border-radius: var(--radius-md); padding: 0.7rem 1rem; margin-bottom: 12px;
+}
+.region-filter-bar .filter-label { font-weight: 700; font-size: 0.88rem; color: #475569; }
+.region-filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.region-filter-btn {
+    padding: 0.4rem 0.85rem; border: 1px solid var(--border-color); border-radius: 999px;
+    background: #fff; color: #475569; font-size: 0.85rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+}
+.region-filter-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.region-filter-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
 /* 🔒 '상태' 셀 안의 퇴실 처리 버튼: 상태값 아래 줄에 배치.
    재실 중이 아닐 때는 JS 가 이 영역 자체를 렌더하지 않아 자연히 숨겨진다(빈 자리도 없음). */
 .sec-status-action { margin-top: 6px; }

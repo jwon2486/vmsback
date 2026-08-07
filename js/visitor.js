@@ -423,7 +423,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     <option value="테크센터">동탄 (테크센터)</option>
                     <option value="에코센터">부산 (에코센터)</option>
                     <option value="평택공장">평택공장</option>
-                    <option value="거제 조선소">거제 조선소</option>
+                    <option value="거제 오션센터">거제 오션센터</option>
                 </select>
             </div>
         `;

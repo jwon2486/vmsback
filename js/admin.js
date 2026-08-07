@@ -92,10 +92,25 @@ document.addEventListener("DOMContentLoaded", () => {
         endEl.value = weekRange.todayKst;
     }
 
+    renderAdminRegionButtons();
+
     if (sessionStorage.getItem('emp_session')) {
         loadAdminLogs();
     }
 });
+
+// 🗺️ 거점 필터 버튼 렌더: '전 사업장' → 본인 소속 센터 → 나머지(기본 순서).
+//    소속은 로그인 세션에서 읽고, 목록·순서 규칙은 visitor-history.js 의 공용 헬퍼가 담당한다.
+function renderAdminRegionButtons() {
+    const box = document.getElementById('regionFilterBtns');
+    if (!box || typeof window.regionFilterButtonsHtml !== 'function') return;
+    let myRegion = '';
+    try {
+        const emp = JSON.parse(sessionStorage.getItem('emp_session'));
+        myRegion = emp ? (emp.region || '') : '';
+    } catch (e) {}
+    box.innerHTML = window.regionFilterButtonsHtml(myRegion, 'setAdminRegion');
+}
 
 window.addEventListener("pageshow", (event) => {
     if (window.location.pathname.startsWith('/admin') &&
@@ -125,6 +140,26 @@ function adminStatusClass(status) {
 // ==========================================
 // [구역 1] 방문객 출입 기록 처리 파트 (달력 연동)
 // ==========================================
+
+// 📄 조회 결과 전체(정렬 완료)와 현재 페이지. 표는 10건씩 끊어 보여준다.
+//    요약 카드(입실 인원·완료·재실중)는 페이지가 아니라 '조회 결과 전체' 기준으로 계산한다.
+let adminLogsAll = [];
+let adminLogPage = 1;
+
+// 🗺️ 선택된 거점 필터. '' = 전 사업장.
+//   서버는 level 3·5 에만 이 값을 적용하고, 경비실(4)은 항상 자기 거점으로 강제한다.
+//   값은 서버 화이트리스트(ALLOWED_REGIONS)로 재검증되므로 임의 값은 무시된다.
+let adminRegionFilter = '';
+
+// 거점 버튼 클릭 → 활성 표시 갱신 + 재조회
+function setAdminRegion(btn) {
+    if (!btn) return;
+    adminRegionFilter = btn.dataset.region || '';
+    const bar = document.getElementById('regionFilterBar');
+    if (bar) bar.querySelectorAll('.region-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+    loadAdminLogs();
+}
+
 async function loadAdminLogs() {
     const startEl = document.getElementById('adminStartDate');
     const endEl = document.getElementById('adminEndDate');
@@ -137,7 +172,8 @@ async function loadAdminLogs() {
     tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
-        const res = await fetch(`/api/admin/logs?start_date=${startDate}&end_date=${endDate}`);
+        const regionParam = adminRegionFilter ? `&region=${encodeURIComponent(adminRegionFilter)}` : '';
+        const res = await fetch(`/api/admin/logs?start_date=${startDate}&end_date=${endDate}${regionParam}`);
         
         if (res.status === 401 || res.status === 403) {
             alert("관리자 권한 인증 세션이 없거나 만료되었습니다.");
@@ -165,13 +201,32 @@ async function loadAdminLogs() {
 
         // 순번: 서버가 계산한 '그 달 절대 순번'(month_seq) 사용 (경비실·엑셀과 동일 규칙).
         //  - 날짜 필터와 무관하게 매달 1일부터의 절대 위치. 표시는 최신순(방문일→id 내림차순).
-        const sorted = [...logs].sort((a, b) => {
+        //  - 정렬 결과 전체를 보관하고, 표에는 현재 페이지 몫만 그린다(요약 카드는 전체 기준).
+        adminLogsAll = [...logs].sort((a, b) => {
             if (a.visit_date !== b.visit_date) return a.visit_date > b.visit_date ? -1 : 1;
             return (b.id || 0) - (a.id || 0);
         });
+        adminLogPage = 1;          // 조회 조건이 바뀌면 항상 1페이지부터
+        renderAdminLogTable();
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="14" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+    }
+}
 
+// 📄 현재 페이지 몫만 표에 렌더 + 페이지 버튼 갱신
+function renderAdminLogTable() {
+    const tbody = document.getElementById('adminLogBody');
+    if (!tbody) return;
+
+    const perPage = window.VISIT_LOG_PER_PAGE || 10;
+    const totalPages = Math.max(1, Math.ceil(adminLogsAll.length / perPage));
+    if (adminLogPage > totalPages) adminLogPage = totalPages;
+    const start = (adminLogPage - 1) * perPage;
+    const sorted = adminLogsAll.slice(start, start + perPage);
+
+    {
         let html = '';
-        if (sorted.length === 0) {
+        if (adminLogsAll.length === 0) {
             html = '<tr><td colspan="14" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
@@ -225,8 +280,13 @@ async function loadAdminLogs() {
             });
         }
         tbody.innerHTML = html;
-    } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="14" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+    }
+
+    if (typeof window.renderLogPagination === 'function') {
+        window.renderLogPagination('adminLogPagination', adminLogsAll.length, adminLogPage, perPage, (p) => {
+            adminLogPage = p;
+            renderAdminLogTable();
+        });
     }
 }
 
@@ -237,7 +297,9 @@ function downloadExcel() {
     const startDate = startEl ? startEl.value : '';
     const endDate = endEl ? endEl.value : '';
     
-    window.location.href = `/api/admin/excel-download?start_date=${startDate}&end_date=${endDate}`;
+    // 화면의 거점 필터를 엑셀에도 동일 적용 (필터를 걸고 저장했는데 전 사업장이 나오면 혼란)
+    const regionParam = adminRegionFilter ? `&region=${encodeURIComponent(adminRegionFilter)}` : '';
+    window.location.href = `/api/admin/excel-download?start_date=${startDate}&end_date=${endDate}${regionParam}`;
 }
 
 // ==========================================

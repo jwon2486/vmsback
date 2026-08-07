@@ -76,12 +76,17 @@ def get_or_create_token(conn, log_id):
 #    주소창·페이지 소스 어디에도 노출되지 않는다.
 # ====================================================================
 REGION_MAP = {
-    'dt': '테크센터',     # 동탄
-    'bs': '에코센터',     # 부산
-    'pt': '평택공장',     # 평택
-    'gj': '거제 조선소',  # 거제
+    'dt': '테크센터',        # 동탄
+    'bs': '에코센터',        # 부산
+    'pt': '평택공장',        # 평택
+    'gj': '거제 오션센터',   # 거제 (구 '거제 조선소' → 사명 변경, init_db 에서 기존 데이터 일괄 갱신)
 }
-ALLOWED_REGIONS = set(REGION_MAP.values())  # {'테크센터', '에코센터', '평택공장', '거제 조선소'}
+ALLOWED_REGIONS = set(REGION_MAP.values())  # {'테크센터', '에코센터', '평택공장', '거제 오션센터'}
+
+# 거점명 변경 이력: 예전 값 → 현재 값. init_db 가 기동 시 DB 를 자동 갱신한다(멱등).
+REGION_RENAMES = {
+    '거제 조선소': '거제 오션센터',
+}
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=10)
@@ -151,7 +156,19 @@ def init_db():
             INSERT INTO employees (id, name, dept, rank, type, region, level)
             VALUES ('admin', '최고관리자', '관리부', '팀장', '직영', '테크센터', 3)
         """)
-        
+
+    # 🗺️ 거점명 변경 반영 (멱등): 이미 저장된 옛 거점명을 현재 이름으로 일괄 갱신.
+    #   region 은 조회 필터·경비실 권한 판정의 매칭 키라, 코드만 바꾸면 기존 데이터가 매칭되지 않는다.
+    #   기동 시마다 실행되지만 대상 행이 없으면 아무 일도 하지 않는다.
+    for old_name, new_name in REGION_RENAMES.items():
+        for table in ('visitor_log', 'employees'):
+            try:
+                cursor.execute(f"UPDATE {table} SET region = ? WHERE region = ?", (new_name, old_name))
+                if cursor.rowcount:
+                    print(f"🗺️ [거점명 갱신] {table}: '{old_name}' → '{new_name}' {cursor.rowcount}건")
+            except sqlite3.OperationalError:
+                pass   # region 컬럼이 아직 없는 초기 스키마 등
+
     conn.commit()
     conn.close()
 
@@ -374,7 +391,7 @@ def guest_page(): return render_template('guest.html')
 def guest_region_entry(region_code):
     """
     📍 거점별 QR/링크 진입점.
-      - 정문에 비치한 거점별 QR이 이 경로를 가리킨다. (예: /v/gj → 거제 조선소)
+      - 정문에 비치한 거점별 QR이 이 경로를 가리킨다. (예: /v/gj → 거제 오션센터)
       - 매칭되는 거점이 있으면 region을 '서버 세션에만' 저장한다.
       - 이후 손님은 region이 노출되지 않는 깨끗한 '/' 로 리다이렉트된다.
       - 알 수 없는 코드면 세션에 아무것도 남기지 않아, '/' 에서 거점 선택 드롭다운으로 폴백된다.
@@ -609,14 +626,21 @@ def group_preregister_visitor():
         return jsonify({"success": False, "message": "등록 처리 중 서버 에러가 발생했습니다."}), 500
 
 # ====================================================================
-# 🛡️ 보안실(Level 4) 중심 관제 API 
+# 🛡️ 보안실(Level 4) 중심 관제 API
+#   🔒 승인(입·퇴실 처리)은 '자기 소속 센터'로만 한정한다.
+#      거점은 반드시 세션에서만 읽는다 — 요청 파라미터를 받으면
+#      주소창/콘솔에서 region 을 바꿔 다른 센터를 처리할 수 있다.
 # ====================================================================
+def security_session_region():
+    """로그인 세션에 기록된 경비실 담당 거점. 승인 계열 API 의 유일한 거점 출처."""
+    return (session.get('user') or {}).get('region') or ''
+
 @app.route('/api/security/pending-logs', methods=['GET'])
 def get_security_pending_logs():
     if 'user' not in session or int(session['user'].get('level', 1)) != 4:
         return jsonify({"success": False}), 403
-        
-    region = request.args.get('region') or session['user'].get('region')
+
+    region = security_session_region()   # 🔒 클라이언트 파라미터 무시
     today_str = get_current_kst_time().strftime('%Y-%m-%d')
 
     conn = get_db_connection()
@@ -641,7 +665,7 @@ def get_security_overdue():
     if 'user' not in session or int(session['user'].get('level', 1)) != 4:
         return jsonify({"success": False}), 403
 
-    region = request.args.get('region') or session['user'].get('region')
+    region = security_session_region()   # 🔒 퇴실 처리 대상 목록이므로 자기 센터로만 한정
     start_date = request.args.get('start_date', '').strip()
     end_date = request.args.get('end_date', '').strip()
 
@@ -692,8 +716,18 @@ def approve_security_log():
     force = bool(data.get('force', False))
     now_str = get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')
     time_column = 'checkin_time' if target_status == '입실완료' else 'checkout_time'
-    
+
     conn = get_db_connection()
+
+    # 🔒 자기 소속 센터의 건만 승인할 수 있다. (화면에서 숨기는 것만으론 부족 — API 직접 호출 차단)
+    my_region = security_session_region()
+    target = conn.execute("SELECT region FROM visitor_log WHERE id = ?", (log_id,)).fetchone()
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "방문 정보를 찾을 수 없습니다."}), 404
+    if not my_region or target['region'] != my_region:
+        conn.close()
+        return jsonify({"success": False, "message": "다른 사업장의 방문 건은 처리할 수 없습니다."}), 403
 
     # ⏰ 입실 승인 시 조기입실(예정시간보다 이른 입실) 검사 → 미확인 상태면 경고 반환
     if target_status == '입실완료' and not force:
@@ -731,6 +765,16 @@ def approve_security_log_group():
     try:
         conn = get_db_connection()
 
+        # 🔒 자기 소속 센터의 그룹만 승인 가능. (그룹 전원이 같은 거점이므로 대표 1건으로 판정)
+        my_region = security_session_region()
+        grp = conn.execute("SELECT region FROM visitor_log WHERE group_id = ? LIMIT 1", (group_id,)).fetchone()
+        if not grp:
+            conn.close()
+            return jsonify({"success": False, "message": "그룹 정보를 찾을 수 없습니다."}), 404
+        if not my_region or grp['region'] != my_region:
+            conn.close()
+            return jsonify({"success": False, "message": "다른 사업장의 방문 건은 처리할 수 없습니다."}), 403
+
         # ⏰ 입실 승인 시 조기입실 검사: 그룹 내 입실대기 건 중 가장 이른 예정시각 기준으로 판정
         if target_status == '입실완료' and not force:
             rows = conn.execute(
@@ -752,10 +796,10 @@ def approve_security_log_group():
                 })
 
         conn.execute(f"""
-            UPDATE visitor_log 
-            SET status = ?, {time_column} = ? 
-            WHERE group_id = ? AND status = ?
-        """, (target_status, now_str, group_id, current_status))
+            UPDATE visitor_log
+            SET status = ?, {time_column} = ?
+            WHERE group_id = ? AND status = ? AND region = ?
+        """, (target_status, now_str, group_id, current_status, my_region))
         conn.commit()
         conn.close()
         return jsonify({"success": True})
@@ -1214,10 +1258,10 @@ def admin_logs():
     if 'user' not in session: return jsonify({"success": False}), 401
 
     start_date, end_date = request.args.get('start_date', ''), request.args.get('end_date', '')
+    req_region = request.args.get('region', '').strip()   # 거점 필터(빈 값 = 전 사업장)
     user_level = int(session['user'].get('level', 1))
-    user_region = session['user'].get('region', '')
 
-    # 🔒 전체 출입 기록 조회 권한: 최고 관리자(3)·경비실(4=자기 거점)·전체기록 열람(5). 일반 임직원(1) 등은 차단.
+    # 🔒 전체 출입 기록 조회 권한: 최고 관리자(3)·경비실(4)·전체기록 열람(5). 일반 임직원(1) 등은 차단.
     if user_level not in (3, 4, 5):
         return jsonify({"success": False, "message": "출입 기록 조회 권한이 없습니다."}), 403
     
@@ -1242,10 +1286,14 @@ def admin_logs():
     if start_date: query += " AND v.visit_date >= ?"; params.append(start_date)
     if end_date: query += " AND v.visit_date <= ?"; params.append(end_date)
     
-    if user_level == 4 and user_region:
+    # 🗺️ '기록 조회'는 3·4·5 동일: 기본 전 사업장 + 거점 버튼으로 좁혀 보기.
+    #    (경비실의 '승인' 권한은 여전히 자기 센터로 제한된다 — /api/security/* 참고.
+    #     조회는 전 사업장 허용, 처리는 자기 센터만 이라는 정책.)
+    #    화이트리스트로 검증해 임의 문자열 주입을 막는다.
+    if req_region and req_region in ALLOWED_REGIONS:
         query += " AND v.region = ?"
-        params.append(user_region)
-        
+        params.append(req_region)
+
     query += " ORDER BY v.id DESC"
     
     logs = conn.execute(query, params).fetchall()
@@ -1297,6 +1345,7 @@ def admin_excel():
     if not is_admin_authenticated(): return jsonify({"success": False}), 401
         
     start_date, end_date = request.args.get('start_date', ''), request.args.get('end_date', '')
+    req_region = request.args.get('region', '').strip()   # 화면의 거점 필터와 동일하게 적용 (빈 값 = 전 사업장)
     conn = get_db_connection()
     query = """
         SELECT
@@ -1313,6 +1362,9 @@ def admin_excel():
     params = []
     if start_date: query += " AND v.visit_date >= ?"; params.append(start_date)
     if end_date: query += " AND v.visit_date <= ?"; params.append(end_date)
+    if req_region in ALLOWED_REGIONS:   # 화이트리스트 검증 (빈 값·미지의 값 → 전 사업장)
+        query += " AND v.region = ?"
+        params.append(req_region)
     query += " ORDER BY v.visit_date ASC, v.id ASC"
     
     logs = conn.execute(query, params).fetchall()

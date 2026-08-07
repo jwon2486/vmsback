@@ -14,7 +14,7 @@ let currentRegion = null;
 // 🏢 전체 사업장(거점) 목록 — 거점 드롭다운의 단일 관리 지점.
 //   값은 백엔드 ALLOWED_REGIONS(app.py REGION_MAP)와 정확히 일치해야 한다.
 //   사업장이 늘거나 이름이 바뀌면 여기만 고치면 된다.
-const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 조선소'];
+const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 오션센터'];
 
 // 🕒 시간 선택기 — 크롬 기본 시간 픽커 스타일의 커스텀 '컬럼 스크롤' 드롭다운.
 //   - 네이티브 <input type=time> 은 분 단위를 못 바꾸므로 동일한 컬럼 UI 를 직접 구현.
@@ -333,7 +333,7 @@ const REGION_QR_LIST = [
     { code: 'dt', name: '테크센터', area: '동탄' },
     { code: 'bs', name: '에코센터', area: '부산' },
     { code: 'pt', name: '평택공장', area: '평택' },
-    { code: 'gj', name: '거제 조선소', area: '거제' },
+    { code: 'gj', name: '거제 오션센터', area: '거제' },
 ];
 
 function openRegionQrModal() {

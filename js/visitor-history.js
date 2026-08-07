@@ -39,6 +39,69 @@
         return status == null ? '' : String(status);
     };
 
+    // 📄 페이지네이션 (출입 기록 표 공용 — 관리자·전체기록·경비실)
+    //  - 한 페이지 행 수는 호출부에서 지정(현재 10). 총 1페이지면 아무것도 그리지 않는다.
+    //  - 페이지 번호는 5개씩 블록으로 끊어 보여주고 « ‹ › » 로 이동한다.
+    //    (사원 관리 탭의 기존 페이지네이션과 동일한 조작 방식)
+    window.VISIT_LOG_PER_PAGE = 10;
+
+    window.renderLogPagination = function (containerId, totalItems, currentPage, perPage, onGo) {
+        const box = document.getElementById(containerId);
+        if (!box) return;
+        box.innerHTML = '';
+        const totalPages = Math.ceil(totalItems / perPage);
+        if (totalPages <= 1) return;
+
+        const BLOCK = 5;
+        const block = Math.ceil(currentPage / BLOCK);
+        const startPage = (block - 1) * BLOCK + 1;
+        const endPage = Math.min(startPage + BLOCK - 1, totalPages);
+
+        const add = (label, target, disabled, isActive) => {
+            const b = document.createElement('button');
+            b.innerHTML = label;
+            b.disabled = !!disabled;
+            if (isActive) b.classList.add('active');
+            b.onclick = () => onGo(target);
+            box.appendChild(b);
+        };
+
+        add('&laquo;', 1, currentPage === 1);
+        add('&lsaquo;', Math.max(1, currentPage - 1), currentPage === 1);
+        for (let i = startPage; i <= endPage; i++) add(String(i), i, false, i === currentPage);
+        add('&rsaquo;', Math.min(totalPages, currentPage + 1), currentPage === totalPages);
+        add('&raquo;', totalPages, currentPage === totalPages);
+    };
+
+    // 🗺️ 거점 필터 버튼 정의 (관리자·전체기록·경비실 공용)
+    //  - value: DB 의 region 값과 정확히 일치해야 한다. label: 버튼에 표시할 짧은 이름.
+    //  - 기본 나열 순서이며, 실제 노출 순서는 regionFilterOrder() 가 결정한다.
+    window.REGION_FILTER_LIST = [
+        { value: '테크센터',      label: '테크센터' },
+        { value: '에코센터',      label: '에코센터' },
+        { value: '평택공장',      label: '평택공장' },
+        { value: '거제 오션센터', label: '오션센터' },
+    ];
+
+    // 노출 순서 규칙: '전 사업장' → 본인 소속 센터 → 나머지(기본 순서 유지).
+    //  - 자기 센터를 앞으로 끌어올려 가장 자주 쓰는 버튼을 두 번째 자리에 둔다.
+    //  - 소속이 목록에 없으면(예: '기타') 기본 순서를 그대로 사용한다.
+    window.regionFilterOrder = function (myRegion) {
+        const list = window.REGION_FILTER_LIST;
+        return [{ value: '', label: '전 사업장' }]
+            .concat(list.filter(r => r.value === myRegion))
+            .concat(list.filter(r => r.value !== myRegion));
+    };
+
+    // 버튼 묶음 HTML. handlerName 은 클릭 핸들러 함수명(화면별로 다름).
+    //  첫 버튼('전 사업장')이 기본 활성.
+    window.regionFilterButtonsHtml = function (myRegion, handlerName) {
+        return window.regionFilterOrder(myRegion).map((r, i) =>
+            `<button type="button" class="region-filter-btn${i === 0 ? ' active' : ''}"` +
+            ` data-region="${r.value}" onclick="${handlerName}(this)">${r.label}</button>`
+        ).join('');
+    };
+
     // 연락처 표시용 포맷: 숫자만 저장된 번호에 하이픈을 넣어 가독성을 높인다. (표시 전용)
     //  - 관리자/경비실/손님/임직원 모든 화면 공용. admin.html·guest.html 양쪽이 이 파일을 로드한다.
     //  - 조회 매칭 키(openVisitorHistory 등)로 쓰는 값은 원본(숫자)을 그대로 사용해야 한다.

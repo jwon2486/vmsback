@@ -139,12 +139,19 @@ function showSecurityDashboard() {
 
             <div id="secPanelLogs" class="sec-tab-panel">
                 <div class="sec-logs-header">
-                    <h3 class="sec-logs-title">📊 전체 출입 기록 <span class="sec-region-text">(${empRegion})</span></h3>
+                    <h3 class="sec-logs-title">📊 전체 출입 기록</h3>
                     <div class="date-range-picker-box flex-center-gap">
                         <input type="date" id="secLogStartDate" value="${weekRange.todayKst}" onchange="loadSecurityAllLogs()" class="sec-date-input">
                         <span class="range-tilde">~</span>
                         <input type="date" id="secLogEndDate" value="${weekRange.todayKst}" onchange="loadSecurityAllLogs()" class="sec-date-input">
                     </div>
+                </div>
+                <!-- 🗺️ 기록 조회는 관리자(3)·전체기록 열람(5)과 동일하게 전 사업장 + 거점 선택.
+                     단 '퇴실 처리' 버튼은 자기 소속 센터(${empRegion}) 건에만 노출된다. -->
+                <div class="region-filter-bar" id="secRegionFilterBar">
+                    <span class="filter-label">🗺️ 사업장:</span>
+                    <!-- 순서: '전 사업장' → 본인 소속 센터 → 나머지 (visitor-history.js 공용 헬퍼) -->
+                    <div class="region-filter-btns">${regionFilterButtonsHtml(empRegion, 'setSecRegion')}</div>
                 </div>
                 <div class="table-responsive sec-table-container h-500">
                     <table class="modern-table w-100 min-w-900">
@@ -169,6 +176,7 @@ function showSecurityDashboard() {
                         </tbody>
                     </table>
                 </div>
+                <div class="pagination-container" id="secLogPagination"></div>
             </div>
 
             <div id="secPanelOverdue" class="sec-tab-panel">
@@ -285,8 +293,9 @@ async function fetchSecurityQueue(isAuto = false) {
     try {
         const emp = JSON.parse(sessionStorage.getItem('emp_session'));
         const empRegion = emp ? (emp.region || '테크센터') : '테크센터';
-        
-        const res = await fetch(`/api/security/pending-logs?region=${encodeURIComponent(empRegion)}`);
+
+        // 🔒 거점은 서버가 세션에서만 읽는다(요청 파라미터 무시). 승인 대상은 항상 자기 센터.
+        const res = await fetch('/api/security/pending-logs');
         const data = await res.json();
         const tbody = document.getElementById('securityQueueBody');
         if (!tbody) return; 
@@ -372,18 +381,42 @@ async function fetchSecurityQueue(isAuto = false) {
     }
 }
 
+// 🗺️ 경비실 기록 조회용 거점 필터. '' = 전 사업장. (조회 전용 — 승인 권한과 무관)
+let secRegionFilter = '';
+
+// 📄 조회 결과 전체(정렬 완료)와 현재 페이지. 표는 10건씩 끊어 보여준다.
+let secLogsAll = [];
+let secLogPage = 1;
+
+function setSecRegion(btn) {
+    if (!btn) return;
+    secRegionFilter = btn.dataset.region || '';
+    const bar = document.getElementById('secRegionFilterBar');
+    if (bar) bar.querySelectorAll('.region-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
+    loadSecurityAllLogs();
+}
+
+// 로그인 세션의 담당 거점 (퇴실 처리 버튼 노출 판정용). 서버도 동일하게 재검증한다.
+function secMyRegion() {
+    try {
+        const emp = JSON.parse(sessionStorage.getItem('emp_session'));
+        return emp ? (emp.region || '') : '';
+    } catch (e) { return ''; }
+}
+
 async function loadSecurityAllLogs(isAuto = false) {
     const startDateEl = document.getElementById('secLogStartDate');
     const endDateEl = document.getElementById('secLogEndDate');
     const tbody = document.getElementById('secAllLogsBody');
     if (!tbody || !startDateEl || !endDateEl) return;
-    
+
     if (!isAuto) {
         tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
     }
-    
+
     try {
-        const res = await fetch(`/api/admin/logs?start_date=${startDateEl.value}&end_date=${endDateEl.value}`);
+        const regionParam = secRegionFilter ? `&region=${encodeURIComponent(secRegionFilter)}` : '';
+        const res = await fetch(`/api/admin/logs?start_date=${startDateEl.value}&end_date=${endDateEl.value}${regionParam}`);
         if (res.status === 401 || res.status === 403) {
             tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">조회 권한이 만료되었습니다. 재로그인 해주세요.</td></tr>';
             if (securityRefreshTimer) clearInterval(securityRefreshTimer);
@@ -391,21 +424,47 @@ async function loadSecurityAllLogs(isAuto = false) {
         }
 
         const logs = await res.json();
+        const myRegion = secMyRegion();   // 퇴실 처리 버튼 노출 + 재실중 집계 기준
 
-        // 상단 요약 통계: 조회 기간 내 '입실완료'(=아직 퇴실 안 함) 인원 → 현재 재실중
+        // 상단 요약 통계 '현재 재실중': 조회 필터와 무관하게 '자기 센터' 기준으로 집계한다.
+        //  - 승인 대기·퇴실 지연 카드는 서버가 자기 센터만 반환하므로, 여기서도 같은 기준을 써야
+        //    카드 3장의 의미가 일관된다. (전 사업장 필터를 걸어도 관제 지표는 내 센터)
         const onsiteEl = document.getElementById('secStatOnsite');
-        if (onsiteEl) onsiteEl.textContent = logs.filter(v => v.status === '입실완료').length;
+        if (onsiteEl) onsiteEl.textContent = logs.filter(v => v.status === '입실완료' && v.region === myRegion).length;
 
         // 순번: 서버가 계산한 '그 달 절대 순번'(month_seq)을 사용.
         //  - 날짜 필터와 무관하게 매달 1일부터의 절대 위치이므로, 마지막 주만 조회해도 85~100 처럼 표시됨.
         //  - 표시는 최신순(방문일→id 내림차순): 최근 방문이 맨 위.
-        const sorted = [...logs].sort((a, b) => {
+        //  - 정렬 결과 전체를 보관하고 표에는 현재 페이지 몫만 그린다.
+        secLogsAll = [...logs].sort((a, b) => {
             if (a.visit_date !== b.visit_date) return a.visit_date > b.visit_date ? -1 : 1;
             return (b.id || 0) - (a.id || 0);
         });
+        // 자동 새로고침(isAuto)일 때는 보고 있던 페이지를 유지한다.
+        if (!isAuto) secLogPage = 1;
+        renderSecurityLogTable();
+    } catch (e) {
+        if (!isAuto) {
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
+        }
+    }
+}
 
+// 📄 현재 페이지 몫만 표에 렌더 + 페이지 버튼 갱신
+function renderSecurityLogTable() {
+    const tbody = document.getElementById('secAllLogsBody');
+    if (!tbody) return;
+    const myRegion = secMyRegion();
+
+    const perPage = window.VISIT_LOG_PER_PAGE || 10;
+    const totalPages = Math.max(1, Math.ceil(secLogsAll.length / perPage));
+    if (secLogPage > totalPages) secLogPage = totalPages;
+    const start = (secLogPage - 1) * perPage;
+    const sorted = secLogsAll.slice(start, start + perPage);
+
+    {
         let html = '';
-        if (sorted.length === 0) {
+        if (secLogsAll.length === 0) {
             html = '<tr><td colspan="12" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
@@ -416,9 +475,12 @@ async function loadSecurityAllLogs(isAuto = false) {
                 // 🚪 재실 중(입실완료)이면 퇴실 예정시간 전이라도 즉시 퇴실 처리할 수 있게 버튼 노출.
                 //    (손님이 퇴실 신청을 깜빡하고 나가버린 경우를 경비실에서 바로 정리)
                 //    별도 컬럼 없이 '상태' 셀 안, 상태값 아래에 배치한다.
-                //    퇴실이 끝났거나(퇴실완료) 대상이 아닌 상태면 버튼 영역 자체를 렌더하지 않는다.
+                //    🔒 승인은 자기 소속 센터만 → 다른 사업장 건에는 버튼을 렌더하지 않는다.
+                //       (조회는 전 사업장이지만 처리 권한은 자기 센터로 한정. 서버도 동일하게 차단한다.)
+                //    퇴실이 끝났거나 대상이 아닌 상태면 버튼 영역 자체가 없다.
                 //    ('퇴실대기'는 승인 대기열 탭에서 처리하므로 여기서는 노출하지 않는다.)
-                const checkoutBtn = v.status === '입실완료'
+                const canApprove = v.status === '입실완료' && v.region === myRegion;
+                const checkoutBtn = canApprove
                     ? `<div class="sec-status-action"><button onclick="approveSecurityAction(${v.id}, '퇴실완료')" class="sec-btn-approve-item bg-orange">퇴실 처리</button></div>`
                     : '';
 
@@ -444,10 +506,13 @@ async function loadSecurityAllLogs(isAuto = false) {
             });
         }
         tbody.innerHTML = html;
-    } catch (e) {
-        if (!isAuto) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
-        }
+    }
+
+    if (typeof window.renderLogPagination === 'function') {
+        window.renderLogPagination('secLogPagination', secLogsAll.length, secLogPage, perPage, (p) => {
+            secLogPage = p;
+            renderSecurityLogTable();
+        });
     }
 }
 

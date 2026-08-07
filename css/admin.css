@@ -315,6 +315,41 @@ body {
   border-color: var(--brand2);
 }
 
+/* --- [5-B. 🗺️ 거점(사업장) 필터 버튼] ---
+   level 3·5 는 전 사업장을 조회하므로, 센터별로 좁혀 보기 위한 토글 버튼 줄.
+   .active 가 현재 선택된 거점이며 '전 사업장'(data-region="")이 기본값이다. */
+.region-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.region-filter-btns { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.region-filter-btn {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: #fff;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.region-filter-btn:hover { border-color: #cbd5e1; background: #f1f5f9; }
+.region-filter-btn.active {
+  background: var(--brand2);
+  border-color: var(--brand2);
+  color: #fff;
+}
+
 /* --- [5-A. 📅 달력 피커 스킨] --- */
 .date-range-picker-box {
   display: flex;

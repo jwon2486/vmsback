@@ -61,6 +61,13 @@
                             </div>
                         </div>
 
+                        <!-- 🗺️ 거점 필터 (level 3·5 = 전 사업장 조회 권한자용).
+                             value 는 DB 의 region 값과 일치해야 한다. 빈 값 = 전 사업장. -->
+                        <div class="region-filter-bar" id="regionFilterBar">
+                            <span class="filter-label">🗺️ 사업장:</span>
+                            <div class="region-filter-btns" id="regionFilterBtns"><!-- admin.js 가 소속 센터를 앞으로 끌어올려 렌더 --></div>
+                        </div>
+
                         <div class="admin-stat-grid">
                             <div class="admin-stat-card stat-total">
                                 <span class="admin-stat-label">👥 입실 인원<span class="stat-label-sub"> (실제 방문)</span></span>
@@ -98,6 +105,8 @@
                                 <tbody id="adminLogBody"></tbody>
                             </table>
                         </div>
+
+                        <div class="pagination-container" id="adminLogPagination"></div>
                     </div>
 
                     <div id="tabContentEmployee" class="tab-panel section-hidden">
