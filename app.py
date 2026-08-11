@@ -186,6 +186,60 @@ def init_db():
 # ====================================================================
 DEPT_SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'department_tree_seed.json')
 
+# ── 부서 사용 범위(dept_scope) ────────────────────────────────────────
+#   조직도는 여러 사내 시스템(식수·방문객·전산장비)이 함께 쓰게 될 수 있는데,
+#   시스템마다 필요한 부서가 다르다. 예) '서버실'·'폐기 대상 장비'는 전산장비 자산 관리용이라
+#   방문객 조직도에 뜨면 안 되고, '경비실'·'에코센터경비실'은 그 반대다.
+#   → 부서마다 "어느 시스템에서 쓰는가"를 별도 테이블로 관리하고, 각 시스템은 자기 것만 조회한다.
+#   ⚠️ 트리 불변식: 자식이 보이는 시스템에서는 부모도 보여야 한다(안 그러면 고아 노드가 생김).
+#      부서 추가/수정 API 가 이 규칙을 지키도록 부모 범위를 상속시킨다.
+SYSTEM_VISITOR = 'visitor'
+SYSTEM_EQUIPMENT = 'equipment'
+
+# 전산장비 자산 관리 전용 노드(방문객 조직도에서 숨김). 이름으로 판정해 시드 1회만 적용한다.
+EQUIPMENT_ONLY_DEPTS = {
+    '서버실', '서버실(화성)', '서버실(부산)',
+    '폐기 대상 장비', '퇴사자(장비반납대기)',
+}
+
+def migrate_dept_scope(cur):
+    """부서 사용 범위 테이블 생성 + 최초 1회 시드 (멱등)."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS dept_scope (
+            dept_id INTEGER NOT NULL REFERENCES department_tree(id),
+            system  TEXT    NOT NULL,
+            PRIMARY KEY (dept_id, system)
+        )
+    """)
+    if cur.execute("SELECT COUNT(*) FROM dept_scope").fetchone()[0] > 0:
+        return
+
+    rows = cur.execute("SELECT id, dept_name, parent_id FROM department_tree").fetchall()
+    tree = {r['id']: dict(r) for r in rows}
+
+    def is_equipment_only(dept_id):
+        """자신 또는 조상 중 하나라도 전산장비 전용이면 전용으로 본다(하위도 함께 숨김)."""
+        seen = set()
+        while dept_id in tree and dept_id not in seen:
+            seen.add(dept_id)
+            if tree[dept_id]['dept_name'] in EQUIPMENT_ONLY_DEPTS:
+                return True
+            dept_id = tree[dept_id]['parent_id']
+        return False
+
+    seed = []
+    for i, d in tree.items():
+        if i >= 9000:
+            seed.append((i, SYSTEM_VISITOR))                     # 방문객 전용 노드
+        elif is_equipment_only(i):
+            seed.append((i, SYSTEM_EQUIPMENT))                   # 전산장비 전용 노드
+        else:
+            seed.append((i, SYSTEM_VISITOR))                     # 실제 조직 = 양쪽 공용
+            seed.append((i, SYSTEM_EQUIPMENT))
+    cur.executemany("INSERT INTO dept_scope (dept_id, system) VALUES (?, ?)", seed)
+    v = sum(1 for _, s in seed if s == SYSTEM_VISITOR)
+    print(f"🔖 [부서 범위] {len(tree)}개 노드 분류 (방문객 노출 {v}개)")
+
 def migrate_department_tree():
     if not os.path.exists(DEPT_SEED_PATH):
         return   # 시드가 없으면 조용히 통과 (기존 평면 dept 로 계속 동작)
@@ -236,6 +290,8 @@ def migrate_department_tree():
         placed += 1
     if placed:
         print(f"🌳 [부서 트리] 직원 {placed}명 부서 배치")
+
+    migrate_dept_scope(cur)
 
     # 🔄 dept(표시용 텍스트)를 트리 기준으로 동기화.
     #    dept_id 가 유일한 진실이고 dept 는 그로부터 파생된 표시값이다.
@@ -1648,11 +1704,14 @@ def tree_departments():
     g = _tree_guard()
     if g: return g
     conn = get_db_connection()
+    # 🔖 방문객 시스템에서 쓰는 부서만 조회 (전산장비 자산 전용 노드 '서버실'·'폐기 대상 장비' 등은 제외)
     rows = conn.execute("""
         SELECT d.id, d.dept_name, d.parent_id, COUNT(e.id) AS member_count
-        FROM department_tree d LEFT JOIN employees e ON e.dept_id = d.id
+        FROM department_tree d
+        JOIN dept_scope s ON s.dept_id = d.id AND s.system = ?
+        LEFT JOIN employees e ON e.dept_id = d.id
         GROUP BY d.id, d.dept_name, d.parent_id ORDER BY d.id
-    """).fetchall()
+    """, (SYSTEM_VISITOR,)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -1788,8 +1847,13 @@ def tree_add_department():
     d = request.json or {}
     conn = get_db_connection()
     try:
-        conn.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES (?, ?)",
-                     (d.get('dept_name'), d.get('parent_id') or None))
+        cur = conn.cursor()
+        cur.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES (?, ?)",
+                    (d.get('dept_name'), d.get('parent_id') or None))
+        # 🔖 방문객 화면에서 만든 부서이므로 방문객 범위를 부여한다.
+        #    (부모는 이미 방문객 범위에 있으므로 '부모 ⊇ 자식' 불변식이 유지된다)
+        cur.execute("INSERT INTO dept_scope (dept_id, system) VALUES (?, ?)",
+                    (cur.lastrowid, SYSTEM_VISITOR))
         conn.commit()
         return jsonify({'success': True, 'message': '새 부서가 추가되었습니다.'})
     except Exception as e:
@@ -1829,7 +1893,15 @@ def tree_delete_department(dept_id):
             return jsonify({'success': False, 'message': '하위 부서가 있어 삭제할 수 없습니다.'}), 400
         if conn.execute("SELECT id FROM employees WHERE dept_id = ?", (dept_id,)).fetchall():
             return jsonify({'success': False, 'message': '소속 직원이 있어 삭제할 수 없습니다.'}), 400
-        conn.execute("DELETE FROM department_tree WHERE id = ?", (dept_id,))
+        # 🔖 다른 시스템도 쓰는 부서면 트리에서 지우지 않고 '방문객 범위'만 해제한다.
+        #    (전산장비 등 다른 시스템의 조직도를 함부로 훼손하지 않기 위함)
+        others = conn.execute(
+            "SELECT COUNT(*) FROM dept_scope WHERE dept_id = ? AND system <> ?",
+            (dept_id, SYSTEM_VISITOR)
+        ).fetchone()[0]
+        conn.execute("DELETE FROM dept_scope WHERE dept_id = ? AND system = ?", (dept_id, SYSTEM_VISITOR))
+        if others == 0:
+            conn.execute("DELETE FROM department_tree WHERE id = ?", (dept_id,))
         conn.commit()
         return jsonify({'success': True, 'message': '부서가 삭제되었습니다.'})
     except Exception as e:
