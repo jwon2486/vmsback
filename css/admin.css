@@ -270,6 +270,20 @@ body {
   .stat-label-sub { display: none; }
 }
 
+/* 🌳 임직원 조직도(/emp-tree) 임베드 프레임.
+   트리 화면이 자체 레이아웃(사이드바+명단)을 가지므로 넉넉한 높이를 준다. */
+.emp-tree-frame {
+  width: 100%;
+  height: 78vh;
+  min-height: 34rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+@media (max-width: 768px) {
+  .emp-tree-frame { height: 70vh; min-height: 28rem; }
+}
+
 /* --- [5. 필터 및 툴바 영역] --- */
 .filter-bar, .toolbar {
   background: #f8fafc;

@@ -172,6 +172,87 @@ def init_db():
     conn.commit()
     conn.close()
 
+    migrate_department_tree()
+
+# ====================================================================
+# 🌳 부서 트리 도입 (멱등)
+#   - 기존: employees.dept 평면 텍스트 → 계층 정보가 없어 '전력시스템팀(설계/설계-부산/연구)'
+#           같은 하위 조직 구분이 사라졌다.
+#   - 변경: department_tree(계층) + employees.dept_id(FK) 추가.
+#           dept 컬럼은 '표시용'으로 그대로 유지한다. 뷰로 바꾸면 기존 쓰기 API가
+#           동작하지 않으므로, 실테이블을 유지하고 컬럼만 늘리는 방식을 택했다.
+#   - 트리 데이터는 department_tree_seed.json 에서 읽는다(전산장비 조직도 스냅샷 + 방문객 전용 노드).
+#     ※ 전산장비 DB 를 런타임에 참조하지 않으므로 Render 환경에서도 동일하게 동작한다.
+# ====================================================================
+DEPT_SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'department_tree_seed.json')
+
+def migrate_department_tree():
+    if not os.path.exists(DEPT_SEED_PATH):
+        return   # 시드가 없으면 조용히 통과 (기존 평면 dept 로 계속 동작)
+
+    with open(DEPT_SEED_PATH, encoding='utf-8') as f:
+        seed = json.load(f)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS department_tree (
+            id             INTEGER PRIMARY KEY,
+            dept_name      TEXT NOT NULL,
+            parent_id      INTEGER REFERENCES department_tree(id),
+            manager_emp_id TEXT,
+            use_fallback   INTEGER DEFAULT 0
+        )
+    """)
+    # 최초 1회만 시드 주입. 이후 화면에서 편집한 트리를 덮어쓰지 않는다.
+    if cur.execute("SELECT COUNT(*) FROM department_tree").fetchone()[0] == 0:
+        cur.executemany(
+            "INSERT INTO department_tree (id, dept_name, parent_id) VALUES (?, ?, ?)",
+            [(d['id'], d['dept_name'], d.get('parent_id')) for d in seed['departments']]
+        )
+        print(f"🌳 [부서 트리] {len(seed['departments'])}개 노드 생성")
+
+    cols = {r[1] for r in cur.execute("PRAGMA table_info(employees)")}
+    if 'dept_id' not in cols:
+        cur.execute("ALTER TABLE employees ADD COLUMN dept_id INTEGER REFERENCES department_tree(id)")
+        print("🌳 [부서 트리] employees.dept_id 컬럼 추가")
+
+    # 아직 배치되지 않은 직원만 채운다(멱등). 우선순위: ①사번 매핑 ②부서명 일치
+    name_ids = {}
+    for r in cur.execute("SELECT id, dept_name FROM department_tree"):
+        name_ids.setdefault(r['dept_name'], []).append(r['id'])
+
+    emp_dept = seed.get('emp_dept', {})
+    placed = 0
+    for e in cur.execute("SELECT id, dept FROM employees WHERE dept_id IS NULL").fetchall():
+        did = emp_dept.get(e['id'])
+        if did is None and e['dept'] in name_ids:
+            # 같은 이름이 여러 노드면 상위(작은 id) 선택 — 전산장비 운영 기준과 동일
+            did = min(name_ids[e['dept']])
+        if did is None:
+            continue
+        cur.execute("UPDATE employees SET dept_id = ? WHERE id = ?", (did, e['id']))
+        placed += 1
+    if placed:
+        print(f"🌳 [부서 트리] 직원 {placed}명 부서 배치")
+
+    # 🔄 dept(표시용 텍스트)를 트리 기준으로 동기화.
+    #    dept_id 가 유일한 진실이고 dept 는 그로부터 파생된 표시값이다.
+    #    (기존 dept 는 상위 이름만 갖고 있어 '전력시스템팀' 처럼 하위 조직 구분이 없었다)
+    #    매 기동 시 실행되지만 값이 이미 같으면 UPDATE 대상이 0건이라 부담이 없다.
+    cur.execute("""
+        UPDATE employees
+           SET dept = (SELECT d.dept_name FROM department_tree d WHERE d.id = employees.dept_id)
+         WHERE dept_id IS NOT NULL
+           AND dept <> (SELECT d.dept_name FROM department_tree d WHERE d.id = employees.dept_id)
+    """)
+    if cur.rowcount:
+        print(f"🌳 [부서 트리] 표시용 dept {cur.rowcount}명 동기화")
+
+    conn.commit()
+    conn.close()
+
 # ====================================================================
 # ☁️ [Render 운영] GitHub 저장소를 이용한 DB 영속화 (백업/복원)
 #   - Render 컨테이너 파일시스템은 재배포/재시작 시 초기화되므로,
@@ -1465,14 +1546,29 @@ def upload_employees_excel():
             emp_type = str(row.get('구분', '직영')).replace('nan', '직영')
             rank = str(row.get('직급', '')).replace('nan', '')
 
+            # 🌳 부서명 → dept_id 해석. 트리에 없는 이름이면 dept_id 는 비워두고 텍스트만 남긴다
+            #    (조직도 화면에는 안 보이므로, 업로드 후 트리에서 배치해 주면 된다).
+            #    같은 이름이 여러 노드면 상위(작은 id) 선택 — 마이그레이션과 동일 규칙.
+            drow = conn.execute(
+                "SELECT id FROM department_tree WHERE dept_name = ? ORDER BY id LIMIT 1", (dept,)
+            ).fetchone() if dept else None
+            dept_id = drow['id'] if drow else None
+
             existing = conn.execute("SELECT level FROM employees WHERE id = ?", (emp_id,)).fetchone()
             if existing:
                 # 🔒 기존 직원: 권한(level)은 보존하고 나머지 정보만 갱신.
                 #    (엑셀 일괄 업로드로 관리자/보안실 권한이 실수로 바뀌는 것을 방지)
-                conn.execute(
-                    "UPDATE employees SET name=?, region=?, dept=?, type=?, rank=? WHERE id=?",
-                    (name, region, dept, emp_type, rank, emp_id)
-                )
+                #    dept_id 는 해석에 성공했을 때만 갱신해, 트리에서 정리해 둔 배치를 지우지 않는다.
+                if dept_id is not None:
+                    conn.execute(
+                        "UPDATE employees SET name=?, region=?, dept=?, dept_id=?, type=?, rank=? WHERE id=?",
+                        (name, region, dept, dept_id, emp_type, rank, emp_id)
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE employees SET name=?, region=?, dept=?, type=?, rank=? WHERE id=?",
+                        (name, region, dept, emp_type, rank, emp_id)
+                    )
             else:
                 # 신규 직원: 엑셀의 '권한' 값으로 최초 등록 (값이 없거나 잘못되면 기본 1).
                 try:
@@ -1480,8 +1576,8 @@ def upload_employees_excel():
                 except (ValueError, TypeError):
                     level = 1
                 conn.execute(
-                    "INSERT INTO employees (id, name, region, dept, type, rank, level) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (emp_id, name, region, dept, emp_type, rank, level)
+                    "INSERT INTO employees (id, name, region, dept, dept_id, type, rank, level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (emp_id, name, region, dept, dept_id, emp_type, rank, level)
                 )
             success_count += 1
         conn.commit(); conn.close()
@@ -1522,6 +1618,350 @@ def _midnight_expiry_scheduler():
         next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=10, microsecond=0)
         time.sleep(max((next_run - now).total_seconds(), 1))
         expire_stale_reservations()
+
+# ====================================================================
+# 🌳 [최고 관리자] 부서 트리 기반 임직원 관리 API  (/api/tree/...)
+#   - 전산장비 관리 시스템의 조직도 UI 를 이식한 것. 라우트에 /tree 접두어를 두어
+#     기존 방문객 API(/api/admin/employees 등)와 충돌하지 않게 한다.
+#   - 방문객 시스템 고유 항목(region·type·level)을 함께 다룬다.
+#   - dept(표시용 텍스트)는 dept_id 로부터 항상 파생 저장한다. (init_db 동기화와 동일 규칙)
+# ====================================================================
+def _tree_guard():
+    """최고 관리자(3) 전용. 통과하면 None, 아니면 (응답, 코드) 튜플."""
+    if 'user' not in session:
+        return jsonify({'success': False, 'message': '인증 정보가 없습니다.'}), 401
+    if int(session['user'].get('level', 1)) != 3:
+        return jsonify({'success': False, 'message': '최고 관리자만 사용할 수 있습니다.'}), 403
+    return None
+
+def _dept_name(conn, dept_id):
+    row = conn.execute("SELECT dept_name FROM department_tree WHERE id = ?", (dept_id,)).fetchone()
+    return row['dept_name'] if row else ''
+
+@app.route('/emp-tree')
+def emp_tree_page():
+    """관리자 화면의 임직원 탭에 iframe 으로 임베드되는 조직도 페이지."""
+    return render_template('emp_tree.html')
+
+@app.route('/api/tree/departments', methods=['GET'])
+def tree_departments():
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT d.id, d.dept_name, d.parent_id, COUNT(e.id) AS member_count
+        FROM department_tree d LEFT JOIN employees e ON e.dept_id = d.id
+        GROUP BY d.id, d.dept_name, d.parent_id ORDER BY d.id
+    """).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/tree/employees/all', methods=['GET'])
+def tree_employees_all():
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT e.id, e.name AS emp_name, e.rank AS position, e.dept_id, d.dept_name
+        FROM employees e LEFT JOIN department_tree d ON e.dept_id = d.id
+        ORDER BY d.dept_name, e.name
+    """).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/tree/departments/<int:dept_id>/employees', methods=['GET'])
+def tree_dept_employees(dept_id):
+    """클릭한 부서에 '직속'으로 소속된 인원만 (하위 부서는 트리에서 따로 선택)."""
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT e.id, e.name AS emp_name, e.rank AS position, e.dept_id, d.dept_name,
+               e.region, e.type, e.level
+        FROM employees e JOIN department_tree d ON e.dept_id = d.id
+        WHERE e.dept_id = ?
+        ORDER BY
+            CASE e.rank
+                WHEN '회장' THEN 1 WHEN '부회장' THEN 2 WHEN '사장' THEN 3 WHEN '부사장' THEN 4
+                WHEN '전무' THEN 5 WHEN '상무' THEN 6 WHEN '본부장' THEN 7 WHEN '담당' THEN 8
+                WHEN '공장장' THEN 9 WHEN '센터장' THEN 10 WHEN '소장' THEN 11 WHEN '법인장' THEN 12
+                WHEN '이사대우' THEN 13 WHEN '수석부장' THEN 14 WHEN '팀장' THEN 15 WHEN '부장' THEN 16
+                WHEN '차장' THEN 17 WHEN '과장' THEN 18 WHEN '부과장' THEN 19 WHEN '주관' THEN 20
+                WHEN '대리' THEN 21 WHEN '주임' THEN 22 WHEN '사원' THEN 23
+                ELSE 100 END, e.name ASC
+    """, (dept_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/tree/employees', methods=['POST'])
+def tree_add_employee():
+    g = _tree_guard()
+    if g: return g
+    d = request.json or {}
+    emp_id, name = str(d.get('id', '')).strip(), str(d.get('name', '')).strip()
+    dept_id = d.get('dept_id')
+    if not emp_id or not name or not dept_id:
+        return jsonify({'success': False, 'message': '사번·이름·부서는 필수입니다.'}), 400
+    conn = get_db_connection()
+    try:
+        if conn.execute("SELECT id FROM employees WHERE id = ?", (emp_id,)).fetchone():
+            return jsonify({'success': False, 'message': '이미 존재하는 사번입니다.'}), 400
+        conn.execute("""
+            INSERT INTO employees (id, name, dept, dept_id, rank, type, region, level, password)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '')
+        """, (emp_id, name, _dept_name(conn, dept_id), dept_id,
+              str(d.get('rank', '')).strip(), d.get('type', '직영'),
+              d.get('region', '기타'), int(d.get('level', 1))))
+        conn.commit()
+        return jsonify({'success': True, 'message': '새 직원이 등록되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/employees/<emp_id>', methods=['PUT'])
+def tree_edit_employee(emp_id):
+    g = _tree_guard()
+    if g: return g
+    d = request.json or {}
+    dept_id = d.get('dept_id')
+    conn = get_db_connection()
+    try:
+        conn.execute("""
+            UPDATE employees SET name = ?, rank = ?, dept_id = ?, dept = ?,
+                                 type = ?, region = ?, level = ?
+             WHERE id = ?
+        """, (str(d.get('name', '')).strip(), str(d.get('rank', '')).strip(), dept_id,
+              _dept_name(conn, dept_id), d.get('type', '직영'),
+              d.get('region', '기타'), int(d.get('level', 1)), emp_id))
+        conn.commit()
+        return jsonify({'success': True, 'message': '직원 정보가 수정되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/employees/<emp_id>/retire', methods=['POST'])
+def tree_retire_employee(emp_id):
+    """퇴사 처리: '퇴사자' 부서로 이동 (계정·방문 기록은 그대로 남긴다)."""
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    try:
+        row = conn.execute("SELECT id FROM department_tree WHERE dept_name = '퇴사자'").fetchone()
+        if row:
+            retire_id = row['id']
+        else:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES ('퇴사자', NULL)")
+            retire_id = cur.lastrowid
+        conn.execute("UPDATE employees SET dept_id = ?, dept = '퇴사자' WHERE id = ?", (retire_id, emp_id))
+        conn.commit()
+        return jsonify({'success': True, 'message': '퇴사 처리가 완료되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/employees/<emp_id>', methods=['DELETE'])
+def tree_delete_employee(emp_id):
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    try:
+        conn.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': '직원이 삭제되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/departments', methods=['POST'])
+def tree_add_department():
+    g = _tree_guard()
+    if g: return g
+    d = request.json or {}
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES (?, ?)",
+                     (d.get('dept_name'), d.get('parent_id') or None))
+        conn.commit()
+        return jsonify({'success': True, 'message': '새 부서가 추가되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/departments/<int:dept_id>', methods=['PUT'])
+def tree_edit_department(dept_id):
+    g = _tree_guard()
+    if g: return g
+    d = request.json or {}
+    if dept_id == d.get('parent_id'):
+        return jsonify({'success': False, 'message': '자기 자신을 상위 부서로 지정할 수 없습니다.'}), 400
+    conn = get_db_connection()
+    try:
+        conn.execute("UPDATE department_tree SET dept_name = ?, parent_id = ? WHERE id = ?",
+                     (d.get('dept_name'), d.get('parent_id') or None, dept_id))
+        # 부서명이 바뀌면 소속 직원의 표시용 dept 도 함께 갱신
+        conn.execute("UPDATE employees SET dept = ? WHERE dept_id = ?", (d.get('dept_name'), dept_id))
+        conn.commit()
+        return jsonify({'success': True, 'message': '부서가 수정되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/departments/<int:dept_id>', methods=['DELETE'])
+def tree_delete_department(dept_id):
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    try:
+        if conn.execute("SELECT id FROM department_tree WHERE parent_id = ?", (dept_id,)).fetchall():
+            return jsonify({'success': False, 'message': '하위 부서가 있어 삭제할 수 없습니다.'}), 400
+        if conn.execute("SELECT id FROM employees WHERE dept_id = ?", (dept_id,)).fetchall():
+            return jsonify({'success': False, 'message': '소속 직원이 있어 삭제할 수 없습니다.'}), 400
+        conn.execute("DELETE FROM department_tree WHERE id = ?", (dept_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': '부서가 삭제되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+# ── 부서장 지정 ─────────────────────────────────────────────────────
+def _tree_emp_brief(conn, emp_id):
+    if not emp_id:
+        return None
+    row = conn.execute("""
+        SELECT e.id, e.name, e.rank, d.dept_name
+        FROM employees e LEFT JOIN department_tree d ON e.dept_id = d.id
+        WHERE e.id = ?
+    """, (emp_id,)).fetchone()
+    return dict(row) if row else None
+
+@app.route('/api/tree/departments/<int:dept_id>/manager', methods=['GET'])
+def tree_get_manager(dept_id):
+    """부서장 조회. 직접 임명자가 없고 use_fallback 이면 상위 부서장을 대체 표시."""
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    chain = conn.execute("""
+        WITH RECURSIVE chain(id, parent_id, dept_name, manager_emp_id, use_fallback, depth) AS (
+            SELECT id, parent_id, dept_name, manager_emp_id, use_fallback, 0
+            FROM department_tree WHERE id = ?
+            UNION ALL
+            SELECT d.id, d.parent_id, d.dept_name, d.manager_emp_id, d.use_fallback, c.depth + 1
+            FROM department_tree d JOIN chain c ON d.id = c.parent_id
+        )
+        SELECT * FROM chain ORDER BY depth
+    """, (dept_id,)).fetchall()
+    if not chain:
+        conn.close()
+        return jsonify({'manager': None, 'is_inherited': False, 'use_fallback': True}), 404
+
+    me = chain[0]
+    out = {'use_fallback': bool(me['use_fallback']), 'is_inherited': False,
+           'manager': None, 'source_dept_name': None}
+    if me['manager_emp_id']:
+        out['manager'] = _tree_emp_brief(conn, me['manager_emp_id'])
+        out['source_dept_name'] = me['dept_name']
+    elif me['use_fallback']:
+        for anc in chain[1:]:
+            if anc['manager_emp_id']:
+                out['manager'] = _tree_emp_brief(conn, anc['manager_emp_id'])
+                out['source_dept_name'] = anc['dept_name']
+                out['is_inherited'] = True
+                break
+    conn.close()
+    return jsonify(out)
+
+@app.route('/api/tree/departments/<int:dept_id>/manager-candidates', methods=['GET'])
+def tree_manager_candidates(dept_id):
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    rows = conn.execute("""
+        WITH RECURSIVE sub AS (
+            SELECT id FROM department_tree WHERE id = ?
+            UNION ALL
+            SELECT d.id FROM department_tree d JOIN sub ON d.parent_id = sub.id
+        )
+        SELECT e.id, e.name, e.rank, d.dept_name
+        FROM employees e JOIN department_tree d ON e.dept_id = d.id
+        WHERE e.dept_id IN (SELECT id FROM sub) ORDER BY d.dept_name, e.name
+    """, (dept_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route('/api/tree/departments/<int:dept_id>/manager', methods=['POST'])
+def tree_set_manager(dept_id):
+    g = _tree_guard()
+    if g: return g
+    emp_id = (request.json or {}).get('emp_id')
+    if not emp_id:
+        return jsonify({'success': False, 'message': '임명할 직원을 선택하세요.'}), 400
+    conn = get_db_connection()
+    try:
+        ok = conn.execute("""
+            WITH RECURSIVE sub AS (
+                SELECT id FROM department_tree WHERE id = ?
+                UNION ALL
+                SELECT d.id FROM department_tree d JOIN sub ON d.parent_id = sub.id
+            )
+            SELECT 1 FROM employees WHERE id = ? AND dept_id IN (SELECT id FROM sub)
+        """, (dept_id, emp_id)).fetchone()
+        if not ok:
+            return jsonify({'success': False, 'message': '해당 부서 또는 하위 부서 소속 직원만 지정할 수 있습니다.'}), 400
+        conn.execute("UPDATE department_tree SET manager_emp_id = ? WHERE id = ?", (emp_id, dept_id))
+        conn.commit()
+        return jsonify({'success': True, 'message': '부서장이 임명되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/departments/<int:dept_id>/manager', methods=['DELETE'])
+def tree_unset_manager(dept_id):
+    g = _tree_guard()
+    if g: return g
+    conn = get_db_connection()
+    try:
+        conn.execute("UPDATE department_tree SET manager_emp_id = NULL WHERE id = ?", (dept_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': '부서장이 해제되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/tree/departments/<int:dept_id>/fallback', methods=['PUT'])
+def tree_set_fallback(dept_id):
+    g = _tree_guard()
+    if g: return g
+    enabled = 1 if (request.json or {}).get('enabled') else 0
+    conn = get_db_connection()
+    try:
+        conn.execute("UPDATE department_tree SET use_fallback = ? WHERE id = ?", (enabled, dept_id))
+        conn.commit()
+        return jsonify({'success': True, 'message': '설정이 변경되었습니다.'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
 
 # 디버그/리로더 설정 (스케줄러 중복 기동 방지에 사용)
 #   - Render 플랫폼은 환경변수 RENDER=true 를 자동 주입한다 → 운영에서는 항상 디버그 OFF.
