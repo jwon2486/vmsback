@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👥 임직원 정보 관리</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="/css/emp-tree.css">
+</head>
+<body>
+
+    <div class="main-layout">
+        <aside class="sidebar">
+            <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 class="text-lg font-semibold">조직도 (편집)</h2>
+                <button onclick="openDeptModal('add_root')" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 font-bold transition shadow-sm border border-indigo-200">
+                    ➕ 본부 추가
+                </button>
+            </div>
+            <div id="orgTree" class="space-y-1 text-sm">
+                <p class="text-gray-400">조직도를 불러오는 중...</p>
+            </div>
+        </aside>
+
+        <main class="content-area">
+            <section class="card-large border-t-4 border-indigo-600">
+                <div class="border-b pb-3 mb-4 flex justify-between items-end">
+                    <div>
+                        <h2 id="selectedAreaName" class="text-xl font-bold text-gray-900">선택된 부서가 없습니다.</h2>
+                        <p id="selectedAreaType" class="text-xs text-gray-400 mt-1">좌측 조직도에서 부서를 클릭하여 소속 직원을 확인하세요.</p>
+                    </div>
+                    <button id="btnAddEmployee" onclick="openEmployeeModal('add')" class="btn btn-indigo hidden">
+                        ➕ 새 직원 추가
+                    </button>
+                </div>
+
+                <div id="deptManagerBar" class="hidden mb-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50 border rounded-lg px-4 py-3">
+                    <div class="text-sm flex items-center gap-2">
+                        <span class="font-bold text-gray-700">👤 부서장</span>
+                        <span id="deptManagerInfo" class="text-gray-500">미지정</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center gap-1 text-xs text-gray-500 select-none cursor-pointer" title="부서장 미지정 시 상위 부서장을 대신 표시합니다.">
+                            <input type="checkbox" id="fallbackToggle" onchange="toggleFallback()" class="accent-indigo-600">
+                            상위 겸임 표시
+                        </label>
+                        <button id="btnAppointManager" onclick="openManagerModal()" class="btn-outline text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-xs px-3 py-1.5">부서장 임명</button>
+                        <button id="btnDismissManager" onclick="dismissManager()" class="btn-outline text-red-600 border-red-200 hover:bg-red-50 text-xs px-3 py-1.5 hidden">✕ 해제</button>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="table-main">
+                        <thead class="table-head">
+                            <tr>
+                                <th class="table-th w-24">사번</th>
+                                <th class="table-th w-28">이름</th>
+                                <th class="table-th w-24">직급</th>
+                                <th class="table-th">소속 부서</th>
+                                <th class="table-th w-24">지역</th>
+                                <th class="table-th w-28">VMS 권한</th>
+                                <th class="table-th-center w-40">관리 (수정/퇴사)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeTableBody" class="table-body">
+                            <tr>
+                                <td colspan="7" class="table-td-center py-10 text-gray-400">부서를 선택해주세요.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="employeeModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <h3 id="modalTitle" class="text-lg font-bold mb-4 text-slate-800">📝 직원 정보 관리</h3>
+            
+            <input type="hidden" id="modalMode"> 
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">사번 (수정불가)</label>
+                    <input type="text" id="empId" class="w-full border p-2 rounded text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">이름</label>
+                    <input type="text" id="empName" class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">직급</label>
+                    <input type="text" id="empRank" placeholder="예: 사원, 과장, 팀장" class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">지역(사업장)</label>
+                    <select id="empRegion" class="w-full border p-2 rounded text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="테크센터">테크센터</option>
+                        <option value="에코센터">에코센터</option>
+                        <option value="평택공장">평택공장</option>
+                        <option value="거제 오션센터">거제 오션센터</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">고용 구분</label>
+                    <select id="empType" class="w-full border p-2 rounded text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="직영">직영</option>
+                        <option value="협력사">협력사</option>
+                        <option value="경영진">경영진</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">VMS 권한</label>
+                    <select id="empLevel" class="w-full border p-2 rounded text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="1">1 · 일반 임직원</option>
+                        <option value="3">3 · 최고관리자</option>
+                        <option value="4">4 · 경비실</option>
+                        <option value="5">5 · 전체기록 열람</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-4 flex-1 flex flex-col overflow-hidden">
+                <label class="block text-xs font-bold text-gray-600 mb-2">소속 부서 변경 (트리에서 클릭)</label>
+                <div id="transferOrgTree" class="w-full border border-gray-300 rounded p-3 text-sm bg-gray-50 overflow-y-auto flex-1 space-y-1 min-h-[160px]">
+                </div>
+            </div>
+
+            <div class="mb-5 text-sm text-gray-600 bg-indigo-50 p-2 rounded border border-indigo-100 flex justify-between items-center">
+                <span>적용될 부서 :</span>
+                <span id="selectedTransferDeptName" class="font-bold text-indigo-700 text-base">선택 안됨</span>
+            </div>
+            <input type="hidden" id="transferNewDeptId">
+            
+            <div class="flex justify-end gap-2 shrink-0 border-t pt-4">
+                <button onclick="closeEmployeeModal()" class="btn-outline">취소</button>
+                <button onclick="submitEmployee()" class="btn btn-indigo">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deptModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <h3 id="deptModalTitle" class="text-lg font-bold mb-4 text-slate-800">🏢 부서 관리</h3>
+            
+            <input type="hidden" id="deptModalMode">
+            <input type="hidden" id="targetDeptId">
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-600 mb-1">부서/팀 명칭</label>
+                <input type="text" id="deptNameInput" placeholder="예: 경영지원팀" class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-gray-600 mb-1">상위 부서 (소속)</label>
+                <select id="parentDeptSelect" class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                </select>
+                <p class="text-[10px] text-gray-400 mt-1">이 부서가 속할 상위 본부/그룹을 선택하세요.</p>
+            </div>
+            
+            <div class="flex justify-end gap-2 border-t pt-4">
+                <button onclick="closeDeptModal()" class="btn-outline">취소</button>
+                <button onclick="submitDept()" class="btn btn-indigo">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="managerModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <h3 class="text-lg font-bold mb-4 text-slate-800">👤 부서장 임명</h3>
+            <p class="text-xs text-gray-500 mb-3">해당 부서 및 하위 부서 소속 직원 중에서 선택할 수 있습니다.</p>
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-gray-600 mb-1">부서장으로 임명할 직원</label>
+                <select id="managerCandidateSelect" class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <option value="">-- 직원 선택 --</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-2 border-t pt-4">
+                <button onclick="closeManagerModal()" class="btn-outline">취소</button>
+                <button onclick="submitManager()" class="btn btn-indigo">임명</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/emp-tree.js"></script>
+</body>
+</html>
