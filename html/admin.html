@@ -112,36 +112,12 @@
                     <div id="tabContentEmployee" class="tab-panel section-hidden">
                         <div class="admin-header">
                             <h2>👥 사내 임직원 관리</h2>
-                            <button class="btn btn-primary" onclick="openAddModal()">➕ 신규 사원 등록</button>
                         </div>
 
-                        <div class="toolbar">
-                            <div class="search-box">
-                                <input type="text" id="empSearchInput" onkeyup="searchEmployees()" placeholder="사번, 성명 또는 부서 실시간 검색...">
-                            </div>
-                        </div>
-
-                        <div class="mobile-scroll-helper scroll-guide-text">💡 좌우로 스크롤하면 임직원 정보를 편집할 수 있습니다.</div>
-
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>사번</th>
-                                        <th>성명</th>
-                                        <th>지역</th>
-                                        <th>소속 부서</th>
-                                        <th>구분</th>
-                                        <th>직급</th>
-                                        <th>VMS 권한</th>
-                                        <th>관리</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="employeeTableBody"></tbody>
-                            </table>
-                        </div>
-
-                        <div class="pagination-container" id="employeePagination"></div>
+                        <!-- 🌳 부서 트리 기반 임직원 관리(/emp-tree)를 iframe 으로 임베드.
+                             평면 표 대신 조직도에서 부서를 펼쳐 직원을 관리한다.
+                             (직원 추가·수정·부서이동·퇴사·부서 CRUD 모두 트리 화면 안에서 처리) -->
+                        <iframe id="empTreeFrame" class="emp-tree-frame" title="임직원 조직도"></iframe>
                     </div>
 
                 </section>

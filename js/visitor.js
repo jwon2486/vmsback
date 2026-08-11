@@ -19,6 +19,8 @@ async function initVisitorPage() {
                 // 입실완료: 전용 퇴실 화면
                 if (v.status === '입실완료') { showCheckoutPage(v); return; }
                 // 진행 중(입실대기·퇴실대기): 본인 상태 화면으로 복귀(대기 시 자동 갱신)
+                //  ※ '사전예약'은 여기서 복원하지 않는다. 상태 화면에는 입실 버튼이 없어
+                //    아직 입실 전인 손님이 입실을 못 하는 막다른 화면이 된다. (첫 화면 → 조회 경로 유지)
                 if (v.status === '입실대기' || v.status === '퇴실대기') { showPrecheckStatus(myVisitorId); return; }
                 // 종료(퇴실완료·만료): 오래된 정보 정리 후 첫 화면
                 if (v.status === '퇴실완료' || v.status === '만료') { localStorage.removeItem('my_visitor_id'); }
@@ -178,6 +180,14 @@ function showNameVerifyForm() {
     `;
 }
 
+// 🔖 조회 결과에서 '내 방문 건'을 이 기기에 기억시킨다.
+//    - 저장 대상은 아직 끝나지 않은 건(퇴실완료·만료 제외)만.
+//    - 후보가 1건일 때만 저장한다. 여러 건이면 본인 건을 특정할 수 없어 오인식 위험이 있다.
+function rememberMyVisit(list) {
+    const alive = (list || []).filter(v => v.status !== '퇴실완료' && v.status !== '만료');
+    if (alive.length === 1) localStorage.setItem('my_visitor_id', alive[0].id);
+}
+
 async function verifyVisitorName() {
     const checkNameInput = document.getElementById("checkName");
     if (!checkNameInput) return;
@@ -195,6 +205,11 @@ async function verifyVisitorName() {
         });
         const result = await res.json();
         if (result.success && result.list && result.list.length > 0) {
+            // 🔖 조회 단계에서 바로 이 기기에 내 방문 건을 기억시킨다.
+            //    (승인 전이라도 재접속 시 initVisitorPage 가 상태 화면으로 복원 → 다시 등록하는 실수 방지)
+            //    후보가 여러 건이면 어느 것이 본인 건인지 확정할 수 없으므로 저장하지 않고,
+            //    목록에서 선택하면 그때 showPrecheckStatus 가 저장한다.
+            rememberMyVisit(result.list);
             showPreMatchSelection(result.list, name, contact);
         } else {
             // 등록된 건이 없으면 현장 등록창으로 (이름·전화번호 프리필)

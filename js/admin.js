@@ -305,8 +305,12 @@ function downloadExcel() {
 // ==========================================
 // [구역 2] 식수 연동 임직원 인사 데이터 관리 파트 (CRUD)
 // ==========================================
+// ⚠️ 아래 평면 표 기반 임직원 CRUD 는 부서 트리 화면(/emp-tree)으로 대체되었다.
+//    관리자 화면에 해당 표 DOM 이 더 이상 없으므로, 남아 있는 호출 경로(엑셀 업로드 등)가
+//    깨지지 않도록 요소 존재 여부를 먼저 확인하고 조용히 빠져나간다.
 async function loadEmployees() {
     const tbody = document.getElementById("employeeTableBody");
+    if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">직원 목록 동기화 중...</td></tr>';
 
     try {
@@ -344,11 +348,13 @@ async function loadEmployees() {
 
 function renderEmployeeTable() {
     const tbody = document.getElementById("employeeTableBody");
+    if (!tbody) return;
     tbody.innerHTML = "";
 
     if (filteredEmployeesList.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">일치하는 임직원 정보가 없습니다.</td></tr>';
-        document.getElementById("employeePagination").innerHTML = "";
+        const pg = document.getElementById("employeePagination");
+        if (pg) pg.innerHTML = "";
         return;
     }
 
@@ -392,6 +398,7 @@ function renderEmployeeTable() {
 
 function renderEmployeePagination() {
     const container = document.getElementById("employeePagination");
+    if (!container) return;
     container.innerHTML = "";
 
     const totalPages = Math.ceil(filteredEmployeesList.length / ITEMS_PER_PAGE);
@@ -425,7 +432,9 @@ function renderEmployeePagination() {
 }
 
 function searchEmployees() {
-    const query = document.getElementById("empSearchInput").value.trim().toLowerCase();
+    const box = document.getElementById("empSearchInput");
+    if (!box) return;
+    const query = box.value.trim().toLowerCase();
     if (!query) {
         filteredEmployeesList = [...allEmployees];
     } else {
@@ -581,8 +590,11 @@ function switchTab(tabType) {
         
         contentVisitor.classList.add('section-hidden');
         contentEmployee.classList.remove('section-hidden');
-        excelBox.classList.add('excel-sidebar-active'); 
-        loadEmployees();
+        excelBox.classList.add('excel-sidebar-active');
+        // 🌳 임직원 관리는 부서 트리 화면(/emp-tree)을 iframe 으로 사용한다.
+        //    탭을 처음 열 때만 로드하고, 이후에는 그 안에서 자체 갱신된다.
+        const frame = document.getElementById('empTreeFrame');
+        if (frame && !frame.src) frame.src = '/emp-tree';
     }
 
     const sidebar = document.getElementById('erpSidebar');
