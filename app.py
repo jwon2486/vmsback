@@ -196,6 +196,12 @@ DEPT_SEED_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'depar
 SYSTEM_VISITOR = 'visitor'
 SYSTEM_EQUIPMENT = 'equipment'
 
+# 🚪 퇴직자 보관함. '기타/외부' 아래에 두어 조직도 본문과 섞이지 않게 한다.
+#   퇴직 처리 = 이 부서로 이동. 계정·방문 기록은 남기되 로그인은 차단한다.
+#   완전 삭제는 이 폴더 안에서 관리자가 개별 판단해 수행한다.
+RETIRED_DEPT_NAME = '퇴직자'
+EXTERNAL_ROOT_NAME = '기타/외부'
+
 # 전산장비 자산 관리 전용 노드(방문객 조직도에서 숨김). 이름으로 판정해 시드 1회만 적용한다.
 EQUIPMENT_ONLY_DEPTS = {
     '서버실', '서버실(화성)', '서버실(부산)',
@@ -239,6 +245,61 @@ def migrate_dept_scope(cur):
     cur.executemany("INSERT INTO dept_scope (dept_id, system) VALUES (?, ?)", seed)
     v = sum(1 for _, s in seed if s == SYSTEM_VISITOR)
     print(f"🔖 [부서 범위] {len(tree)}개 노드 분류 (방문객 노출 {v}개)")
+
+
+def ensure_retired_dept(cur):
+    """'기타/외부 > 퇴직자' 부서를 보장하고 id 를 돌려준다. (없으면 생성)"""
+    row = cur.execute("SELECT id FROM department_tree WHERE dept_name = ?",
+                      (RETIRED_DEPT_NAME,)).fetchone()
+    if row:
+        retired_id = row['id']
+    else:
+        parent = cur.execute("SELECT id FROM department_tree WHERE dept_name = ?",
+                             (EXTERNAL_ROOT_NAME,)).fetchone()
+        cur.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES (?, ?)",
+                    (RETIRED_DEPT_NAME, parent['id'] if parent else None))
+        retired_id = cur.lastrowid
+    # 조직도에 반드시 보이도록 범위 등록 (빠뜨리면 퇴직자가 화면에서 사라진다)
+    cur.execute("INSERT OR IGNORE INTO dept_scope (dept_id, system) VALUES (?, ?)",
+                (retired_id, SYSTEM_VISITOR))
+    return retired_id
+
+
+def migrate_retired_dept(cur):
+    """옛 이름('퇴사자')·최상위에 있던 퇴직자 폴더를 '기타/외부 > 퇴직자'로 정리한다(멱등)."""
+    old = cur.execute("SELECT id, parent_id FROM department_tree WHERE dept_name = '퇴사자'").fetchone()
+    if old:
+        parent = cur.execute("SELECT id FROM department_tree WHERE dept_name = ?",
+                             (EXTERNAL_ROOT_NAME,)).fetchone()
+        cur.execute("UPDATE department_tree SET dept_name = ?, parent_id = ? WHERE id = ?",
+                    (RETIRED_DEPT_NAME, parent['id'] if parent else None, old['id']))
+        cur.execute("UPDATE employees SET dept = ? WHERE dept_id = ?", (RETIRED_DEPT_NAME, old['id']))
+        cur.execute("INSERT OR IGNORE INTO dept_scope (dept_id, system) VALUES (?, ?)",
+                    (old['id'], SYSTEM_VISITOR))
+        n = cur.execute("SELECT COUNT(*) FROM employees WHERE dept_id = ?", (old['id'],)).fetchone()[0]
+        print(f"🚪 [퇴직자] '퇴사자' → '{EXTERNAL_ROOT_NAME} > {RETIRED_DEPT_NAME}' 로 이전 ({n}명)")
+
+
+def repair_orphan_dept_scope(cur):
+    """직원이 소속돼 있는데 범위가 없어 조직도에서 안 보이는 부서를 되살린다(멱등).
+
+    화면에서 만든 부서(퇴사자 등)를 dept_scope 에 등록하지 않으면
+    소속 직원이 조직도에서 통째로 사라져 되돌릴 방법이 없어진다.
+    그런 '고아 부서'를 찾아 방문객 범위로 편입한다.
+    """
+    rows = cur.execute("""
+        SELECT DISTINCT d.id, d.dept_name, COUNT(e.id) AS n
+        FROM department_tree d
+        JOIN employees e ON e.dept_id = d.id
+        WHERE NOT EXISTS (
+            SELECT 1 FROM dept_scope s WHERE s.dept_id = d.id AND s.system = ?
+        )
+        GROUP BY d.id
+    """, (SYSTEM_VISITOR,)).fetchall()
+    for r in rows:
+        cur.execute("INSERT OR IGNORE INTO dept_scope (dept_id, system) VALUES (?, ?)",
+                    (r['id'], SYSTEM_VISITOR))
+        print(f"🔧 [부서 범위 복구] '{r['dept_name']}'({r['n']}명)가 조직도에서 누락되어 있어 복구")
 
 def migrate_department_tree():
     if not os.path.exists(DEPT_SEED_PATH):
@@ -292,6 +353,8 @@ def migrate_department_tree():
         print(f"🌳 [부서 트리] 직원 {placed}명 부서 배치")
 
     migrate_dept_scope(cur)
+    migrate_retired_dept(cur)
+    repair_orphan_dept_scope(cur)
 
     # 🔄 dept(표시용 텍스트)를 트리 기준으로 동기화.
     #    dept_id 가 유일한 진실이고 dept 는 그로부터 파생된 표시값이다.
@@ -566,14 +629,20 @@ def emp_login():
     emp_id, emp_name = data.get('id', '').strip(), data.get('name', '').strip()
     
     conn = get_db_connection()
-    emp = conn.execute(
-        "SELECT id, name, dept, rank, level, region FROM employees WHERE id = ? AND name = ?", 
-        (emp_id, emp_name)
-    ).fetchone()
+    # 🚪 퇴직 여부를 함께 조회 (부서가 '퇴직자' 보관함이면 로그인 차단)
+    emp = conn.execute("""
+        SELECT e.id, e.name, e.dept, e.rank, e.level, e.region,
+               (d.dept_name = ?) AS is_retired
+        FROM employees e LEFT JOIN department_tree d ON e.dept_id = d.id
+        WHERE e.id = ? AND e.name = ?
+    """, (RETIRED_DEPT_NAME, emp_id, emp_name)).fetchone()
     conn.close()
-    
+
     if emp:
         emp_dict = dict(emp)
+        if emp_dict.pop('is_retired', 0):
+            return jsonify({"success": False,
+                            "message": "퇴직 처리된 계정입니다. 관리자에게 문의해 주세요."})
         session['user'] = emp_dict
         return jsonify({"success": True, "employee": emp_dict})
     return jsonify({"success": False, "message": "사번 또는 성명이 일치하지 않습니다."})
@@ -1809,16 +1878,13 @@ def tree_retire_employee(emp_id):
     if g: return g
     conn = get_db_connection()
     try:
-        row = conn.execute("SELECT id FROM department_tree WHERE dept_name = '퇴사자'").fetchone()
-        if row:
-            retire_id = row['id']
-        else:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO department_tree (dept_name, parent_id) VALUES ('퇴사자', NULL)")
-            retire_id = cur.lastrowid
-        conn.execute("UPDATE employees SET dept_id = ?, dept = '퇴사자' WHERE id = ?", (retire_id, emp_id))
+        cur = conn.cursor()
+        retire_id = ensure_retired_dept(cur)      # 기타/외부 > 퇴직자
+        cur.execute("UPDATE employees SET dept_id = ?, dept = ? WHERE id = ?",
+                    (retire_id, RETIRED_DEPT_NAME, emp_id))
         conn.commit()
-        return jsonify({'success': True, 'message': '퇴사 처리가 완료되었습니다.'})
+        return jsonify({'success': True,
+                        'message': f"퇴직 처리되었습니다. '{EXTERNAL_ROOT_NAME} > {RETIRED_DEPT_NAME}' 에 보관되며 로그인은 차단됩니다."})
     except Exception as e:
         conn.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500

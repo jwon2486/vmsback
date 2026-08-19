@@ -237,6 +237,8 @@ function initSecScan() {
     if (!el) return;
     setTimeout(secKeepScanFocus, 150);   // 렌더 직후 자동 포커스
     el.addEventListener('keydown', (e) => {
+        // 리더기 스캔은 전역 리스너가 캡처 단계에서 먼저 가로채 처리한다(한글 IME 대응).
+        // 여기 남는 건 사람이 직접 타이핑한 경우뿐.
         if (e.key === 'Enter') {
             const raw = el.value.trim();
             el.value = '';
@@ -251,9 +253,21 @@ function initSecScan() {
             if (!e.target.closest('input, select, textarea, button, a')) secKeepScanFocus();
         });
     }
+    // 📷 전역 스캔 캡처 설치 (포커스·한글 IME 무관). 구현은 js/scan-util.js 공용.
+    if (typeof installScanCapture === 'function') {
+        installScanCapture({
+            key: 'security',
+            isActive: () => !!document.getElementById('secScanInput'),
+            getInput: () => document.getElementById('secScanInput'),
+            onScan: secSubmitScan,
+        });
+    }
 }
 
 async function secSubmitScan(raw) {
+    // 한글 입력기로 조합돼 들어온 값이면 영문으로 되돌린다. (js/scan-util.js)
+    if (typeof normalizeScanValue === 'function') raw = normalizeScanValue(raw);
+
     try {
         const res = await fetch('/api/scan', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

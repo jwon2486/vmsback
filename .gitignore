@@ -1,11 +1,21 @@
-# ── 데이터는 코드와 분리한다 ──
-# db.sqlite 는 배포 저장소에 커밋하지 않는다.
-#   운영 데이터는 GitHub 백업 저장소(VMS-Backup)가 자동 백업/복원으로 전담한다.
-#   (여기에 커밋하면 '커밋 깜빡 → 유실' 문제가 그대로 재발하므로 제외)
-db.sqlite
+# ── DB 취급 방침 ──
+# 현재: db.sqlite 를 '의도적으로' 커밋한다. (개발/시험 단계)
+#   부서 트리·직원 배치처럼 로컬에서 검증한 데이터를 그대로 배포하기 위함.
+#   ⚠️ 이 방식은 배포할 때마다 운영 DB 가 로컬 DB 로 덮어써진다.
+#      (restore_db_from_github 는 'DB 파일이 없을 때만' 복원하므로,
+#       저장소에 db.sqlite 가 있으면 복원을 건너뛴다)
+#
+# 실제 운영 시작 후에는 아래로 전환할 것:
+#   git rm --cached db.sqlite   →  이 줄 아래에 db.sqlite 추가
+#   그러면 운영 데이터는 백업 저장소(VMS-Backup)가 전담하고,
+#   부서 트리는 department_tree_seed.json 마이그레이션이 자동 생성한다.
 db.sqlite.snapshot
+db.sqlite.bak-*
 *.sqlite-wal
 *.sqlite-shm
+
+# 스캐너 중계 프로그램이 PC 마다 생성하는 장치 설정 (배포 대상 아님)
+scanner-agent/agent_config.json
 
 # 세션 키 등 비밀값
 .secret_key

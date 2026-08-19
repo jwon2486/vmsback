@@ -41,6 +41,7 @@
     </div>
     <div class="foot">스캔이 안 되면 이 입력창을 클릭해 포커스를 맞춰 주세요</div>
 
+    <script src="/js/scan-util.js"></script>
     <script>
         const sink = document.getElementById('sink');
         const result = document.getElementById('result');
@@ -51,6 +52,7 @@
         sink.addEventListener('blur', () => setTimeout(keepFocus, 50));
 
         // 하드웨어 리더기는 QR 내용을 타이핑한 뒤 Enter 를 보낸다 → Enter 에서 처리.
+        //  (아래 전역 캡처가 먼저 가로채므로, 여기 남는 건 사람이 직접 친 경우뿐)
         sink.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const raw = sink.value.trim();
@@ -59,7 +61,20 @@
             }
         });
 
+        // 📷 전역 스캔 캡처: 포커스가 어디 있든, 한글 입력기가 켜져 있어도 인식한다.
+        //    구현은 js/scan-util.js 공용 (경비실 대시보드와 동일 로직).
+        if (typeof installScanCapture === 'function') {
+            installScanCapture({
+                key: 'deskScanner',
+                isActive: () => true,          // 이 페이지는 스캔 전용
+                getInput: () => sink,
+                onScan: submitScan,
+            });
+        }
+
         async function submitScan(raw) {
+            // 한글 입력기로 조합돼 들어온 값이면 영문으로 되돌린다.
+            if (typeof normalizeScanValue === 'function') raw = normalizeScanValue(raw);
             render('스캔됨', '조회 중...', 'idle');
             try {
                 const res = await fetch('/api/scan', {

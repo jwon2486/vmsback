@@ -55,13 +55,16 @@ function buildTree(list) {
     function renderNode(node, container) {
         const div = document.createElement('div');
         div.className = 'my-1';
+        div.dataset.deptId = node.id;      // 직원 검색 시 이 노드를 찾아 펼치기 위한 앵커
         const hasChildren = childrenMap[node.id] && childrenMap[node.id].length > 0;
 
         const rowDiv = document.createElement('div');
         rowDiv.className = 'tree-row';
 
         const leftDiv = document.createElement('div');
-        leftDiv.className = 'flex-1 cursor-pointer truncate font-medium';
+        leftDiv.className = 'flex-1 cursor-pointer font-medium';
+        // 폭이 모자라 말줄임될 때를 대비해 전체 이름을 툴팁으로 보여 준다
+        leftDiv.title = `${node.dept_name} (${totalMap[node.id] || 0}명)`;
         leftDiv.innerHTML = `📁 ${node.dept_name} <span class="text-gray-400 font-normal">(${totalMap[node.id] || 0})</span>`;
         leftDiv.onclick = (e) => {
             e.stopPropagation();
@@ -95,6 +98,92 @@ function buildTree(list) {
     roots.forEach(root => renderNode(root, treeContainer));
 }
 
+// ==========================================
+// 🔎 직원 검색 → 소속 부서로 바로 이동
+//   사번·이름으로 찾아, 그 사람이 속한 부서까지 조직도를 펼치고
+//   명단을 연 뒤 해당 행을 잠시 강조한다. (부서를 몰라도 찾을 수 있게)
+// ==========================================
+let allEmployeesCache = [];
+
+async function loadAllEmployees() {
+    if (allEmployeesCache.length) return allEmployeesCache;
+    try {
+        const res = await fetch('/api/tree/employees/all');
+        allEmployeesCache = await res.json();
+    } catch (e) {
+        allEmployeesCache = [];
+    }
+    return allEmployeesCache;
+}
+
+async function searchEmployee() {
+    const box = document.getElementById('empSearchInput');
+    const list = document.getElementById('empSearchResult');
+    if (!box || !list) return;
+    const q = box.value.trim().toLowerCase();
+    if (!q) { list.innerHTML = ''; list.classList.add('hidden'); return; }
+
+    const emps = await loadAllEmployees();
+    const hits = emps.filter(e =>
+        String(e.id).toLowerCase().includes(q) ||
+        String(e.emp_name || '').toLowerCase().includes(q)
+    ).slice(0, 12);
+
+    if (!hits.length) {
+        list.innerHTML = '<div class="search-empty">검색 결과가 없습니다.</div>';
+    } else {
+        list.innerHTML = hits.map(e =>
+            `<div class="search-item" onclick="locateEmployee('${e.id}')">
+                 <b>${e.emp_name}</b> <span class="text-gray-400 text-xs">${e.id}</span>
+                 <div class="text-xs text-gray-500">${e.dept_name || '부서 미지정'}</div>
+             </div>`
+        ).join('');
+    }
+    list.classList.remove('hidden');
+}
+
+/** 부서 id 의 조상들을 모두 펼쳐, 화면에서 보이게 만든다. */
+function expandToDept(deptId) {
+    // 조상 체인 계산 (자기 자신 포함)
+    const byId = {};
+    allDepartments.forEach(d => { byId[d.id] = d; });
+    const chain = [];
+    let cur = byId[deptId];
+    while (cur) {
+        chain.unshift(cur.id);
+        cur = cur.parent_id ? byId[cur.parent_id] : null;
+    }
+    // 각 조상 노드의 자식 컨테이너를 펼친다
+    chain.forEach(id => {
+        const node = document.querySelector(`#orgTree [data-dept-id="${id}"]`);
+        if (!node) return;
+        const children = node.querySelector(':scope > .tree-children');
+        if (children) children.classList.remove('hidden');
+    });
+    return chain[chain.length - 1];
+}
+
+async function locateEmployee(empId) {
+    const emps = await loadAllEmployees();
+    const emp = emps.find(e => String(e.id) === String(empId));
+    if (!emp || !emp.dept_id) { alert('소속 부서를 찾을 수 없습니다.'); return; }
+
+    expandToDept(emp.dept_id);
+    await selectDepartment(emp.dept_id, emp.dept_name || '');
+
+    // 검색창 정리 후 해당 행으로 스크롤 + 강조
+    const list = document.getElementById('empSearchResult');
+    if (list) { list.innerHTML = ''; list.classList.add('hidden'); }
+    const row = document.querySelector(`#employeeTableBody [data-emp-id="${empId}"]`);
+    if (row) {
+        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        row.classList.add('emp-hit');
+        setTimeout(() => row.classList.remove('emp-hit'), 2500);
+    }
+    const node = document.querySelector(`#orgTree [data-dept-id="${emp.dept_id}"] > .tree-row`);
+    if (node) node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 async function selectDepartment(id, name) {
     currentDeptId = id;
     currentDeptName = name;
@@ -120,7 +209,7 @@ async function selectDepartment(id, name) {
                         ✏️ 수정
                     </button>
                 `;
-                if (emp.dept_name === '퇴사자') {
+                if (emp.dept_name === '퇴직자') {
                     actionButtons += `
                         <button onclick="deleteEmployee('${emp.id}', '${emp.emp_name}')" class="btn-outline text-gray-500 border-gray-200 hover:bg-gray-50 text-xs px-2 py-1">
                             🗑️ 삭제
@@ -130,11 +219,12 @@ async function selectDepartment(id, name) {
                 else {
                     actionButtons += `
                         <button onclick="retireEmployee('${emp.id}', '${emp.emp_name}')" class="btn-outline text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1">
-                            🚪 퇴사
+                            🚪 퇴직
                         </button>
                     `;
                 }
 
+                row.dataset.empId = emp.id;      // 검색 결과 강조용 앵커
                 row.innerHTML = `
                     <td class="table-td font-mono text-gray-500">${emp.id}</td>
                     <td class="table-td font-bold text-gray-900">${emp.emp_name}</td>
@@ -317,7 +407,10 @@ async function submitEmployee() {
 }
 
 async function retireEmployee(empId, empName) {
-    if (!confirm(`[${empName}] 직원을 퇴사 처리하시겠습니까?\n\n시스템 상에서 '퇴사자' 그룹으로 자동 이동됩니다.`)) return;
+    if (!confirm(`[${empName}] 직원을 퇴직 처리하시겠습니까?\n\n`
+        + `· '기타/외부 > 퇴직자' 폴더로 이동합니다\n`
+        + `· 계정과 방문 기록은 보존되지만 로그인은 차단됩니다\n`
+        + `· 완전 삭제 여부는 그 폴더에서 따로 결정하세요`)) return;
     try {
         const response = await fetch(`/api/tree/employees/${empId}/retire`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         const result = await response.json();
@@ -333,7 +426,7 @@ async function retireEmployee(empId, empName) {
 }
 
 async function deleteEmployee(empId, empName) {
-    if (!confirm(`[${empName}] 직원을 영구 삭제하시겠습니까?\n\n주의: 되돌릴 수 없습니다.`)) return;
+    if (!confirm(`[${empName}] 직원을 영구 삭제하시겠습니까?\n\n주의: 되돌릴 수 없습니다. (방문 기록의 담당자 정보도 함께 사라집니다)`)) return;
     try {
         const response = await fetch(`/api/tree/employees/${empId}`, { method: 'DELETE' });
         const result = await response.json();

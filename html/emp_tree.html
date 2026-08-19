@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>👥 임직원 정보 관리</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- 외부 CDN 을 쓰지 않는다. 사내망에서 CDN 이 막히면 화면이 통째로 깨지기 때문에
+         필요한 유틸리티 클래스를 emp-tree.css 안에 직접 정의해 두었다. -->
     <link rel="stylesheet" href="/css/emp-tree.css">
 </head>
 <body>
@@ -17,6 +18,14 @@
                     ➕ 본부 추가
                 </button>
             </div>
+            <!-- 🔎 직원 검색: 부서를 몰라도 사번·이름으로 찾아 해당 조직도까지 펼쳐 준다 -->
+            <div class="emp-search-box">
+                <input type="text" id="empSearchInput" oninput="searchEmployee()"
+                       placeholder="🔎 사번 · 이름으로 직원 찾기" autocomplete="off"
+                       class="w-full border p-2 rounded text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                <div id="empSearchResult" class="emp-search-result hidden"></div>
+            </div>
+
             <div id="orgTree" class="space-y-1 text-sm">
                 <p class="text-gray-400">조직도를 불러오는 중...</p>
             </div>
@@ -59,7 +68,7 @@
                                 <th class="table-th">소속 부서</th>
                                 <th class="table-th w-24">지역</th>
                                 <th class="table-th w-28">VMS 권한</th>
-                                <th class="table-th-center w-40">관리 (수정/퇴사)</th>
+                                <th class="table-th-center w-40">관리 (수정/퇴직)</th>
                             </tr>
                         </thead>
                         <tbody id="employeeTableBody" class="table-body">
