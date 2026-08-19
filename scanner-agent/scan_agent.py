@@ -26,6 +26,7 @@
 """
 
 import argparse
+import ctypes
 import json
 import os
 import re
@@ -60,6 +61,35 @@ KNOWN_SCANNER_VIDS = [0x9901]
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+# ── 중복 실행 방지 ────────────────────────────────────────────────
+#   COM 포트는 한 프로그램만 열 수 있다. 바로가기를 두 번 눌러 창이 두 개 뜨면
+#   먼저 뜬 쪽이 포트를 잡고, 나중 창은 "액세스가 거부되었습니다"만 무한 반복한다.
+#   그래서 두 번째 실행은 아예 시작하지 않고 안내 후 종료시킨다.
+_instance_lock = None          # 전역으로 들고 있어야 프로그램이 끝날 때까지 유지된다
+
+
+def already_running():
+    """이미 실행 중이면 True. (윈도우 이름있는 뮤텍스 — 프로세스가 죽으면 OS가 자동 해제)"""
+    global _instance_lock
+    if sys.platform != "win32":
+        return False
+    ERROR_ALREADY_EXISTS = 183
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateMutexW.restype = ctypes.c_void_p
+        # Local\ = 같은 로그인 세션 안에서만 유일. 권한 문제 없이 항상 만들어진다.
+        handle = k32.CreateMutexW(None, False, r"Local\VMS_SCAN_AGENT")
+        err = ctypes.get_last_error()
+        if not handle:
+            return False                       # 뮤텍스를 못 만들면 막지 말고 그냥 진행
+        if err == ERROR_ALREADY_EXISTS:
+            return True
+        _instance_lock = handle                # 프로그램이 끝날 때까지 붙잡아 둔다
+        return False
+    except Exception:
+        return False
 
 
 def list_serial_ports():
@@ -299,9 +329,13 @@ def run(port, server, baud):
     log(f"포트: {port} ({baud}bps)")
     log("스캔 대기 중...  (종료: Ctrl+C)")
 
+    warned_busy = False        # 같은 안내를 3초마다 반복해서 찍지 않도록
     while True:
         try:
             with serial.Serial(port, baud, timeout=1) as ser:
+                if warned_busy:
+                    log(f"{port} 연결되었습니다.")
+                warned_busy = False
                 buf = b""
                 while True:
                     chunk = ser.read(256)
@@ -318,7 +352,17 @@ def run(port, server, baud):
                         log(f"스캔: {raw}  →  토큰 {extract_token(raw)}")
                         show(send_scan(server, raw))
         except serial.SerialException as e:
-            log(f"포트 연결 끊김({e}). {RECONNECT_WAIT}초 후 재시도합니다.")
+            if isinstance(e.__cause__ or e, PermissionError) or "PermissionError" in str(e):
+                # 포트는 있는데 열 수 없다 = 다른 프로그램이 이미 쓰고 있다
+                if not warned_busy:
+                    log(f"{port} 를 다른 프로그램이 사용 중입니다.")
+                    log("  · 이 프로그램 창이 여러 개 떠 있지 않은지 확인하세요 (하나만 남기고 닫기)")
+                    log("  · 리더기 설정 프로그램·터미널 프로그램이 켜져 있으면 닫으세요")
+                    log(f"  {RECONNECT_WAIT}초마다 계속 재시도합니다...")
+                    warned_busy = True
+            else:
+                log(f"포트 연결 끊김({e}). {RECONNECT_WAIT}초 후 재시도합니다.")
+                warned_busy = False
             time.sleep(RECONNECT_WAIT)
         except KeyboardInterrupt:
             log("종료합니다.")
@@ -363,6 +407,15 @@ def main():
             print(f"{p.device:<8} {kind:<12} {ids:<12} {p.description}")
         print("\n★ 표시가 리더기입니다. 없으면 USB 항목 중에서 고르세요.")
         return
+
+    if already_running():
+        print()
+        print("이미 리더기 중계 프로그램이 실행 중입니다.")
+        print("  검은 창이 여러 개 떠 있으면 하나만 남기고 닫으세요.")
+        print("  (COM 포트는 한 프로그램만 열 수 있어, 두 개를 켜면 둘 다 먹통이 됩니다)")
+        print()
+        input("엔터를 누르면 이 창을 닫습니다... ")
+        sys.exit(0)
 
     port = pick_port(args.port, force_setup=args.setup)
     if not port:
