@@ -164,7 +164,7 @@
                             </div>
                         </div>
 
-                        <div class="admin-stat-grid pass-stat-grid pass-stat-grid-5">
+                        <div class="admin-stat-grid pass-stat-grid pass-stat-grid-6">
                             <div class="admin-stat-card stat-total">
                                 <span class="admin-stat-label">🎫 정기 이용권<span class="stat-label-sub"> (매일)</span></span>
                                 <span class="admin-stat-value" id="passStatRegular">-</span>
@@ -180,6 +180,15 @@
                             <div class="admin-stat-card stat-pending-req">
                                 <span class="admin-stat-label">🙋 승인 대기<span class="stat-label-sub"> (손님 신청)</span></span>
                                 <span class="admin-stat-value" id="passStatPending">-</span>
+                            </div>
+                            <div class="admin-stat-card stat-approve-mode">
+                                <!-- 승인 방식별 활성 이용권 수. 자동 승인은 스캔 즉시 확정되므로 따로 파악한다. -->
+                                <span class="admin-stat-label">🔐 승인 방식<span class="stat-label-sub"> (활성 기준)</span></span>
+                                <span class="admin-stat-value pass-approve-split">
+                                    <b id="passStatManual">-</b><small>경비실</small>
+                                    <em>/</em>
+                                    <b id="passStatAuto">-</b><small>자동</small>
+                                </span>
                             </div>
                             <div class="admin-stat-card stat-incomplete">
                                 <span class="admin-stat-label">⏳ 정리 대상<span class="stat-label-sub"> (만료 임박·장기 미사용)</span></span>

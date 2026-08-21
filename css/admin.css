@@ -1079,16 +1079,33 @@ tr:hover td { background: #f8fafc; }
 .pass-row-request td { background: #fffbeb; }
 .pass-row-request:hover td { background: #fef3c7; }
 .pass-stat-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.pass-stat-grid-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .admin-stat-card.stat-pending-req { border-left-color: #d97706; }
 .admin-stat-card.stat-pending-req .admin-stat-value { color: #d97706; }
 
 @media (max-width: 991px) {
-  .pass-stat-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pass-stat-grid-5, .pass-stat-grid-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 768px) {
-  .pass-stat-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pass-stat-grid-5, .pass-stat-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* 자동 계산되는 입력칸(유효 종료일) 표시 */
 .field-hint { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
 .field input[readonly] { background: #f1f5f9; color: #475569; cursor: default; }
+
+/* 🔐 승인 방식 카드: 한 칸에 두 수치(경비실 승인 / 자동 승인)를 나란히 */
+.admin-stat-card.stat-approve-mode { border-left-color: #0891b2; }
+.pass-approve-split { display: flex; align-items: baseline; gap: 0.25rem; flex-wrap: wrap; }
+.pass-approve-split b { font-size: 1.6rem; font-weight: 800; color: #0891b2; }
+.pass-approve-split small { font-size: 0.72rem; font-weight: 700; color: var(--muted); margin-right: 0.15rem; }
+.pass-approve-split em { font-style: normal; font-size: 1.1rem; color: #cbd5e1; margin: 0 0.1rem; }
+
+/* 🎫 이용권 탭 요약 카드: 제목과 괄호 설명을 두 줄로 나눈다 (한 줄이면 폭이 좁아 잘려 보인다) */
+.pass-stat-grid .admin-stat-label { display: flex; flex-direction: column; gap: 1px; }
+.pass-stat-grid .stat-label-sub { display: block; font-weight: 600; font-size: 0.72rem; color: #94a3b8; }
+
+@media (max-width: 768px) {
+  /* 좁은 화면에서는 다른 탭과 동일하게 부가 설명을 숨긴다 */
+  .pass-stat-grid .stat-label-sub { display: none; }
+}

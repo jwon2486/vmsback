@@ -313,7 +313,7 @@ function showSecurityDashboard() {
                     </table>
                 </div>
 
-                <h4 class="sec-pass-subtitle">🎫 발급된 이용권</h4>
+                <h4 class="sec-pass-subtitle">🎫 발급된 이용권 <span id="secPassIssuedSummary" class="sec-pass-summary"></span></h4>
                 <div class="table-responsive sec-table-container h-500">
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
@@ -930,6 +930,16 @@ function renderSecPassList(today) {
     if (!issued.length) {
         tbody.innerHTML = '<tr><td colspan="9" class="no-data-box">발급된 출입 이용권이 없습니다.</td></tr>';
         return;
+    }
+
+    // 소제목 요약: 활성 이용권을 승인 방식으로 나눠 보여준다 (자동 승인은 승인 대기열을 거치지 않는다)
+    const summary = document.getElementById('secPassIssuedSummary');
+    if (summary) {
+        const active = issued.filter(p => p.status === '활성');
+        const auto = active.filter(p => p.auto_approve).length;
+        summary.textContent = active.length
+            ? `활성 ${active.length}장 · 경비실 승인 ${active.length - auto} · 자동 승인 ${auto}`
+            : '';
     }
 
     tbody.innerHTML = issued.map(p => {

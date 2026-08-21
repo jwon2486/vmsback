@@ -792,6 +792,9 @@ function renderPassTable(today) {
     // 만료 임박과 장기 미사용이 겹치는 건은 한 번만 센다.
     const attention = new Set([...expiringSoon.map(p => p.id), ...active.filter(p => p.dormant).map(p => p.id)]);
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    // 승인 방식별(활성 기준): 자동 승인은 스캔 즉시 확정되므로 몇 장이나 열려 있는지 따로 본다.
+    set('passStatAuto', active.filter(p => p.auto_approve).length);
+    set('passStatManual', active.filter(p => !p.auto_approve).length);
     set('passStatPending', passListCache.filter(p => p.status === '신청').length);
     set('passStatRegular', active.filter(p => p.pass_type !== '수시').length);
     set('passStatOccasional', active.filter(p => p.pass_type === '수시').length);
