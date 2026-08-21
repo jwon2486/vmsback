@@ -97,7 +97,19 @@ async function showScanStatus(token, fromPoll = false) {
         return;
     }
 
-    const v = data.visitor;
+    let v = data.visitor;
+
+    // 🎫 이용권 QR 인데 오늘 출입 기록이 아직 없는 상태('정기권')라면 = 지금 막 정문에서 찍은 것.
+    //    거점 세션이 있는 기기(정문 QR 을 스캔한 기기)면 곧바로 입실 요청을 접수한다.
+    //    거점 세션이 없으면(집에서 링크를 연 경우 등) 접수하지 않고 안내만 한다.
+    if (v.status === '정기권' && !fromPoll) {
+        const done = await tryPassSelfCheckin(token);
+        if (done) return;          // 접수 성공 → 상태 화면을 다시 그린다 (재귀 호출로 처리됨)
+        v = passSelfCheckinBlocked
+            ? Object.assign({}, v, { status: '정기권거점필요', pass_note: passSelfCheckinBlocked })
+            : v;
+    }
+
     const sv = getStatusView(v.status);
     const checkoutBtn = sv.canCheckout
         ? `<div class="action-buttons"><button onclick="submitCheckout(${v.id})" class="btn-guest-main">지금 퇴실 요청하기</button></div>`
@@ -152,6 +164,21 @@ function showMainPage() {
                 <span class="guest-emoji-header">🏃</span>
                 나가려고 합니다<br><span class="guest-btn-sub-label">(퇴실 요청)</span>
             </button>
+        </div>
+        <!-- 🎫 반복 방문자용: 매번 입실 등록하지 않도록 이용권을 신청받는다.
+             신청·조회 두 동선을 같은 크기의 버튼으로 나란히 둔다(조회가 문구처럼 묻히지 않게). -->
+        <div class="guest-pass-entry">
+            <div class="guest-pass-title">🎫 자주 방문하시나요? <span>QR 이용권 한 장으로 출입하실 수 있습니다</span></div>
+            <div class="guest-pass-btns">
+                <button onclick="showPassRequestForm()" class="btn-guest-pass">
+                    <span class="guest-emoji-header">📝</span>
+                    이용권 신청<br><span class="guest-btn-sub-label">정기 · 수시</span>
+                </button>
+                <button onclick="showPassStatusForm()" class="btn-guest-pass btn-guest-pass-outline">
+                    <span class="guest-emoji-header">🔍</span>
+                    내 이용권 조회<br><span class="guest-btn-sub-label">신청 결과 · QR 보기</span>
+                </button>
+            </div>
         </div>
     `;
 }
@@ -741,6 +768,33 @@ function showSearchForm() {
     `;
 }
 
+// 🎫 이용권 QR 을 손님이 직접 열었을 때의 입실 요청.
+//    성공하면 접수된 방문 건의 상태 화면으로 다시 그린다(true 반환).
+//    거점 세션이 없어 거절되면 사유를 담아두고 false 를 반환한다.
+let passSelfCheckinBlocked = '';
+
+async function tryPassSelfCheckin(token) {
+    passSelfCheckinBlocked = '';
+    try {
+        const res = await fetch('/api/pass/self-checkin', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+        const d = await res.json();
+        if (d.success) {
+            if (d.id) localStorage.setItem('my_visitor_id', d.id);
+            guestFlash = d.message;
+            await showScanStatus(token, true);    // 접수 결과 반영해 다시 조회
+            startVisitorPolling(() => fetchStatusByToken(token), () => showScanStatus(token, true));
+            return true;
+        }
+        passSelfCheckinBlocked = d.message || '';
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
+
 // 상태별 안내 정보 (배지 문구/색 클래스/설명)
 function getStatusView(status) {
     switch (status) {
@@ -749,6 +803,10 @@ function getStatusView(status) {
         case '퇴실대기': return { label: '🟠 퇴실 승인 대기중', desc: '퇴실 요청이 접수되었습니다. 경비실 최종 승인 후 마감됩니다.', canCheckout: false };
         case '퇴실완료': return { label: '✅ 퇴실 완료', desc: '이미 퇴실 처리가 완료된 방문입니다.', canCheckout: false };
         case '만료':     return { label: '⛔ 만료됨', desc: '입실하지 않아 만료된 예약입니다. 방문하시려면 처음 화면에서 다시 등록해 주세요.', canCheckout: false };
+        // 🎫 정기 출입증 QR 을 본인이 열어본 경우 (오늘 출입 기록이 아직 없는 상태)
+        case '정기권':   return { label: '🎫 출입 이용권', desc: '유효한 출입 이용권입니다. 정문에서 이 QR을 보여주시면 입실 처리됩니다.', canCheckout: false };
+        case '정기권거점필요': return { label: '📍 사업장 확인 필요', desc: '정문에 비치된 사업장 QR을 먼저 스캔한 뒤 이 QR을 다시 열어 주세요. 현장 확인 후 입실 요청이 접수됩니다.', canCheckout: false };
+        case '정기권사용불가': return { label: '⛔ 사용할 수 없는 이용권', desc: '유효기간이 지났거나 사용이 정지된 이용권입니다. 안내 데스크(경비실)로 문의해 주세요.', canCheckout: false };
         default:         return { label: `ℹ️ ${status || '상태 미상'}`, desc: '현재 상태 정보를 확인해 주세요.', canCheckout: false };
     }
 }
@@ -843,4 +901,340 @@ async function showGroupQr(logId) {
         <div class="guest-qr-grid">${qrListHtml}</div>
         <div class="action-buttons visitor-btn-margin"><button onclick="showSearchForm()" class="btn-guest-sub">뒤로</button></div>
     `;
+}
+
+
+// ====================================================================
+// 🎫 출입 이용권 발급 신청 (손님 화면)
+//   - 접수만 하는 화면이다. 실제 발급은 경비실·최고관리자 승인 후 이뤄진다.
+//   - 유효기간·이용 요일은 '희망 사항'으로 받고, 승인자가 최종 확정한다.
+// ====================================================================
+const PASS_REQ_WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'];
+let passReqType = '정기';      // 화면에서 고른 이용권 종류
+
+function passReqTodayStr() {
+    const now = new Date();
+    const kst = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (9 * 3600 * 1000));
+    const p = (n) => String(n).padStart(2, '0');
+    return `${kst.getFullYear()}-${p(kst.getMonth() + 1)}-${p(kst.getDate())}`;
+}
+
+// 손님이 고른 이용 기간 단위 (1일 / 1주일 / 1개월)
+let passReqPeriod = '1개월';
+
+// 손님이 고른 이용 시작일 (미선택 시 오늘)
+function passReqStartDate() {
+    const el = document.getElementById('passReqFrom');
+    return (el && el.value) ? el.value : passReqTodayStr();
+}
+
+// 유효기간 종료일: 시작일 + 선택 단위 (계산 규칙은 공용 헬퍼 = 서버와 동일)
+function passReqEndDate() {
+    return window.passPeriodEnd(passReqStartDate(), passReqPeriod);
+}
+
+// 시작일·단위 중 무엇이 바뀌든 표시되는 기간을 다시 계산한다.
+function refreshPassReqRange() {
+    const el = document.getElementById('passReqRangeText');
+    if (el) el.textContent = `${passReqStartDate()} ~ ${passReqEndDate()}`;
+}
+
+function showPassRequestForm() {
+    stopVisitorPolling();
+    resetWideLayout();
+    const appCard = document.getElementById('app-card');
+    if (!appCard) return;
+    passReqType = '정기';
+    passReqPeriod = window.PASS_DEFAULT_PERIOD || '1개월';
+
+    // 거점: 정문 QR 로 들어오면 확정(확인 문구), 직접 접속이면 손님이 선택. (입실 등록 화면과 같은 규칙)
+    const regionBlock = (typeof currentRegion !== 'undefined' && currentRegion)
+        ? `<div class="input-group mb-15">
+               <div class="region-confirm-box">📍 ${currentRegion} 이용권으로 신청됩니다.</div>
+               <input type="hidden" id="passReqRegion" value="${currentRegion}">
+           </div>`
+        : `<div class="input-group mb-15 warning-box">
+               <label class="warning-text">📍 이용하실 사업장을 선택해주세요 <span class="req-star">*</span></label>
+               <select id="passReqRegion">
+                   <option value="">-- 사업장을 선택하세요 --</option>
+                   <option value="테크센터">동탄 (테크센터)</option>
+                   <option value="에코센터">부산 (에코센터)</option>
+                   <option value="평택공장">평택공장</option>
+                   <option value="거제 오션센터">거제 오션센터</option>
+               </select>
+           </div>`;
+
+    appCard.innerHTML = `
+        <h2 class="guest-title-bold-style">🎫 출입 이용권 신청</h2>
+        <p class="guest-pass-guide">
+            <b>QR 한 장</b>으로 출입 · 매번 등록 불필요 — <b>경비실 승인</b> 후 사용
+        </p>
+
+        <div class="pass-req-types">
+            <button type="button" id="passReqTypeRegular" class="pass-req-type active" onclick="selectPassReqType('정기')">
+                <b>정기 이용권</b>
+                <span>거의 매일 출입해요</span>
+            </button>
+            <button type="button" id="passReqTypeOccasional" class="pass-req-type" onclick="selectPassReqType('수시')">
+                <b>수시 출입권</b>
+                <span>매일은 아니지만 자주 와요</span>
+            </button>
+        </div>
+
+        <div class="form-container">
+            ${regionBlock}
+            <div class="input-row-group">
+                <div class="input-group"><label>성명 <span class="req-star">*</span></label>
+                    <input type="text" id="passReqName" placeholder="본인 성명" autocomplete="off"></div>
+                <div class="input-group"><label>연락처 <span class="req-star">*</span></label>${phoneInputHtml('passReqContact')}</div>
+            </div>
+            <div class="input-row-group">
+                <div class="input-group"><label>소속 업체 <span class="req-star">*</span></label>
+                    <input type="text" id="passReqCompany" placeholder="예: OO물류" autocomplete="off"></div>
+                <div class="input-group"><label>차량 번호</label>
+                    <input type="text" id="passReqVehicle" placeholder="없을 시 비워둠" autocomplete="off"></div>
+            </div>
+            <div class="input-row-group">
+                <div class="input-group">
+                    <label>이용 목적 <span class="req-star">*</span></label>
+                    <input type="text" id="passReqPurpose" placeholder="예: 제품 납품 / 시설 점검" autocomplete="off">
+                </div>
+                <div class="input-group">
+                    <label>이용 시작일 <span class="req-star">*</span></label>
+                    <input type="date" id="passReqFrom" value="${passReqTodayStr()}" min="${passReqTodayStr()}"
+                           onchange="refreshPassReqRange()">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>이용 기간 <span class="req-star">*</span></label>
+                <div class="pass-req-periods" id="passReqPeriodBox">
+                    ${(window.PASS_PERIODS || ['1일', '1주일', '1개월']).map(x =>
+                        `<button type="button" class="pass-req-period-btn${x === passReqPeriod ? ' active' : ''}"
+                                 data-period="${x}" onclick="selectPassReqPeriod('${x}')">${x}</button>`).join('')}
+                </div>
+                <div class="pass-req-period">
+                    <b id="passReqRangeText">${passReqTodayStr()} ~ ${window.passPeriodEnd(passReqTodayStr(), passReqPeriod)}</b>
+                    <span>선택하신 시작일부터 적용됩니다 · 기간이 끝나면 다시 신청해 주세요</span>
+                </div>
+            </div>
+            <div class="input-group">
+                <label>주로 방문하는 요일</label>
+                <div class="pass-req-weekdays" id="passReqWeekdays">
+                    ${PASS_REQ_WEEKDAYS.map((d, i) =>
+                        `<label class="pass-req-day"><input type="checkbox" data-day="${i}" ${i < 5 ? 'checked' : ''}><span>${d}</span></label>`
+                    ).join('')}
+                </div>
+            </div>
+            <div class="input-group">
+                <label>신청 사유 / 남길 말</label>
+                <input type="text" id="passReqMemo" placeholder="예: 매주 화·목 자재 납품 예정" autocomplete="off">
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button onclick="submitPassRequest()" class="btn-guest-main">신청서 제출</button>
+            <button onclick="showMainPage()" class="btn-guest-sub">취소</button>
+        </div>
+    `;
+}
+
+// 이용 기간 단위 선택 → 표시되는 기간을 즉시 갱신
+function selectPassReqPeriod(period) {
+    passReqPeriod = period;
+    document.querySelectorAll('#passReqPeriodBox .pass-req-period-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.period === period);
+    });
+    refreshPassReqRange();
+}
+
+function selectPassReqType(type) {
+    passReqType = type;
+    const reg = document.getElementById('passReqTypeRegular');
+    const occ = document.getElementById('passReqTypeOccasional');
+    if (reg) reg.classList.toggle('active', type === '정기');
+    if (occ) occ.classList.toggle('active', type === '수시');
+    // 정기는 평일 상주가 일반적, 수시는 언제 올지 모르니 전 요일 기본
+    const preset = (type === '수시') ? '1111111' : '1111100';
+    document.querySelectorAll('#passReqWeekdays input[type="checkbox"]').forEach(cb => {
+        cb.checked = preset[parseInt(cb.dataset.day, 10)] === '1';
+    });
+}
+
+async function submitPassRequest() {
+    const get = (id) => (document.getElementById(id) || {}).value || '';
+    let weekdays = '';
+    document.querySelectorAll('#passReqWeekdays input[type="checkbox"]').forEach(cb => {
+        weekdays += cb.checked ? '1' : '0';
+    });
+    if (!weekdays.includes('1')) weekdays = '1111111';
+
+    const payload = {
+        pass_type: passReqType,
+        name: get('passReqName').trim(),
+        contact: readPhone('passReqContact'),
+        company: get('passReqCompany').trim(),
+        vehicle_no: get('passReqVehicle').trim(),
+        purpose: get('passReqPurpose').trim(),
+        weekdays: weekdays,
+        valid_from: passReqStartDate(),
+        period: passReqPeriod,
+        memo: get('passReqMemo').trim(),
+        region: (document.getElementById('passReqRegion') || {}).value || '',
+    };
+    if (!payload.name) return alert('성명을 입력해 주세요.');
+    if (!payload.contact) return alert('연락처를 입력해 주세요.');
+    if (!payload.company) return alert('소속 업체를 입력해 주세요.');
+    if (!payload.purpose) return alert('이용 목적을 입력해 주세요.');
+    if (!payload.region) return alert('이용하실 사업장을 선택해 주세요.');
+
+    try {
+        const res = await fetch('/api/pass/request', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        if (!d.success) return alert(d.message || '신청 처리에 실패했습니다.');
+        showPassRequestDone(payload, d.message);
+    } catch (e) {
+        alert('신청 처리 중 통신 오류가 발생했습니다.');
+    }
+}
+
+function showPassRequestDone(payload, message) {
+    const appCard = document.getElementById('app-card');
+    if (!appCard) return;
+    appCard.innerHTML = `
+        <h2 class="guest-title-bold-style">신청이 접수되었습니다</h2>
+        <div class="visitor-info-box">
+            <p class="greet"><strong>${payload.name}</strong> 님</p>
+            <span class="badge-company">${payload.company}</span>
+            <p class="status-line"><b>🟡 ${payload.pass_type} 이용권 승인 대기</b></p>
+            <p class="status-desc">${message}</p>
+            <p class="time-info">이용 기간: ${payload.valid_from} ~ ${window.passPeriodEnd(payload.valid_from, payload.period)} (${payload.period})</p>
+        </div>
+        <p class="guest-pass-note">
+            승인 결과는 <b>내 이용권 · 신청 결과 조회</b>에서 성명·연락처로 확인하실 수 있습니다.<br>
+            승인 전에도 방문이 필요하시면 <b>처음 왔습니다(입실 등록)</b>로 평소처럼 방문하실 수 있습니다.
+        </p>
+        <div class="action-buttons">
+            <button onclick="showPassStatusForm()" class="btn-guest-main">신청 결과 조회</button>
+            <button onclick="showMainPage()" class="btn-guest-sub">처음 화면으로</button>
+        </div>
+    `;
+}
+
+// ── 내 이용권 / 신청 결과 조회 ────────────────────────────────────
+function showPassStatusForm() {
+    stopVisitorPolling();
+    resetWideLayout();
+    const appCard = document.getElementById('app-card');
+    if (!appCard) return;
+    appCard.innerHTML = `
+        <h2 class="guest-title-bold-style">🎫 내 이용권 조회</h2>
+        <div class="form-container form-container-verify-margin">
+            <div class="input-group">
+                <label>성명</label>
+                <input type="text" id="passStatusName" placeholder="신청 시 입력한 성명" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>연락처</label>
+                ${phoneInputHtml('passStatusContact')}
+            </div>
+        </div>
+        <div class="action-buttons">
+            <button onclick="lookupMyPass()" class="btn-guest-main">조회하기</button>
+            <button onclick="showMainPage()" class="btn-guest-sub">취소</button>
+        </div>
+        <div id="passStatusResult"></div>
+    `;
+}
+
+function passStatusView(status) {
+    switch (status) {
+        case '신청': return { label: '🟡 승인 대기중', desc: '경비실 승인을 기다리고 있습니다.' };
+        case '활성': return { label: '🟢 사용 가능', desc: '정문에서 이 QR을 보여주세요.' };
+        case '정지': return { label: '⛔ 일시 정지', desc: '안내 데스크(경비실)로 문의해 주세요.' };
+        case '만료': return { label: '⌛ 기간 만료', desc: '계속 이용하시려면 다시 신청해 주세요.' };
+        case '해지': return { label: '⛔ 해지됨', desc: '안내 데스크(경비실)로 문의해 주세요.' };
+        case '반려': return { label: '🔴 신청 반려', desc: '사유를 확인하시고 필요하면 다시 신청해 주세요.' };
+        default:     return { label: `ℹ️ ${status || '상태 미상'}`, desc: '' };
+    }
+}
+
+let myPassCache = [];      // 조회 결과 (이미지 저장에 사용)
+
+// 내 이용권 카드를 PNG 로 저장 (경비실에서 발급 시 저장하는 이미지와 동일한 결과물)
+function saveMyPassImage(passId) {
+    const p = myPassCache.find(x => x.id === passId);
+    if (!p) return;
+    window.downloadPassCardPng(p, window.passWeekdayText(p.weekdays));
+}
+
+async function lookupMyPass() {
+    const name = (document.getElementById('passStatusName') || {}).value.trim();
+    const contact = readPhone('passStatusContact');
+    const box = document.getElementById('passStatusResult');
+    if (!box) return;
+    if (!name) return alert('성명을 입력해 주세요.');
+    if (!contact) return alert('연락처를 입력해 주세요.');
+
+    box.innerHTML = `<div class="shimmer-loader"><div class="spinner"></div><p>조회하고 있습니다...</p></div>`;
+    try {
+        const res = await fetch('/api/pass/request/status', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, contact })
+        });
+        const d = await res.json();
+        if (!d.success) {
+            box.innerHTML = `<div class="no-data-box"><span class="icon">⚠️</span><p>${d.message || '조회에 실패했습니다.'}</p></div>`;
+            return;
+        }
+        if (!d.list.length) {
+            box.innerHTML = `<div class="no-data-box"><span class="icon">🔍</span><p>신청 내역이 없습니다. 성명과 연락처를 확인해 주세요.</p></div>`;
+            return;
+        }
+        // 카드 구성은 경비실 QR 창(sec-qr-dialog)과 동일하게 맞춘다 —
+        //   머리말(종류·사업장) → QR → 이름 → 소속 → 유효기간·이용 요일·차량 번호.
+        //   승인된 건만 QR 을 표시한다 (서버도 활성 건에만 토큰을 내려준다).
+        myPassCache = d.list;
+        // 저장 버튼을 눌렀을 때 곧바로 공유·저장되도록 카드 이미지를 미리 만들어 둔다.
+        //   (iOS 는 사용자 조작 직후에만 공유 시트를 허용한다)
+        d.list.filter(p => p.status === '활성' && p.token)
+              .forEach(p => window.preparePassCardImage(p, window.passWeekdayText(p.weekdays)));
+        box.innerHTML = d.list.map(p => {
+            const v = passStatusView(p.status);
+            const kind = p.pass_type === '수시' ? '수시 출입권' : '정기 이용권';
+            const active = (p.status === '활성' && p.token);
+            const qr = active
+                ? `<img class="pass-my-qr" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="이용권 QR">`
+                : '';
+            const saveBtn = active
+                ? `<div class="pass-my-actions">
+                       <button onclick="saveMyPassImage(${p.id})" class="btn-guest-sub pass-my-save">📥 이용권 이미지 저장</button>
+                   </div>`
+                : '';
+            const memo = (p.status === '반려' && p.memo) ? `<p class="pass-my-memo">${p.memo}</p>` : '';
+            return `
+                <div class="pass-my-card">
+                    <div class="pass-my-head">
+                        <span class="pass-my-type ${p.pass_type === '수시' ? 'type-occasional' : 'type-regular'}">${kind}</span>
+                        <span class="pass-my-region">${p.region}</span>
+                    </div>
+                    ${qr}
+                    <div class="pass-my-name">${p.name}</div>
+                    <div class="pass-my-company">${p.company}</div>
+                    <div class="pass-my-meta">
+                        <span>유효기간</span><b>${p.valid_from} ~ ${p.valid_to}${p.period ? ` (${p.period})` : ''}</b>
+                        <span>이용 요일</span><b>${window.passWeekdayText(p.weekdays)}</b>
+                        <span>차량 번호</span><b>${p.vehicle_no || '없음'}</b>
+                    </div>
+                    <p class="status-line"><b>${v.label}</b></p>
+                    <p class="status-desc">${v.desc}</p>
+                    ${memo}
+                    ${saveBtn}
+                </div>`;
+        }).join('');
+    } catch (e) {
+        box.innerHTML = `<div class="no-data-box"><span class="icon">⚠️</span><p>통신 오류가 발생했습니다.</p></div>`;
+    }
 }

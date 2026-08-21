@@ -93,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     renderAdminRegionButtons();
+    renderPassRegionButtons();
 
     if (sessionStorage.getItem('emp_session')) {
         loadAdminLogs();
@@ -239,7 +240,9 @@ function renderAdminLogTable() {
 
                 // 방문 이력 팝업 호출(이름 클릭). 따옴표·한글이 섞여도 안전하게 인코딩해 전달.
                 const historyCall = `openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name || '').replace(/'/g, '%27')}'),decodeURIComponent('${encodeURIComponent(v.contact || '').replace(/'/g, '%27')}'))`;
-                const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>`;
+                // 🎫 정기 출입증으로 생성된 방문 건은 이름 옆에 '정기' 표시 (일반 방문객과 구분)
+                const passTag = v.pass_id ? `<span class="pass-tag">${v.pass_type || '정기'}</span>` : '';
+                const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>${passTag}`;
 
                 html += `
                     <tr>
@@ -569,32 +572,36 @@ async function uploadEmployeeFile() {
     }
 }
 
+// 탭 정의: 메뉴 버튼 ↔ 콘텐츠 패널 짝. 탭이 늘어나도 여기만 추가하면 된다.
+const ADMIN_TABS = {
+    visitor:  { btn: 'menuVisitor',  panel: 'tabContentVisitor' },
+    employee: { btn: 'menuEmployee', panel: 'tabContentEmployee' },
+    pass:     { btn: 'menuPass',     panel: 'tabContentPass' },
+};
+
 function switchTab(tabType) {
-    const btnVisitor = document.getElementById('menuVisitor');
-    const btnEmployee = document.getElementById('menuEmployee');
-    const contentVisitor = document.getElementById('tabContentVisitor');
-    const contentEmployee = document.getElementById('tabContentEmployee');
+    if (!ADMIN_TABS[tabType]) return;
+
+    Object.entries(ADMIN_TABS).forEach(([key, ids]) => {
+        const btn = document.getElementById(ids.btn);
+        const panel = document.getElementById(ids.panel);
+        if (btn) btn.classList.toggle('active', key === tabType);
+        if (panel) panel.classList.toggle('section-hidden', key !== tabType);
+    });
+
+    // 엑셀 일괄 등록 박스는 임직원 탭에서만 노출
     const excelBox = document.getElementById('sidebarExcelBox');
+    if (excelBox) excelBox.classList.toggle('excel-sidebar-active', tabType === 'employee');
 
     if (tabType === 'visitor') {
-        btnVisitor.classList.add('active');
-        btnEmployee.classList.remove('active');
-        
-        contentVisitor.classList.remove('section-hidden'); 
-        contentEmployee.classList.add('section-hidden');
-        excelBox.classList.remove('excel-sidebar-active'); 
         loadAdminLogs();
     } else if (tabType === 'employee') {
-        btnVisitor.classList.remove('active');
-        btnEmployee.classList.add('active');
-        
-        contentVisitor.classList.add('section-hidden');
-        contentEmployee.classList.remove('section-hidden');
-        excelBox.classList.add('excel-sidebar-active');
         // 🌳 임직원 관리는 부서 트리 화면(/emp-tree)을 iframe 으로 사용한다.
         //    탭을 처음 열 때만 로드하고, 이후에는 그 안에서 자체 갱신된다.
         const frame = document.getElementById('empTreeFrame');
         if (frame && !frame.src) frame.src = '/emp-tree';
+    } else if (tabType === 'pass') {
+        loadPasses();
     }
 
     const sidebar = document.getElementById('erpSidebar');
@@ -610,4 +617,394 @@ function toggleMobileSidebar() {
 
     sidebar.classList.toggle('open');
     overlay.classList.toggle('active');
+}
+
+
+// ====================================================================
+// 🎫 정기 이용 방문객(정기권) 관리
+//   - 정기권은 '출입증'이고, 실제 방문 기록은 QR 을 스캔할 때마다 출입 기록에 쌓인다.
+//     → 이 화면은 출입증의 발급·유효기간·사용 조건만 관리한다.
+//   - 승인 방식(auto_approve)은 정책값이라 발급 후에도 언제든 바꿀 수 있다.
+// ====================================================================
+let passRegionFilter = '';     // '' = 전 사업장
+let passSearchTimer = null;
+let passListCache = [];
+let editingPassId = null;      // null = 신규 발급 모드
+
+function renderPassRegionButtons() {
+    const box = document.getElementById('passRegionFilterBtns');
+    if (!box || typeof window.regionFilterButtonsHtml !== 'function') return;
+    let myRegion = '';
+    try {
+        const emp = JSON.parse(sessionStorage.getItem('emp_session'));
+        myRegion = emp ? (emp.region || '') : '';
+    } catch (e) {}
+    box.innerHTML = window.regionFilterButtonsHtml(myRegion, 'setPassRegion');
+}
+
+function setPassRegion(btn) {
+    passRegionFilter = btn.dataset.region || '';
+    document.querySelectorAll('#passRegionFilterBtns .region-filter-btn')
+        .forEach(b => b.classList.toggle('active', b === btn));
+    loadPasses();
+}
+
+// 검색은 타이핑마다 조회하지 않고 잠깐 멈춘 뒤 1회만 (표가 깜빡이는 것 방지)
+function onPassSearchInput() {
+    clearTimeout(passSearchTimer);
+    passSearchTimer = setTimeout(loadPasses, 300);
+}
+
+async function loadPasses() {
+    const tbody = document.getElementById('passBody');
+    if (!tbody) return;
+
+    const status = (document.getElementById('passStatusFilter') || {}).value || '';
+    const type = (document.getElementById('passTypeFilter') || {}).value || '';
+    const q = (document.getElementById('passSearch') || {}).value || '';
+    const params = new URLSearchParams();
+    if (passRegionFilter) params.set('region', passRegionFilter);
+    if (status) params.set('status', status);
+    if (type) params.set('type', type);
+    if (q.trim()) params.set('q', q.trim());
+
+    const fail = (msg) => {
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted">${msg}</td></tr>`;
+    };
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted">불러오는 중입니다...</td></tr>`;
+
+    // ① 통신 단계 — 서버에 닿지 못했거나 응답이 JSON 이 아닌 경우
+    let data;
+    try {
+        const res = await fetch(`/api/pass/list?${params.toString()}`);
+        data = await res.json();
+    } catch (e) {
+        console.error('[이용권] 목록 조회 통신 실패', e);
+        return fail('서버와 통신하지 못했습니다.');
+    }
+    if (!data.success) return fail(data.message || '조회에 실패했습니다.');
+
+    // ② 표시 단계 — 여기서 나는 오류는 화면 코드 문제다. 통신 오류로 뭉뚱그리지 않는다.
+    try {
+        passListCache = data.list || [];
+        if (data.periods) window.PASS_PERIODS = data.periods;                       // 서버 운영 단위 반영
+        if (data.default_period) window.PASS_DEFAULT_PERIOD = data.default_period;
+        renderPassTable(data.today);
+    } catch (e) {
+        console.error('[이용권] 목록 표시 중 오류', e);
+        fail(`목록을 표시하는 중 오류가 발생했습니다. (${e.message})`);
+    }
+}
+
+// 'YYYY-MM-DD' 두 날짜의 일수 차 (b - a). 만료 임박 판정용.
+function daysBetween(a, b) {
+    const d1 = new Date(`${a}T00:00:00`);
+    const d2 = new Date(`${b}T00:00:00`);
+    return Math.round((d2 - d1) / 86400000);
+}
+
+// 요일 표기는 화면마다 같아야 하므로 공용 함수(visitor-history.js)의 window.passWeekdayText 를 직접 쓴다.
+//   ⚠️ 여기서 같은 이름의 전역 함수를 만들면 window.passWeekdayText 를 덮어써 자기 자신을 호출한다(무한 재귀).
+
+// 유형 배지: 정기(매일) / 수시(가끔). 관리 관점이 다르므로 표에서 바로 구분되게 한다.
+function passTypeBadge(type) {
+    const t = type || '정기';
+    const cls = t === '수시' ? 'type-occasional' : 'type-regular';
+    return `<span class="pass-type-chip ${cls}">${t}</span>`;
+}
+
+function passStatusBadge(status) {
+    const cls = { '신청': 'badge-pending', '활성': 'badge-lv2', '정지': 'badge-lv3',
+                  '만료': 'badge-lv1', '해지': 'badge-lv1', '반려': 'badge-lv3' }[status] || 'badge-lv1';
+    return `<span class="badge ${cls}">${status}</span>`;
+}
+
+function renderPassTable(today) {
+    const tbody = document.getElementById('passBody');
+    if (!tbody) return;
+
+    if (!passListCache.length) {
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted">등록된 출입 이용권이 없습니다. 우측 상단 '이용권 발급'으로 추가하세요.</td></tr>`;
+    } else {
+        tbody.innerHTML = passListCache.map(p => {
+            const left = daysBetween(today, p.valid_to);      // 남은 일수 (음수 = 이미 지남)
+            const expiring = p.status === '활성' && left >= 0 && left <= 30;
+            const validHtml = `${p.valid_from} ~ ${p.valid_to}` +
+                (p.period ? `<div class="pass-sub">${p.period}</div>` : '') +
+                (p.status === '활성'
+                    ? `<div class="pass-sub${expiring ? ' pass-sub-warn' : ''}">${left < 0 ? '기간 종료' : `D-${left}`}</div>`
+                    : '');
+            const approve = p.auto_approve
+                ? `<span class="badge badge-lv2">자동</span>`
+                : `<span class="badge badge-lv5">승인</span>`;
+            const isRequest = p.status === '신청';
+            const canToggle = p.status === '활성' || p.status === '정지';
+            const toggleBtn = canToggle
+                ? `<button class="btn btn-secondary btn-action-sm" onclick="setPassStatus(${p.id}, '${p.status === '활성' ? '정지' : '활성'}')">${p.status === '활성' ? '정지' : '활성화'}</button>`
+                : '';
+            const revokeBtn = (p.status !== '해지')
+                ? `<button class="btn btn-secondary btn-action-sm" onclick="setPassStatus(${p.id}, '해지')">해지</button>`
+                : '';
+
+            // 수시인데 오래 안 쓰인 출입증 → 해지 검토 대상으로 표시 (판정 기준은 서버가 계산)
+            const idleText = p.idle_days != null
+                ? `${p.idle_days}일 전 사용`
+                : `발급 후 ${p.idle_basis_days != null ? p.idle_basis_days + '일째' : ''} 미사용`;
+            const dormantMark = p.dormant ? `<div class="pass-sub pass-sub-warn">💤 ${idleText}</div>` : '';
+
+            const reqMark = isRequest && p.requested_at
+                ? `<div class="pass-sub">🙋 ${p.requested_at.slice(0, 16)} 신청</div>` : '';
+
+            return `
+            <tr class="${isRequest ? 'pass-row-request' : ''}">
+                <td data-label="종류">${passTypeBadge(p.pass_type)}${dormantMark}${reqMark}</td>
+                <td data-label="방문객"><b>${p.name}</b><div class="pass-sub">${p.company || '-'}</div></td>
+                <td data-label="연락처">${window.formatPhone ? window.formatPhone(p.contact) : (p.contact || '-')}
+                    <div class="pass-sub">🚗 ${p.vehicle_no || '없음'}</div></td>
+                <td data-label="이용 목적">${p.purpose || '-'}</td>
+                <td data-label="사업장">${p.region || '-'}</td>
+                <td data-label="유효기간">${validHtml}</td>
+                <td data-label="이용 요일">${window.passWeekdayText(p.weekdays)}</td>
+                <td data-label="승인 방식">${approve}</td>
+                <td data-label="상태">${passStatusBadge(p.status)}</td>
+                <td data-label="출입">${p.today_visits || 0} / ${p.total_visits || 0}
+                    <div class="pass-sub">${p.last_visit ? `최근 ${p.last_visit}` : '방문 없음'}</div></td>
+                <td data-label="관리" class="pass-actions">
+                    ${isRequest
+                        ? `<button class="btn btn-primary btn-action-sm" onclick="openPassModal(${p.id})">검토·승인</button>
+                           <button class="btn btn-danger btn-action-sm" onclick="rejectPass(${p.id})">반려</button>`
+                        : `<button class="btn btn-primary btn-action-sm" onclick="showPassQr(${p.id})">QR</button>
+                           <button class="btn btn-secondary btn-action-sm" onclick="openPassModal(${p.id})">수정</button>
+                           ${toggleBtn}${revokeBtn}
+                           <button class="btn btn-danger btn-action-sm" onclick="deletePass(${p.id})">삭제</button>`}
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    // 상단 요약: 유형별 활성 수 / 오늘 출입 / 정리 대상(만료 임박 + 장기 미사용)
+    const active = passListCache.filter(p => p.status === '활성');
+    const todayVisits = passListCache.reduce((sum, p) => sum + (p.today_visits || 0), 0);
+    const expiringSoon = active.filter(p => {
+        const left = daysBetween(today, p.valid_to);
+        return left >= 0 && left <= 30;
+    });
+    // 만료 임박과 장기 미사용이 겹치는 건은 한 번만 센다.
+    const attention = new Set([...expiringSoon.map(p => p.id), ...active.filter(p => p.dormant).map(p => p.id)]);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('passStatPending', passListCache.filter(p => p.status === '신청').length);
+    set('passStatRegular', active.filter(p => p.pass_type !== '수시').length);
+    set('passStatOccasional', active.filter(p => p.pass_type === '수시').length);
+    set('passStatToday', todayVisits);
+    set('passStatAttention', attention.size);
+}
+
+// ── 발급 / 수정 모달 ──────────────────────────────────────────────
+function openPassModal(passId) {
+    const modal = document.getElementById('passModal');
+    if (!modal) return;
+    editingPassId = (passId === undefined || passId === null) ? null : passId;
+
+    const val = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const setDays = (weekdays) => {
+        document.querySelectorAll('#passWeekdayBox input[type="checkbox"]').forEach(cb => {
+            cb.checked = weekdays[parseInt(cb.dataset.day, 10)] === '1';
+        });
+    };
+
+    if (editingPassId === null) {
+        // 신규: 오늘부터 기본 단위(보통 1개월). 종료일은 syncPassDateLimit() 이 계산한다.
+        const today = getKstThisWeekRange().todayKst;
+        document.getElementById('passModalTitle').textContent = '출입 이용권 발급';
+        const saveBtnNew = document.getElementById('passSaveBtn');
+        if (saveBtnNew) saveBtnNew.textContent = '저장하기';
+        val('passType', '정기');
+        ['passName', 'passContact', 'passCompany', 'passVehicle', 'passPurpose', 'passMemo']
+            .forEach(id => val(id, ''));
+        val('passValidFrom', today);
+        val('passPeriod', window.PASS_DEFAULT_PERIOD || '1개월');
+        val('passAutoApprove', '0');   // 기본은 경비실 승인 — 자동승인은 개별로만 켠다
+        setDays('1111100');
+        // 발급자 본인 거점을 기본 선택
+        try {
+            const emp = JSON.parse(sessionStorage.getItem('emp_session'));
+            if (emp && emp.region) val('passRegion', emp.region);
+        } catch (e) {}
+    } else {
+        const p = passListCache.find(x => x.id === editingPassId);
+        if (!p) return;
+        const isReq = p.status === '신청';
+        document.getElementById('passModalTitle').textContent = isReq
+            ? `🙋 발급 신청 검토 — ${p.name} (${p.company})`
+            : `이용권 수정 — ${p.name} (${p.pass_type === '수시' ? '수시 출입권' : '정기 이용권'})`;
+        const saveBtn = document.getElementById('passSaveBtn');
+        if (saveBtn) saveBtn.textContent = isReq ? '승인하고 발급' : '저장하기';
+        val('passType', p.pass_type || '정기');
+        val('passName', p.name); val('passContact', p.contact); val('passCompany', p.company);
+        val('passVehicle', p.vehicle_no === '없음' ? '' : (p.vehicle_no || ''));
+        val('passPurpose', p.purpose);
+        val('passRegion', p.region); val('passValidFrom', p.valid_from);
+        val('passPeriod', p.period || window.passPeriodOf(p.valid_from, p.valid_to));
+        val('passAutoApprove', String(p.auto_approve ? 1 : 0));
+        val('passMemo', p.memo || '');
+        setDays(p.weekdays || '1111111');
+    }
+    syncPassDateLimit();      // 종료일 달력을 '시작일 + 기본 기간' 까지로 제한
+    modal.classList.add('modal-active');
+}
+
+// 정기는 평일 상주가 일반적이고, 수시는 언제 올지 모르므로 전 요일 허용이 기본이다.
+function onPassTypeChange() {
+    if (editingPassId !== null) return;      // 수정 중에는 사용자가 정한 요일을 건드리지 않는다
+    const type = (document.getElementById('passType') || {}).value;
+    const preset = (type === '수시') ? '1111111' : '1111100';
+    document.querySelectorAll('#passWeekdayBox input[type="checkbox"]').forEach(cb => {
+        cb.checked = preset[parseInt(cb.dataset.day, 10)] === '1';
+    });
+}
+
+// 종료일 = 시작일 + 선택한 이용 단위 (시작일·단위를 바꿀 때마다 호출)
+function syncPassDateLimit() {
+    window.syncPassPeriod(document.getElementById('passValidFrom'),
+                          document.getElementById('passPeriod'),
+                          document.getElementById('passValidTo'));
+}
+
+function closePassModal() {
+    const modal = document.getElementById('passModal');
+    if (modal) modal.classList.remove('modal-active');
+    editingPassId = null;
+}
+
+async function savePass() {
+    const get = (id) => (document.getElementById(id) || {}).value || '';
+    let weekdays = '';
+    document.querySelectorAll('#passWeekdayBox input[type="checkbox"]').forEach(cb => {
+        weekdays += cb.checked ? '1' : '0';
+    });
+    if (!weekdays.includes('1')) {
+        alert('이용 요일을 최소 하나는 선택해 주세요.');
+        return;
+    }
+
+    const payload = {
+        pass_type: get('passType'),
+        name: get('passName').trim(),
+        contact: get('passContact').replace(/\D/g, ''),   // 저장은 숫자만 (표시할 때 formatPhone 이 하이픈 처리)
+        company: get('passCompany').trim(),
+        vehicle_no: get('passVehicle').trim(),
+        purpose: get('passPurpose').trim(),
+        region: get('passRegion'),
+        valid_from: get('passValidFrom'),
+        period: get('passPeriod'),        // 종료일은 서버가 '시작일 + 단위'로 계산한다
+        auto_approve: get('passAutoApprove'),
+        weekdays: weekdays,
+        memo: get('passMemo').trim(),
+    };
+
+    const isNew = (editingPassId === null);
+    const target = isNew ? null : passListCache.find(x => x.id === editingPassId);
+    // 승인 대기 건을 저장하면 '승인 발급'이다. (기간·종류·요일을 화면 값으로 확정한다)
+    const isApprove = !!target && target.status === '신청';
+    if (isApprove && !confirm(`${target.name} 님의 ${payload.pass_type} 이용권을 발급합니다.\n유효기간: ${payload.valid_from} ~ ${get('passValidTo')} (${payload.period})\n\n승인할까요?`)) return;
+
+    const url = isNew ? '/api/pass' : (isApprove ? `/api/pass/${editingPassId}/approve` : `/api/pass/${editingPassId}`);
+    const res = await fetch(url, {
+        method: (isNew || isApprove) ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!data.success) {
+        alert(data.message || '저장에 실패했습니다.');
+        return;
+    }
+
+    alert(data.message);
+
+    const newId = isNew ? data.id : editingPassId;
+    closePassModal();
+    await loadPasses();
+    if ((isNew || isApprove) && newId) showPassQr(newId);   // 발급 직후 바로 QR 출력 화면
+}
+
+async function rejectPass(passId) {
+    const p = passListCache.find(x => x.id === passId);
+    const reason = prompt(`${p ? p.name + ' 님의 ' : ''}발급 신청을 반려합니다.\n사유를 입력하세요 (손님 조회 화면에 표시됩니다).`, '');
+    if (reason === null) return;      // 취소
+    const res = await fetch(`/api/pass/${passId}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() }),
+    });
+    const data = await res.json();
+    alert(data.message || (data.success ? '반려 처리했습니다.' : '처리에 실패했습니다.'));
+    if (data.success) loadPasses();
+}
+
+async function setPassStatus(passId, status) {
+    const p = passListCache.find(x => x.id === passId);
+    const label = p ? `'${p.name}(${p.company})' ` : '';
+    const confirmMsg = status === '해지'
+        ? `${label}출입 이용권을 해지합니다.\n해지하면 QR이 즉시 사용 불가가 됩니다. 계속할까요?`
+        : `${label}출입 이용권을 ${status} 처리할까요?`;
+    if (!confirm(confirmMsg)) return;
+
+    const res = await fetch(`/api/pass/${passId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    alert(data.message || (data.success ? '처리되었습니다.' : '처리에 실패했습니다.'));
+    if (data.success) loadPasses();
+}
+
+async function deletePass(passId) {
+    const p = passListCache.find(x => x.id === passId);
+    const label = p ? `'${p.name}(${p.company})'` : '이 이용권';
+    if (!confirm(`${label} 이용권을 완전히 삭제합니다.\n\n· 발급 이력을 남기려면 '해지'를 사용하세요.\n· 이미 쌓인 출입 기록은 삭제되지 않습니다.\n\n삭제할까요?`)) return;
+
+    const res = await fetch(`/api/pass/${passId}`, { method: 'DELETE' });
+    const data = await res.json();
+    alert(data.message || (data.success ? '삭제되었습니다.' : '삭제에 실패했습니다.'));
+    if (data.success) loadPasses();
+}
+
+// ── QR 출입증 (화면 표시 + 인쇄) ──────────────────────────────────
+let qrViewPassId = null;      // 현재 QR 창에 띄운 이용권 id (이미지 저장에 사용)
+
+function showPassQr(passId) {
+    const p = passListCache.find(x => x.id === passId);
+    if (!p) return;
+    qrViewPassId = passId;
+    const card = document.getElementById('passQrCard');
+    const modal = document.getElementById('passQrModal');
+    if (!card || !modal) return;
+
+    card.innerHTML = `
+        <div class="pass-card-title">${p.pass_type === '수시' ? '수시 출입권' : '정기 이용권'} · ${p.region}</div>
+        <img class="pass-card-qr" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="출입 이용권 QR">
+        <div class="pass-card-name">${p.name}</div>
+        <div class="pass-card-company">${p.company}</div>
+        <div class="pass-card-meta">
+            <span>유효기간</span><b>${p.valid_from} ~ ${p.valid_to}</b>
+            <span>이용 요일</span><b>${window.passWeekdayText(p.weekdays)}</b>
+            <span>차량 번호</span><b>${p.vehicle_no || '없음'}</b>
+        </div>`;
+    modal.classList.add('modal-active');
+    // 저장 버튼이 즉시 반응하도록 카드 이미지를 미리 만들어 둔다.
+    window.preparePassCardImage(p, window.passWeekdayText(p.weekdays));
+}
+
+function closePassQr() {
+    const modal = document.getElementById('passQrModal');
+    if (modal) modal.classList.remove('modal-active');
+}
+
+// QR 이미지 저장: 화면의 카드 그대로(QR + 이름·소속·유효기간·요일·차량) PNG 로 내려받는다.
+//   생성기는 visitor-history.js 의 공용 함수 (경비실 화면과 동일한 결과물).
+function downloadPassQr() {
+    const p = passListCache.find(x => x.id === qrViewPassId);
+    if (!p) return;
+    window.downloadPassCardPng(p, window.passWeekdayText(p.weekdays));
 }

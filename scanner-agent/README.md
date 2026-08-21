@@ -1,6 +1,7 @@
 # 📷 경비실 QR 리더기 중계 프로그램 — 설치 안내
 
 각 센터 **경비실(또는 경비 담당 직원) PC**에서 한 번만 설정하면 됩니다.
+**Python 설치는 필요 없습니다.** exe 파일 하나로 동작합니다.
 
 ---
 
@@ -29,8 +30,26 @@
 |---|---|
 | Windows PC | 경비실 상주 PC |
 | 바코드 리더기 | 인투로직 B3200 등 **USB Virtual COM 모드 지원** 제품 |
-| Python 3.9 이상 | https://www.python.org — 설치 시 **"Add Python to PATH" 체크** |
-| 인터넷 연결 | Render 서버와 통신 |
+| 복사할 파일 | `scan_agent.exe` + `run_agent.bat` + 자동시작 스크립트 2개 |
+| 인터넷 연결 | Render 서버(HTTPS)와 통신 |
+
+### ⚠️ 설치 전 정보보안 담당자와 먼저 협의할 것
+
+**설치보다 이쪽이 먼저입니다.** 아래가 막혀 있으면 프로그램을 아무리 잘 깔아도 동작하지 않습니다.
+
+| 항목 | 왜 필요한가 | 막혔을 때 증상 |
+|---|---|---|
+| **COM(직렬) 포트 사용 허용** | 매체제어·DLP 계열 사내 보안 프로그램이 USB 직렬 포트를 차단하는 경우가 있음 | 포트 목록에는 뜨는데 `FileNotFoundError` 로 열리지 않음 |
+| `snsys-vms.onrender.com` 아웃바운드 HTTPS(443) | 스캔 결과를 서버로 전달 | `서버에 연결하지 못했습니다` |
+| `scan_agent.exe` 백신 예외 | PyInstaller exe 오탐 | 실행 즉시 삭제·차단됨 |
+
+**COM 포트 차단은 실제로 겪은 사례입니다.** 예외 신청 시 아래 정보를 함께 전달하면 빠릅니다.
+
+- 장치 하드웨어 ID — 장치 관리자 → 해당 포트 → 속성 → **자세히 → 하드웨어 ID**
+  (예: `USB\VID_9901&PID_0303` — 리더기 모델에 따라 다름)
+- 프로그램 경로 — `C:\VMS\scanner-agent\scan_agent.exe`
+- 필요한 권한 — 해당 직렬 포트 **읽기**
+- 용도 — 출입증 QR 스캔 결과를 사내 VMS 서버로 전달. **저장매체가 아니며 파일 입출력 없음**
 
 ---
 
@@ -54,7 +73,15 @@
 
 ### 2단계 · 파일 복사
 
-`scanner-agent` 폴더를 통째로 PC에 복사합니다. (예: `C:\VMS\scanner-agent`)
+폴더를 하나 만들고(예: `C:\VMS\scanner-agent`) 아래 파일들을 넣습니다.
+
+```
+C:\VMS\scanner-agent\
+    scan_agent.exe            ← 개발 PC 의 dist 폴더에서 복사
+    run_agent.bat
+    install_autostart.bat     ← 자동 시작 등록 (6단계)
+    uninstall_autostart.bat   ← 자동 시작 해제
+```
 
 > `agent_config.json`은 PC마다 만들어지는 파일이므로 **복사하지 마세요.**
 
@@ -66,18 +93,12 @@
 set SERVER=https://snsys-vms.onrender.com
 ```
 
-### 4단계 · 필요한 패키지 설치
+### 4단계 · 리더기 지정 (PC당 1회)
 
 명령 프롬프트에서 폴더로 이동한 뒤:
 
 ```bat
-pip install pyserial
-```
-
-### 5단계 · 리더기 지정 (PC당 1회)
-
-```bat
-python scan_agent.py --setup
+run_agent.bat --setup
 ```
 
 포트 목록이 나오면 **번호를 입력**하거나, 모르겠으면 **그냥 Enter → QR을 한 번 스캔**하면
@@ -86,12 +107,13 @@ python scan_agent.py --setup
 ```
   번호  포트     종류         VID:PID      설명
   1     COM1     내장포트     -            통신 포트(COM1)
-  2     COM3     USB ★리더기  9901:0301    USB 직렬 장치(COM3)
+  2     COM3     USB ★리더기  9901:0303    USB 직렬 장치(COM3)
 ```
 
-한 번 지정하면 `agent_config.json`에 저장되어, **COM 번호가 바뀌어도 계속 찾아갑니다.**
+한 번 지정하면 exe 옆에 `agent_config.json`으로 저장되어,
+**COM 번호가 바뀌어도 계속 찾아갑니다.**
 
-### 6단계 · 실행 및 자동 시작
+### 5단계 · 실행
 
 `run_agent.bat`을 더블클릭하면 대기 상태가 됩니다.
 
@@ -101,8 +123,27 @@ python scan_agent.py --setup
 [09:12:03] 스캔 대기 중...  (종료: Ctrl+C)
 ```
 
-**부팅 시 자동 실행**하려면 `run_agent.bat` **바로가기**를 만들어
-`Win+R` → `shell:startup` 폴더에 넣어 두세요.
+### 6단계 · 부팅 시 자동 시작 (PC당 1회)
+
+`install_autostart.bat`을 더블클릭하면 끝입니다. 관리자 권한이 필요 없습니다.
+
+```
+등록 완료 : C:\Users\<사용자>\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\VMS Scanner Agent.lnk
+```
+
+이제 PC를 켜고 **로그인하면 자동 실행**되며, 창은 **최소화 상태**로 뜹니다
+(경비원이 실수로 닫을 일이 줄어듭니다. 작업표시줄에는 남아 있습니다).
+
+해제하려면 `uninstall_autostart.bat`을 실행하면 됩니다.
+
+> 수동으로 하려면: `Win+R` → `shell:startup` → `run_agent.bat`의 **바로가기**를 넣기.
+
+**부팅 직후 USB 인식이 늦어도 괜찮습니다.** 프로그램이 리더기를 못 찾으면
+종료하지 않고 몇 초 간격으로 계속 찾다가, 잡히는 즉시 대기 상태로 넘어갑니다.
+
+> 창을 두 개 띄우면 COM 포트를 한 프로그램만 열 수 있어 둘 다 먹통이 됩니다.
+> 그래서 두 번째 실행은 자동으로 차단되고 안내 후 닫힙니다. **창은 항상 하나만.**
+> (자동 시작과 바로가기가 겹쳐도 안전합니다)
 
 ---
 
@@ -122,26 +163,39 @@ python scan_agent.py --setup
 
 ---
 
+## 경비원에게 알려줄 것 (이것만 알면 됩니다)
+
+1. **검은 창을 닫지 마세요.** 최소화는 괜찮습니다.
+2. 실수로 닫혔으면 바탕화면의 **바로가기를 한 번만** 더블클릭.
+3. 스캔은 **요청 접수**까지입니다. 화면에서 **[승인]**을 눌러야 입·퇴실이 완료됩니다.
+
+---
+
 ## 문제 해결
 
 | 증상 | 원인 / 조치 |
 |---|---|
-| `pyserial 이 없습니다` | `pip install pyserial` |
+| `COM3 를 다른 프로그램이 사용 중입니다` | 창이 여러 개 떠 있음 → 하나만 남기고 모두 닫기 |
+| `이미 리더기 중계 프로그램이 실행 중입니다` | 정상 동작(중복 실행 차단). 이미 떠 있는 창을 쓰면 됩니다 |
+| 목록엔 뜨는데 `FileNotFoundError` 로 안 열림 | **사내 보안 프로그램의 COM 포트 차단**이 가장 흔한 원인 → 정보보안 담당자에게 예외 요청. 그 외 리더기 빠짐·드라이버 미시작(장치 관리자 느낌표) |
 | `리더기 COM 포트를 찾지 못했습니다` | 1단계 미완료. 장치 관리자에서 COM 포트 확인 |
-| 포트를 못 고름 (USB 시리얼 여러 개) | `python scan_agent.py --setup` 재실행 |
-| 글자가 깨져 들어옴 | 통신 속도 불일치 → `--baud 115200` 또는 `--baud 19200` |
+| 포트를 못 고름 (USB 시리얼 여러 개) | `run_agent.bat --setup` 재실행 |
+| 글자가 깨져 들어옴 | 통신 속도 불일치 → `run_agent.bat --baud 115200` 또는 `--baud 19200` |
 | `서버에 연결하지 못했습니다` | 인터넷·서버 주소 확인 |
 | 첫 스캔이 30초~1분 걸림 | Render 무료 플랜이 잠들어 있다가 깨어나는 중 (2회차부터 정상) |
-| 리더기 교체 후 인식 안 됨 | `--setup` 재실행 (같은 모델이면 대개 자동 인식) |
+| 리더기 교체 후 인식 안 됨 | `run_agent.bat --setup` 재실행 (같은 모델이면 대개 자동 인식) |
+| 백신이 exe 를 차단 | PyInstaller exe 의 흔한 오탐. 해당 폴더를 예외 등록 |
+| 재부팅했는데 안 뜸 | `install_autostart.bat` 미실행, 또는 자동 로그인이 아님(로그인해야 뜸) |
+| 폴더를 옮긴 뒤 자동 시작 안 됨 | 바로가기가 옛 경로를 가리킴 → `install_autostart.bat` 재실행 |
 
-**명령어 모음**
+**명령어 모음** (명령 프롬프트에서)
 
 ```bat
-python scan_agent.py --list                 :: 연결된 COM 포트 목록
-python scan_agent.py --setup                :: 리더기 지정 (기억됨)
-python scan_agent.py --port COM4            :: 포트 직접 지정
-python scan_agent.py --vid 1A86             :: 새 모델 VID 등록
-python scan_agent.py --baud 115200          :: 통신 속도 변경
+run_agent.bat --list                  :: 연결된 COM 포트 목록
+run_agent.bat --setup                 :: 리더기 지정 (기억됨)
+run_agent.bat --port COM4             :: 포트 직접 지정
+run_agent.bat --vid 1A86              :: 새 모델 VID 등록
+run_agent.bat --baud 115200           :: 통신 속도 변경
 ```
 
 ---
@@ -155,13 +209,22 @@ python scan_agent.py --baud 115200          :: 통신 속도 변경
 
 ---
 
-## 참고 · Python 설치가 부담스러운 경우
+## 개발 PC · exe 다시 만들기
 
-PC마다 Python을 까는 대신, 개발 PC에서 실행 파일 하나로 만들어 배포할 수 있습니다.
+`scan_agent.py`를 고쳤을 때만 필요합니다. 경비실 PC 에서는 할 일이 없습니다.
 
 ```bat
-pip install pyinstaller
-pyinstaller --onefile scan_agent.py
+build_exe.bat
 ```
 
-`dist\scan_agent.exe` 하나만 복사하면 Python 없이 동작합니다. (필요 시 요청하세요)
+`dist\scan_agent.exe`가 만들어집니다. 이 파일과 `run_agent.bat`·자동시작 스크립트를 각 센터로 복사하면 끝입니다.
+(빌드 산출물 `dist/`·`build/`·`*.spec`과 PC별 `agent_config.json`은 git 추적에서 제외돼 있습니다.)
+
+Python 으로 직접 돌리려면 (개발/디버깅용):
+
+```bat
+pip install pyserial
+python scan_agent.py --server https://snsys-vms.onrender.com
+```
+
+`run_agent.bat`은 `scan_agent.exe`가 있으면 exe 를, 없으면 `scan_agent.py`를 자동으로 실행합니다.

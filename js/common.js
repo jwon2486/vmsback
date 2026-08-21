@@ -202,6 +202,9 @@ async function loadGuestRegion() {
         const res = await fetch('/api/guest/context');
         const data = await res.json();
         currentRegion = (data && data.region) ? data.region : null;
+        // 🎫 이용권 유효기간 운영 단위 — 서버 값을 그대로 받아 화면 선택지·기간 계산에 쓴다.
+        if (data && data.pass_periods) window.PASS_PERIODS = data.pass_periods;
+        if (data && data.pass_default_period) window.PASS_DEFAULT_PERIOD = data.pass_default_period;
     } catch (e) {
         currentRegion = null;
     }

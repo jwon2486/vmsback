@@ -6,6 +6,7 @@ import re
 import json
 import uuid 
 from datetime import datetime, timedelta, timezone
+import calendar
 import pandas as pd
 from io import BytesIO
 import urllib.parse
@@ -147,6 +148,57 @@ def init_db():
     # QR 토큰 컬럼 (기존 DB 호환용 마이그레이션)
     try:
         cursor.execute("ALTER TABLE visitor_log ADD COLUMN token TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # ── 🎫 정기 이용 방문객(정기권) ────────────────────────────────────
+    #   상시 출입하는 용역·납품 업체가 매일 방문 신청하는 부담을 없애기 위한 '출입증' 개념.
+    #   방문 기록 자체는 기존대로 visitor_log 에 쌓는다(스캔할 때마다 그날 행을 생성).
+    #   → 출입기록·엑셀·통계·미퇴실 관리 등 기존 기능이 코드 변경 없이 정기 방문객까지 포함한다.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS visitor_pass (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL,
+            contact      TEXT NOT NULL,
+            company      TEXT NOT NULL,
+            vehicle_no   TEXT DEFAULT '없음',
+            purpose      TEXT NOT NULL,
+            manager_text TEXT NOT NULL,
+            created_by   TEXT,                    -- 발급 시 블라인드 매칭된 사내 담당자 사번
+            region       TEXT NOT NULL,           -- 거점 고정 (주차 정기권과 동일)
+            valid_from   TEXT NOT NULL,
+            valid_to     TEXT NOT NULL,           -- 필수: 무기한 출입증을 만들지 않기 위한 안전장치
+            pass_type    TEXT DEFAULT '정기',      -- 정기(매일 출입) / 수시(가끔 오는 고정 이용자)
+            weekdays     TEXT DEFAULT '1111111',  -- 월~일 허용 요일 ('1'=허용)
+            auto_approve INTEGER DEFAULT 0,       -- 0=경비실 대면 승인(기본), 1=스캔 즉시 입·퇴실 확정
+            status       TEXT DEFAULT '활성',      -- 신청 / 활성 / 정지 / 만료 / 해지 / 반려
+            token        TEXT UNIQUE NOT NULL,    -- 영구 QR 토큰 (visitor_log.token 과 형식 동일)
+            memo         TEXT DEFAULT '',
+            requested_at TEXT DEFAULT '',        -- 손님이 신청한 시각 (직접 발급이면 비어 있음)
+            issued_at    TEXT DEFAULT '',        -- 승인·발급 시각
+            issued_by    TEXT DEFAULT ''         -- 발급(승인)한 담당자 사번
+        )
+    """)
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_visitor_pass_token ON visitor_pass(token)")
+    except sqlite3.OperationalError:
+        pass
+
+    # 손님이 직접 낸 발급 신청의 접수 시각 (승인 전). issued_at 은 '승인·발급' 시각이라 따로 둔다.
+    try:
+        cursor.execute("ALTER TABLE visitor_pass ADD COLUMN requested_at TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+
+    # 출입증 유형 (기존 DB 호환용 마이그레이션). 기존 행은 모두 '정기'로 남는다.
+    try:
+        cursor.execute("ALTER TABLE visitor_pass ADD COLUMN pass_type TEXT DEFAULT '정기'")
+    except sqlite3.OperationalError:
+        pass
+
+    # 방문 기록 ↔ 정기권 연결 (NULL = 일반 방문객). 기록 화면의 유형 배지·집계에 쓰인다.
+    try:
+        cursor.execute("ALTER TABLE visitor_log ADD COLUMN pass_id INTEGER")
     except sqlite3.OperationalError:
         pass
     
@@ -851,7 +903,8 @@ def get_security_pending_logs():
 
     conn = get_db_connection()
     logs = conn.execute("""
-        SELECT v.*, e.name AS emp_name, e.dept AS emp_dept
+        SELECT v.*, e.name AS emp_name, e.dept AS emp_dept,
+               (SELECT IFNULL(vp.pass_type, '정기') FROM visitor_pass vp WHERE vp.id = v.pass_id) AS pass_type
         FROM visitor_log v LEFT JOIN employees e ON v.created_by = e.id
         WHERE v.region = ? AND v.status IN ('입실대기', '퇴실대기') AND v.visit_date = ?
         ORDER BY v.id ASC
@@ -1060,7 +1113,9 @@ def security_preregister():
 @app.route('/api/guest/context', methods=['GET'])
 def guest_context():
     region = (session.get('guest_region') or '').strip()
-    return jsonify({"region": region if region in ALLOWED_REGIONS else ''})
+    # pass_months: 이용권 기본 이용 기간(개월). 손님 화면의 안내 문구·기간 계산이 이 값을 쓴다.
+    return jsonify({"region": region if region in ALLOWED_REGIONS else '',
+                    "pass_periods": list(PASS_PERIODS), "pass_default_period": PASS_DEFAULT_PERIOD})
 
 # ====================================================================
 # 👥 방문객 등록 및 일반 출입 API
@@ -1324,15 +1379,31 @@ def search_active_visitors():
 # ====================================================================
 @app.route('/api/qr', methods=['GET'])
 def qr_image():
-    """토큰을 담은 스캔 링크(/v/scan?token=...)를 QR SVG 로 렌더링해 반환."""
+    """토큰을 담은 스캔 링크(/v/scan?token=...)를 QR 이미지로 반환.
+       - 기본은 SVG (화면 표시용 — 확대해도 깨지지 않는다)
+       - format=png : 저장·전달용. 메신저·메일로 보내려면 PNG 가 호환성이 좋다.
+       - download=1 : 첨부파일로 내려받게 한다. filename 으로 저장될 이름을 지정.
+    """
     token = request.args.get('token', '').strip()
     if not token:
         return "missing token", 400
     scan_url = f"{request.host_url.rstrip('/')}/v/scan?token={urllib.parse.quote(token)}"
+    from flask import Response
+
+    if request.args.get('format') == 'png':
+        img = qrcode.make(scan_url, box_size=10, border=2)      # 기본 PIL 이미지 → PNG
+        buf = BytesIO()
+        img.save(buf, format='PNG')
+        resp = Response(buf.getvalue(), mimetype='image/png')
+        if request.args.get('download'):
+            name = (request.args.get('filename') or 'QR').strip() or 'QR'
+            resp.headers["Content-Disposition"] = \
+                f"attachment; filename*=UTF-8''{urllib.parse.quote(name + '.png')}"
+        return resp
+
     img = qrcode.make(scan_url, image_factory=qrcode.image.svg.SvgImage, box_size=10, border=2)
     buf = BytesIO()
     img.save(buf)
-    from flask import Response
     return Response(buf.getvalue(), mimetype='image/svg+xml')
 
 # 📍 거점별 진입 링크(/v/<코드>)를 QR SVG 로 서버에서 즉석 생성 (외부 서비스·만료 없음).
@@ -1359,10 +1430,35 @@ def visitor_by_token():
         "SELECT id, name, company, status, checkin_time, checkout_time FROM visitor_log WHERE token = ?",
         (token,)
     ).fetchone()
-    conn.close()
-    if not row:
+    if row:
+        conn.close()
+        return jsonify({"success": True, "visitor": dict(row)})
+
+    # 🎫 정기권 QR 을 본인 휴대폰으로 열어본 경우.
+    #    오늘 출입 기록이 있으면 그 건의 상태를(퇴실 요청까지 가능), 없으면 출입증 안내를 보여준다.
+    p_row = conn.execute("SELECT * FROM visitor_pass WHERE token = ?", (token,)).fetchone()
+    if not p_row:
+        conn.close()
         return jsonify({"success": False, "message": "유효하지 않은 코드입니다."}), 404
-    return jsonify({"success": True, "visitor": dict(row)})
+
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    log = conn.execute("""
+        SELECT id, name, company, status, checkin_time, checkout_time
+          FROM visitor_log WHERE pass_id = ? AND visit_date = ? ORDER BY id DESC LIMIT 1
+    """, (p_row['id'], today)).fetchone()
+    conn.close()
+    if log:
+        v = dict(log)
+        v['is_pass'] = True
+        return jsonify({"success": True, "visitor": v})
+
+    reason = pass_denial_reason(p_row, get_current_kst_time())
+    return jsonify({"success": True, "visitor": {
+        "id": None, "name": p_row['name'], "company": p_row['company'],
+        "status": '정기권사용불가' if reason else '정기권',
+        "checkin_time": '', "checkout_time": '',
+        "is_pass": True, "valid_to": p_row['valid_to'], "pass_note": reason or ''
+    }})
 
 @app.route('/api/group/qr', methods=['GET'])
 def group_qr_tokens():
@@ -1396,6 +1492,741 @@ def group_qr_tokens():
     conn.close()
     return jsonify({"success": True, "members": members})
 
+# ====================================================================
+# 🎫 상시 출입증(visitor_pass) — 주차장 정기권과 같은 개념
+#   - 왜: 용역·납품처럼 반복해서 오는 사람이 매번 방문 신청을 하는 것은 비현실적이다.
+#   - 유형 2가지 (pass_type): 출입증 동작은 같고, '관리 관점'이 다르다.
+#       · 정기: 매일 출입하는 상주성 인력(청소·급식·상주 용역).
+#               → 오늘 안 온 사람이 '이상 신호'라, 경비실 화면에서 미출입자를 짚어준다.
+#       · 수시: 매일은 아니지만 반복해서 오는 고정 거래처(정기 점검·비정기 납품).
+#               → 안 오는 날이 정상. 대신 오래 미사용인 출입증을 정리 대상으로 표시한다.
+#   - 어떻게: 정기권(visitor_pass)은 '출입증'만 담고, 실제 방문 기록은 스캔할 때마다
+#            visitor_log 에 그날 행으로 쌓는다. → 출입기록·엑셀·통계·미퇴실 관리 등
+#            기존 기능이 수정 없이 정기 방문객까지 그대로 포함한다.
+#   - 승인 정책(auto_approve)은 코드가 아니라 데이터다. 운영 중 언제든 켜고 끌 수 있다.
+#     기본값은 '경비실 승인'(0) — 정기권도 일반 방문객과 똑같이 대면 승인을 거친다.
+#     자동 승인(1)은 개별 출입증 단위로만 켠다.
+#   - 권한: 최고 관리자(3)=전 거점, 경비실(4)=자기 거점 한정. (승인 API 와 동일한 정책)
+# ====================================================================
+PASS_WEEKDAY_ALL = '1111111'
+PASS_EDITABLE_STATUSES = ('활성', '정지', '해지')
+PASS_TYPES = ('정기', '수시')
+# 이용권 유효기간 운영 단위. 종료일을 자유롭게 입력받지 않고 이 세 가지 중에서만 고른다.
+#   → 화면은 '시작일 + 단위'로 종료일을 자동 계산해 보여주고, 최종 계산은 서버가 다시 한다.
+PASS_PERIODS = ('1일', '1주일', '1개월')
+PASS_DEFAULT_PERIOD = '1개월'
+# 신청: 손님이 낸 발급 신청(승인 대기) / 반려: 승인 거절. 둘 다 출입에는 쓸 수 없다.
+PASS_ALL_STATUSES = ('신청', '활성', '정지', '만료', '해지', '반려')
+# 수시 출입증이 이 기간 넘게 안 쓰이면 '장기 미사용'으로 표시한다 (해지 검토 대상).
+PASS_DORMANT_DAYS = 90
+
+
+def _pass_guard():
+    """정기권 관리 권한 검사. 통과하면 None, 아니면 (응답, 코드)."""
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "인증 정보가 없습니다."}), 401
+    if int(session['user'].get('level', 1)) not in (3, 4):
+        return jsonify({"success": False, "message": "출입 이용권 관리 권한이 없습니다."}), 403
+    return None
+
+
+def _pass_scope_region():
+    """조회·수정 가능한 거점. 최고 관리자(3)는 None(전 거점), 경비실(4)은 자기 거점 문자열."""
+    u = session.get('user') or {}
+    return None if int(u.get('level', 1)) == 3 else (u.get('region') or '')
+
+
+def _pass_fetch(conn, pass_id):
+    """권한 범위 안에서 정기권 1건 조회. 없거나 범위 밖이면 None."""
+    row = conn.execute("SELECT * FROM visitor_pass WHERE id = ?", (pass_id,)).fetchone()
+    if not row:
+        return None
+    scope = _pass_scope_region()
+    if scope is not None and row['region'] != scope:
+        return None
+    return row
+
+
+def _valid_date(v):
+    """'YYYY-MM-DD' 형식 검사. 통과하면 문자열, 아니면 None."""
+    v = (v or '').strip()
+    try:
+        datetime.strptime(v, '%Y-%m-%d')
+        return v
+    except ValueError:
+        return None
+
+
+def _add_months(date_str, months):
+    """'YYYY-MM-DD' 에 개월 수를 더한다. 말일은 그 달의 마지막 날로 맞춘다 (1/31 +1개월 → 2/28)."""
+    d = datetime.strptime(date_str, '%Y-%m-%d')
+    total = d.month - 1 + months
+    y, m = d.year + total // 12, total % 12 + 1
+    last_day = calendar.monthrange(y, m)[1]
+    return f"{y:04d}-{m:02d}-{min(d.day, last_day):02d}"
+
+
+def pass_period_end(start_date, period):
+    """시작일 + 이용 단위 → 종료일. 1개월은 말일 보정을 따른다(1/31 +1개월 → 2/28)."""
+    if period == '1일':
+        return (datetime.strptime(start_date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+    if period == '1주일':
+        return (datetime.strptime(start_date, '%Y-%m-%d') + timedelta(days=7)).strftime('%Y-%m-%d')
+    return _add_months(start_date, 1)
+
+
+def pass_period_of(valid_from, valid_to):
+    """저장된 기간이 어느 단위였는지 역산 (화면의 단위 선택 초기값용). 해당 없으면 None."""
+    for period in PASS_PERIODS:
+        try:
+            if pass_period_end(valid_from, period) == valid_to:
+                return period
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def _normalize_weekdays(v):
+    """월~일 7자리 허용 요일 문자열. 형식이 어긋나면 전 요일 허용으로 보정."""
+    s = (v or '').strip()
+    if len(s) == 7 and set(s) <= {'0', '1'} and '1' in s:
+        return s
+    return PASS_WEEKDAY_ALL
+
+
+def pass_denial_reason(p, now):
+    """지금 이 이용권으로 출입할 수 있는지. 가능하면 None, 불가하면 안내 문구."""
+    today = now.strftime('%Y-%m-%d')
+    status = p['status']
+    # '활성' 외에는 전부 출입 불가로 막는다. (새 상태가 추가돼도 기본이 '차단'이 되도록 화이트리스트 방식)
+    if status != '활성':
+        return {
+            '신청': "아직 승인 전인 발급 신청입니다. 승인 후 사용할 수 있습니다.",
+            '반려': "반려된 발급 신청입니다. 안내 데스크(경비실)로 문의해 주세요.",
+            '정지': "일시 정지된 이용권입니다. 안내 데스크(경비실)로 문의해 주세요.",
+            '해지': "해지된 이용권입니다. 안내 데스크(경비실)로 문의해 주세요.",
+            '만료': "유효기간이 끝난 이용권입니다. 재발급이 필요합니다.",
+        }.get(status, "사용할 수 없는 이용권입니다. 안내 데스크(경비실)로 문의해 주세요.")
+    if p['valid_from'] and today < p['valid_from']:
+        return f"{p['valid_from']} 부터 사용할 수 있는 이용권입니다."
+    if p['valid_to'] and today > p['valid_to']:
+        return f"{p['valid_to']} 자로 유효기간이 끝난 이용권입니다. 재발급이 필요합니다."
+    weekdays = _normalize_weekdays(p['weekdays'])
+    if weekdays[now.weekday()] != '1':
+        return "오늘은 사용할 수 없는 요일로 등록된 이용권입니다."
+    return None
+
+
+def scan_pass_action(conn, p, entry_only=False):
+    """이용권 QR 스캔 처리. 그날 기록이 없으면 입실, 재실 중이면 퇴실, 이미 나갔으면 재입실.
+       (하루 출입 횟수는 제한하지 않는다 — 납품·용역은 하루에도 여러 번 드나든다)
+
+       entry_only=True: '입실' 방향만 처리한다. 손님이 자기 휴대폰으로 QR 을 여는 경로에 쓴다.
+         → 재실 중인 사람이 상태를 확인하려고 QR 을 열었을 때 퇴실 요청이 자동으로 나가는 것을 막는다.
+           (퇴실은 상태 화면의 '지금 퇴실 요청하기' 버튼으로만)"""
+    now = get_current_kst_time()
+    reason = pass_denial_reason(p, now)
+    if reason:
+        return {"success": False, "name": p['name'], "message": reason}
+
+    today = now.strftime('%Y-%m-%d')
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    auto = bool(p['auto_approve'])
+    kind = '수시 출입권' if (p['pass_type'] or '정기') == '수시' else '정기 이용권'
+
+    # 오늘 이 정기권으로 만들어진 가장 최근 방문 건
+    last = conn.execute("""
+        SELECT id, status FROM visitor_log
+         WHERE pass_id = ? AND visit_date = ?
+         ORDER BY id DESC LIMIT 1
+    """, (p['id'], today)).fetchone()
+    status = last['status'] if last else None
+
+    if status in ('입실대기', '퇴실대기'):
+        return {"success": True, "already": True, "name": p['name'],
+                "message": f"{p['name']} 님은 이미 {status[:2]} 승인 대기중입니다."}
+
+    if status == '입실완료':
+        if entry_only:
+            return {"success": True, "already": True, "name": p['name'], "status": status,
+                    "message": f"{p['name']} 님은 현재 재실 중입니다."}
+        # 재실 중 → 퇴실 처리
+        if auto:
+            conn.execute("UPDATE visitor_log SET status = '퇴실완료', checkout_time = ? WHERE id = ?",
+                         (now_str, last['id']))
+            msg = f"{p['name']} 님 퇴실 처리되었습니다. ({kind})"
+        else:
+            conn.execute("UPDATE visitor_log SET status = '퇴실대기' WHERE id = ?", (last['id'],))
+            msg = f"{p['name']} 님 퇴실 요청 접수 — 보안실 승인 대기"
+        conn.commit()
+        return {"success": True, "id": last['id'], "name": p['name'], "company": p['company'],
+                "action": "퇴실", "pass": True, "message": msg}
+
+    # 그날 첫 입실이거나(기록 없음), 퇴실완료 후 재입실 → 새 방문 기록 생성
+    new_status = '입실완료' if auto else '입실대기'
+    checkin_time = now_str if auto else ''
+    cur = conn.execute("""
+        INSERT INTO visitor_log
+            (visit_date, name, company, contact, vehicle_no, purpose, manager_text,
+             checkin_time, checkout_time, status, created_by, region, group_id,
+             expected_checkin, expected_checkout, token, pass_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'NONE', '', '', '', ?)
+    """, (today, p['name'], p['company'], p['contact'], p['vehicle_no'], p['purpose'],
+          p['manager_text'], checkin_time, new_status, p['created_by'], p['region'], p['id']))
+    conn.commit()
+    revisit = (status == '퇴실완료')
+    if auto:
+        msg = f"{p['name']} 님 {'재입실' if revisit else '입실'} 처리되었습니다. ({kind})"
+    else:
+        msg = f"{p['name']} 님 입실 요청 접수 — 보안실 승인 대기"
+    return {"success": True, "id": cur.lastrowid, "name": p['name'], "company": p['company'],
+            "action": "입실", "pass": True, "revisit": revisit, "message": msg}
+
+
+def expire_stale_passes():
+    """⏳ 유효기간이 지난 정기권을 '만료'로 전환 (레코드는 보존). 멱등."""
+    today_str = get_current_kst_time().strftime('%Y-%m-%d')
+    try:
+        conn = get_db_connection()
+        cur = conn.execute("""
+            UPDATE visitor_pass SET status = '만료'
+             WHERE status IN ('활성', '정지') AND valid_to < ?
+        """, (today_str,))
+        conn.commit()
+        n = cur.rowcount
+        conn.close()
+        if n:
+            print(f"[PASS-EXPIRE] {today_str} 기준 정기권 만료 처리: {n}건")
+        return n
+    except Exception as e:
+        print(f"[PASS-EXPIRE][ERROR] {e}")
+        return 0
+
+
+def _pass_payload(data, region_default):
+    """발급·수정 공통 입력 파싱. (값 dict, 오류 메시지) 튜플 반환."""
+    name = (data.get('name') or '').strip()
+    contact = (data.get('contact') or '').strip()
+    company = (data.get('company') or '').strip()
+    purpose = (data.get('purpose') or '').strip()
+    vehicle_no = (data.get('vehicle_no') or '').strip() or '없음'
+    memo = (data.get('memo') or '').strip()
+    # 사내 담당자는 이용권에서 다루지 않는다. (납품·용역은 특정인을 만나러 오는 방문이 아니다)
+    #   컬럼은 기존 데이터 호환을 위해 남기고 항상 빈 값으로 저장한다.
+    manager_text = ''
+
+    if not name or not contact or not company or not purpose:
+        return None, "이름·연락처·소속·방문목적은 필수 입력입니다."
+
+    pass_type = (data.get('pass_type') or '정기').strip()
+    if pass_type not in PASS_TYPES:
+        return None, "출입증 유형은 '정기' 또는 '수시'만 지정할 수 있습니다."
+
+    # 유효기간: 시작일 + 이용 단위(1일·1주일·1개월). 종료일은 서버가 계산한다.
+    valid_from = _valid_date(data.get('valid_from'))
+    if not valid_from:
+        return None, "유효 시작일을 YYYY-MM-DD 형식으로 입력해 주세요."
+    period = (data.get('period') or PASS_DEFAULT_PERIOD).strip()
+    if period not in PASS_PERIODS:
+        return None, "이용 기간은 1일·1주일·1개월 중에서 선택해 주세요."
+    valid_to = pass_period_end(valid_from, period)
+
+    # 거점: 최고 관리자만 지정 가능. 경비실은 항상 자기 거점으로 강제된다.
+    scope = _pass_scope_region()
+    if scope is None:
+        region = (data.get('region') or '').strip()
+        if region not in ALLOWED_REGIONS:
+            region = region_default
+    else:
+        region = scope
+    if region not in ALLOWED_REGIONS:
+        return None, "거점이 확인되지 않습니다."
+
+    return {
+        "name": name, "contact": contact, "company": company, "purpose": purpose,
+        "manager_text": manager_text, "vehicle_no": vehicle_no, "memo": memo,
+        "valid_from": valid_from, "valid_to": valid_to, "period": period, "region": region,
+        "weekdays": _normalize_weekdays(data.get('weekdays')),
+        "auto_approve": 1 if str(data.get('auto_approve', 0)) in ('1', 'True', 'true') else 0,
+        "pass_type": pass_type,
+    }, None
+
+
+@app.route('/api/pass/list', methods=['GET'])
+def pass_list():
+    """정기권 목록. 경비실(4)은 자기 거점만, 최고 관리자(3)는 전 거점 + 거점 필터."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    expire_stale_passes()   # 조회 시점에도 만료를 반영 ('활성인데 기간이 지난' 표시 방지)
+
+    scope = _pass_scope_region()
+    req_region = (request.args.get('region') or '').strip()
+    status = (request.args.get('status') or '').strip()
+    req_type = (request.args.get('type') or '').strip()
+    q = (request.args.get('q') or '').strip()
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+
+    query = """
+        SELECT p.*,
+               (SELECT COUNT(*) FROM visitor_log v
+                 WHERE v.pass_id = p.id AND v.visit_date = ?) AS today_visits,
+               (SELECT COUNT(*) FROM visitor_log v2 WHERE v2.pass_id = p.id) AS total_visits,
+               (SELECT MAX(v3.visit_date) FROM visitor_log v3 WHERE v3.pass_id = p.id) AS last_visit
+          FROM visitor_pass p
+         WHERE 1=1
+    """
+    params = [today]
+    if scope is not None:
+        query += " AND p.region = ?"; params.append(scope)
+    elif req_region and req_region in ALLOWED_REGIONS:
+        query += " AND p.region = ?"; params.append(req_region)
+    if status in PASS_ALL_STATUSES:
+        query += " AND p.status = ?"; params.append(status)
+    if req_type in PASS_TYPES:
+        query += " AND IFNULL(p.pass_type, '정기') = ?"; params.append(req_type)
+    if q:
+        query += " AND (p.name LIKE ? OR p.company LIKE ? OR p.contact LIKE ? OR p.vehicle_no LIKE ?)"
+        params += [f"%{q}%"] * 4
+    # 승인 대기(신청)를 항상 맨 위로 → 담당자가 탭을 열면 처리할 일이 먼저 보인다.
+    query += """ ORDER BY CASE p.status WHEN '신청' THEN 0 WHEN '활성' THEN 1 WHEN '정지' THEN 2
+                                       WHEN '만료' THEN 3 ELSE 4 END,
+                          p.valid_to DESC, p.id DESC"""
+
+    conn = get_db_connection()
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    # 수시 출입증의 '장기 미사용' 판정은 서버가 계산해 내려준다 (화면마다 기준이 갈리지 않게).
+    today_dt = datetime.strptime(today, '%Y-%m-%d')
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['pass_type'] = d.get('pass_type') or '정기'
+        # 마지막 방문일 기준 경과일. 방문 이력이 아직 없으면 발급일부터 센다.
+        idle = None
+        basis = d.get('last_visit') or (d.get('issued_at') or '')[:10]
+        if basis:
+            try:
+                idle = (today_dt - datetime.strptime(basis, '%Y-%m-%d')).days
+            except ValueError:
+                idle = None
+        d['period'] = pass_period_of(d['valid_from'], d['valid_to'])   # 1일/1주일/1개월 (해당 없으면 None)
+        d['idle_days'] = idle if d.get('last_visit') else None   # 표시는 '방문' 기준만
+        d['idle_basis_days'] = idle
+        d['dormant'] = bool(d['pass_type'] == '수시' and d['status'] == '활성'
+                            and idle is not None and idle >= PASS_DORMANT_DAYS)
+        out.append(d)
+    pending = len([d for d in out if d['status'] == '신청'])
+    return jsonify({"success": True, "list": out, "today": today, "pending": pending,
+                    "scope_region": scope, "dormant_days": PASS_DORMANT_DAYS,
+                    "periods": list(PASS_PERIODS), "default_period": PASS_DEFAULT_PERIOD})
+
+
+@app.route('/api/pass', methods=['POST'])
+def pass_create():
+    """정기권 발급. 영구 QR 토큰을 함께 만든다."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    u = session['user']
+    vals, err = _pass_payload(request.json or {}, u.get('region', ''))
+    if err:
+        return jsonify({"success": False, "message": err}), 400
+
+    conn = get_db_connection()
+    try:
+        created_by = ''     # 이용권은 담당자를 두지 않는다 → 출입 기록의 담당자 칸도 비운다
+        token = uuid.uuid4().hex
+        now_str = get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')
+        cur = conn.execute("""
+            INSERT INTO visitor_pass
+                (name, contact, company, vehicle_no, purpose, manager_text, created_by, region,
+                 valid_from, valid_to, pass_type, weekdays, auto_approve, status, token, memo, issued_at, issued_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '활성', ?, ?, ?, ?)
+        """, (vals['name'], vals['contact'], vals['company'], vals['vehicle_no'], vals['purpose'],
+              vals['manager_text'], created_by, vals['region'], vals['valid_from'], vals['valid_to'],
+              vals['pass_type'], vals['weekdays'], vals['auto_approve'], token, vals['memo'],
+              now_str, u.get('id', '')))
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return jsonify({"success": True, "id": new_id, "token": token,
+                        "message": f"{vals['name']} 님의 {vals['pass_type']} 이용권이 발급되었습니다."})
+    except Exception as e:
+        conn.close()
+        print(f"[PASS][CREATE][ERROR] {e}")
+        return jsonify({"success": False, "message": f"정기권 발급 중 오류: {e}"}), 500
+
+
+@app.route('/api/pass/<int:pass_id>', methods=['PUT'])
+def pass_update(pass_id):
+    """정기권 수정(정보·유효기간·요일·승인방식). 담당자는 이 시점에 다시 매칭한다."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    conn = get_db_connection()
+    target = _pass_fetch(conn, pass_id)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "출입 이용권을 찾을 수 없습니다."}), 404
+
+    vals, err = _pass_payload(request.json or {}, target['region'])
+    if err:
+        conn.close()
+        return jsonify({"success": False, "message": err}), 400
+
+    try:
+        created_by = ''     # 이용권은 담당자를 두지 않는다
+        # 만료된 이용권의 기간을 늘리면(연장) 자동으로 활성 복귀
+        today = get_current_kst_time().strftime('%Y-%m-%d')
+        new_status = target['status']
+        if target['status'] == '만료' and vals['valid_to'] >= today:
+            new_status = '활성'
+        conn.execute("""
+            UPDATE visitor_pass
+               SET name = ?, contact = ?, company = ?, vehicle_no = ?, purpose = ?, manager_text = ?,
+                   created_by = ?, region = ?, valid_from = ?, valid_to = ?, pass_type = ?, weekdays = ?,
+                   auto_approve = ?, memo = ?, status = ?
+             WHERE id = ?
+        """, (vals['name'], vals['contact'], vals['company'], vals['vehicle_no'], vals['purpose'],
+              vals['manager_text'], created_by, vals['region'], vals['valid_from'], vals['valid_to'],
+              vals['pass_type'], vals['weekdays'], vals['auto_approve'], vals['memo'], new_status, pass_id))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": "출입증 정보가 수정되었습니다."})
+    except Exception as e:
+        conn.close()
+        print(f"[PASS][UPDATE][ERROR] {e}")
+        return jsonify({"success": False, "message": f"수정 중 오류: {e}"}), 500
+
+
+@app.route('/api/pass/<int:pass_id>/status', methods=['POST'])
+def pass_set_status(pass_id):
+    """활성 ↔ 정지 전환, 해지 처리. (만료는 유효기간이 결정하므로 수동 지정 대상이 아니다)"""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    target_status = ((request.json or {}).get('status') or '').strip()
+    if target_status not in PASS_EDITABLE_STATUSES:
+        return jsonify({"success": False, "message": "활성·정지·해지만 지정할 수 있습니다."}), 400
+
+    conn = get_db_connection()
+    target = _pass_fetch(conn, pass_id)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "출입 이용권을 찾을 수 없습니다."}), 404
+
+    # 승인 대기(신청) 건을 상태 토글로 바로 활성화하면 승인 절차를 우회하게 된다 → 전용 승인 API 로 유도.
+    if target['status'] == '신청':
+        conn.close()
+        return jsonify({"success": False,
+                        "message": "발급 신청 건입니다. '승인' 또는 '반려'로 처리해 주세요."}), 400
+
+    # '활성'으로 되돌리는데 유효기간이 이미 지났으면 만료가 맞다 — 기간 연장을 먼저 하도록 안내.
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    if target_status == '활성' and target['valid_to'] < today:
+        conn.close()
+        return jsonify({"success": False,
+                        "message": f"유효기간({target['valid_to']})이 지났습니다. 기간을 먼저 연장해 주세요."}), 400
+
+    conn.execute("UPDATE visitor_pass SET status = ? WHERE id = ?", (target_status, pass_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"'{target['name']}' 출입증을 {target_status} 처리했습니다."})
+
+
+@app.route('/api/pass/<int:pass_id>', methods=['DELETE'])
+def pass_delete(pass_id):
+    """정기권 완전 삭제 — 최고 관리자(3) 전용. 발급 이력을 남기려면 '해지'를 쓴다.
+       이미 쌓인 방문 기록(visitor_log)은 지우지 않고 연결만 끊는다."""
+    if 'user' not in session or int(session['user'].get('level', 1)) != 3:
+        return jsonify({"success": False, "message": "최고 관리자만 삭제할 수 있습니다."}), 403
+
+    conn = get_db_connection()
+    row = conn.execute("SELECT name FROM visitor_pass WHERE id = ?", (pass_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "message": "출입 이용권을 찾을 수 없습니다."}), 404
+    conn.execute("UPDATE visitor_log SET pass_id = NULL WHERE pass_id = ?", (pass_id,))
+    conn.execute("DELETE FROM visitor_pass WHERE id = ?", (pass_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"'{row['name']}' 출입 이용권을 삭제했습니다."})
+
+
+@app.route('/api/pass/today', methods=['GET'])
+def pass_today():
+    """오늘 정기권으로 발생한 출입 현황 (경비실 화면용). 경비실은 자기 거점 기준."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    scope = _pass_scope_region()
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    query = """
+        SELECT v.id, v.name, v.company, v.contact, v.vehicle_no, v.status,
+               v.checkin_time, v.checkout_time, v.region, v.pass_id,
+               p.auto_approve, p.valid_to, IFNULL(p.pass_type, '정기') AS pass_type
+          FROM visitor_log v JOIN visitor_pass p ON v.pass_id = p.id
+         WHERE v.visit_date = ?
+    """
+    params = [today]
+    if scope is not None:
+        query += " AND v.region = ?"; params.append(scope)
+    query += " ORDER BY v.id DESC"
+
+    conn = get_db_connection()
+    rows = [dict(r) for r in conn.execute(query, params).fetchall()]
+
+    # 오늘 사용 가능한(유효기간 안 + 활성) 출입증 — 유형별로 나눠 센다.
+    avail_q = """
+        SELECT IFNULL(pass_type, '정기') AS pass_type, id, name, company, contact, vehicle_no, weekdays
+          FROM visitor_pass
+         WHERE status = '활성' AND valid_from <= ? AND valid_to >= ?
+    """
+    avail_p = [today, today]
+    if scope is not None:
+        avail_q += " AND region = ?"; avail_p.append(scope)
+    avail = [dict(r) for r in conn.execute(avail_q, avail_p).fetchall()]
+    conn.close()
+
+    # 오늘 요일에 쓸 수 없는 이용권은 '오늘 사용 가능' 집계에서 뺀다.
+    wd = get_current_kst_time().weekday()
+    avail = [a for a in avail if _normalize_weekdays(a['weekdays'])[wd] == '1']
+
+    counts = {
+        "정기": len([a for a in avail if a['pass_type'] == '정기']),
+        "수시": len([a for a in avail if a['pass_type'] == '수시']),
+    }
+    pend_q = "SELECT COUNT(*) AS c FROM visitor_pass WHERE status = '신청'"
+    pend_p = []
+    if scope is not None:
+        pend_q += " AND region = ?"; pend_p.append(scope)
+    conn2 = get_db_connection()
+    pending = conn2.execute(pend_q, pend_p).fetchone()['c']
+    conn2.close()
+
+    return jsonify({"success": True, "list": rows, "pending": pending,
+                    "active_total": len(avail), "active_by_type": counts, "today": today,
+                    "periods": list(PASS_PERIODS), "default_period": PASS_DEFAULT_PERIOD})
+
+
+# ── 🙋 손님이 직접 내는 발급 신청 ─────────────────────────────────
+#   - 로그인 없는 손님 화면에서 접수만 한다. 접수 상태는 '신청'이라 스캔해도 출입되지 않는다.
+#   - 유효기간·요일은 '희망 사항'으로 받고, 최종 확정은 승인자가 한다.
+#   - 승인 방식은 항상 경비실 승인(0)으로 접수한다. 자동 승인은 담당자가 별도로 켠다.
+@app.route('/api/pass/self-checkin', methods=['POST'])
+def pass_self_checkin():
+    """🙋 손님이 자기 휴대폰으로 이용권 QR 을 열었을 때의 입실 요청.
+
+       🔒 정문 거점 QR(/v/<코드>)로 만들어진 거점 세션이 있는 기기에서만 접수한다.
+          링크(URL)는 집에서도 열 수 있어서, 이 제한이 없으면 현장에 오지 않은 사람의 요청이
+          경비실 대기열에 쌓인다. 정문 QR 을 찍어야 세션이 생기므로 '정문 도착' 최소 확인이 된다.
+       - 퇴실은 여기서 처리하지 않는다(entry_only). 상태 화면의 퇴실 버튼이 담당한다.
+    """
+    token = ((request.json or {}).get('token') or '').strip()
+    if not token:
+        return jsonify({"success": False, "message": "토큰이 없습니다."}), 400
+
+    region = (session.get('guest_region') or '').strip()
+    if region not in ALLOWED_REGIONS:
+        return jsonify({"success": False, "need_region": True,
+                        "message": "정문에 비치된 사업장 QR을 먼저 스캔해 주세요. 현장 확인 후 입실 요청이 접수됩니다."}), 403
+
+    conn = get_db_connection()
+    p_row = conn.execute("SELECT * FROM visitor_pass WHERE token = ?", (token,)).fetchone()
+    if not p_row:
+        conn.close()
+        return jsonify({"success": False, "message": "유효하지 않은 이용권입니다."}), 404
+    if p_row['region'] != region:
+        conn.close()
+        return jsonify({"success": False,
+                        "message": f"이 이용권은 {p_row['region']} 전용입니다. 해당 사업장 정문에서 이용해 주세요."}), 403
+
+    result = scan_pass_action(conn, p_row, entry_only=True)
+    conn.close()
+    return jsonify(result)
+
+
+@app.route('/api/pass/request', methods=['POST'])
+def pass_request():
+    data = request.json or {}
+
+    # 거점: 손님 화면과 동일 규칙 (정문 QR 세션 우선, 없으면 선택값)
+    region = resolve_guest_region(data)
+    if not region:
+        return jsonify({"success": False,
+                        "message": "방문 거점이 확인되지 않습니다. 정문에 비치된 QR을 다시 스캔하거나 사업장을 선택해 주세요."}), 400
+
+    name = (data.get('name') or '').strip()
+    contact = (data.get('contact') or '').strip()
+    company = (data.get('company') or '').strip()
+    purpose = (data.get('purpose') or '').strip()
+    vehicle_no = (data.get('vehicle_no') or '').strip() or '없음'
+    memo = (data.get('memo') or '').strip()
+    pass_type = (data.get('pass_type') or '').strip()
+
+    if pass_type not in PASS_TYPES:
+        return jsonify({"success": False, "message": "이용권 종류를 선택해 주세요."}), 400
+    if not name or not contact or not company or not purpose:
+        return jsonify({"success": False, "message": "성명·연락처·소속·이용 목적은 필수 입력입니다."}), 400
+
+    # 유효기간: 손님이 고른 '이용 시작일 + 이용 단위(1일·1주일·1개월)'.
+    #   시작일은 오늘 이후만 허용한다(지난 날짜로 발급되는 것을 막는다).
+    #   최종 확정은 승인 담당자가 하며, 승인 화면에서 시작일·단위를 바꿀 수 있다.
+    period = (data.get('period') or PASS_DEFAULT_PERIOD).strip()
+    if period not in PASS_PERIODS:
+        return jsonify({"success": False, "message": "이용 기간은 1일·1주일·1개월 중에서 선택해 주세요."}), 400
+    now = get_current_kst_time()
+    today = now.strftime('%Y-%m-%d')
+    valid_from = _valid_date(data.get('valid_from')) or today
+    if valid_from < today:
+        return jsonify({"success": False, "message": "이용 시작일은 오늘 이후로 선택해 주세요."}), 400
+    valid_to = pass_period_end(valid_from, period)
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    conn = get_db_connection()
+    try:
+        # 같은 사람이 같은 거점에 이미 낸 신청이 있으면 중복 접수를 막는다.
+        dup = conn.execute("""
+            SELECT id FROM visitor_pass
+             WHERE name = ? AND contact = ? AND region = ? AND status = '신청'
+        """, (name, contact, region)).fetchone()
+        if dup:
+            conn.close()
+            return jsonify({"success": False,
+                            "message": "이미 접수된 발급 신청이 있습니다. 승인 결과를 기다려 주세요."}), 409
+
+        cur = conn.execute("""
+            INSERT INTO visitor_pass
+                (name, contact, company, vehicle_no, purpose, manager_text, created_by, region,
+                 valid_from, valid_to, pass_type, weekdays, auto_approve, status, token, memo, requested_at)
+            VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, 0, '신청', ?, ?, ?)
+        """, (name, contact, company, vehicle_no, purpose, region,
+              valid_from, valid_to, pass_type, _normalize_weekdays(data.get('weekdays')),
+              uuid.uuid4().hex, memo, now_str))
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return jsonify({"success": True, "id": new_id,
+                        "message": f"{pass_type} 이용권 발급 신청이 접수되었습니다. 경비실 승인 후 사용할 수 있습니다."})
+    except Exception as e:
+        conn.close()
+        print(f"[PASS][REQUEST][ERROR] {e}")
+        return jsonify({"success": False, "message": "신청 처리 중 오류가 발생했습니다."}), 500
+
+
+@app.route('/api/pass/request/status', methods=['POST'])
+def pass_request_status():
+    """손님이 자기 신청·이용권 상태를 확인한다. 이름+연락처 정확 일치 (기존 방문 조회와 동일 기준).
+       승인된 건은 QR 토큰까지 내려줘 휴대폰 화면으로 바로 쓸 수 있게 한다.
+       (이용권만으로는 출입이 확정되지 않는다 — 입·퇴실은 경비실 승인을 거친다)"""
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    contact = (data.get('contact') or '').strip()
+    if not name or not contact:
+        return jsonify({"success": False, "message": "성명과 연락처를 모두 입력해 주세요."}), 400
+
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT id, name, company, region, pass_type, status, valid_from, valid_to, weekdays,
+               vehicle_no, token, memo, requested_at, issued_at
+          FROM visitor_pass
+         WHERE name = ? AND contact = ?
+         ORDER BY CASE status WHEN '활성' THEN 0 WHEN '신청' THEN 1 ELSE 2 END, id DESC
+    """, (name, contact)).fetchall()
+    conn.close()
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['period'] = pass_period_of(d['valid_from'], d['valid_to'])
+        if d['status'] != '활성':
+            d.pop('token', None)      # 승인 전·정지·해지 건의 QR 은 내려주지 않는다
+        out.append(d)
+    return jsonify({"success": True, "list": out})
+
+
+@app.route('/api/pass/<int:pass_id>/approve', methods=['POST'])
+def pass_approve(pass_id):
+    """발급 신청 승인 → 이용권 발급(활성). 유효기간·종류·요일·승인방식은 이 시점에 확정한다."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    conn = get_db_connection()
+    target = _pass_fetch(conn, pass_id)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "발급 신청을 찾을 수 없습니다."}), 404
+    if target['status'] != '신청':
+        conn.close()
+        return jsonify({"success": False, "message": f"승인 대상이 아닙니다. (현재 상태: {target['status']})"}), 400
+
+    data = request.json or {}
+    pass_type = (data.get('pass_type') or target['pass_type'] or '정기').strip()
+    if pass_type not in PASS_TYPES:
+        conn.close()
+        return jsonify({"success": False, "message": "이용권 종류가 올바르지 않습니다."}), 400
+
+    valid_from = _valid_date(data.get('valid_from')) or target['valid_from']
+    period = (data.get('period') or pass_period_of(target['valid_from'], target['valid_to'])
+              or PASS_DEFAULT_PERIOD).strip()
+    if period not in PASS_PERIODS:
+        conn.close()
+        return jsonify({"success": False, "message": "이용 기간은 1일·1주일·1개월 중에서 선택해 주세요."}), 400
+    valid_to = pass_period_end(valid_from, period)
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    if valid_to < today:
+        conn.close()
+        return jsonify({"success": False, "message": "이미 지난 날짜로는 발급할 수 없습니다. 종료일을 조정해 주세요."}), 400
+
+    weekdays = _normalize_weekdays(data.get('weekdays') or target['weekdays'])
+    auto = 1 if str(data.get('auto_approve', target['auto_approve'])) in ('1', 'True', 'true') else 0
+    now_str = get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')
+
+    conn.execute("""
+        UPDATE visitor_pass
+           SET status = '활성', pass_type = ?, valid_from = ?, valid_to = ?, weekdays = ?,
+               auto_approve = ?, issued_at = ?, issued_by = ?
+         WHERE id = ?
+    """, (pass_type, valid_from, valid_to, weekdays, auto, now_str,
+          session['user'].get('id', ''), pass_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "token": target['token'],
+                    "message": f"{target['name']} 님의 {pass_type} 이용권을 발급했습니다. ({valid_from} ~ {valid_to})"})
+
+
+@app.route('/api/pass/<int:pass_id>/reject', methods=['POST'])
+def pass_reject(pass_id):
+    """발급 신청 반려. 사유는 메모에 남겨 손님 조회 화면에서 확인할 수 있게 한다."""
+    denied = _pass_guard()
+    if denied:
+        return denied
+
+    conn = get_db_connection()
+    target = _pass_fetch(conn, pass_id)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "발급 신청을 찾을 수 없습니다."}), 404
+    if target['status'] != '신청':
+        conn.close()
+        return jsonify({"success": False, "message": f"반려 대상이 아닙니다. (현재 상태: {target['status']})"}), 400
+
+    reason = ((request.json or {}).get('reason') or '').strip()
+    memo = (target['memo'] or '').strip()
+    memo = (memo + ' / ' if memo else '') + f"[반려] {reason or '사유 미기재'}"
+    conn.execute("UPDATE visitor_pass SET status = '반려', memo = ? WHERE id = ?", (memo, pass_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": f"{target['name']} 님의 발급 신청을 반려했습니다."})
+
+
 @app.route('/v/scan', methods=['GET'])
 def scan_landing():
     """QR 스캔(=링크 접속) 진입점. 손님 화면(guest.html)을 그대로 열어주고,
@@ -1426,6 +2257,13 @@ def scan_action():
         "SELECT id, name, company, status FROM visitor_log WHERE token = ?", (token,)
     ).fetchone()
     if not row:
+        # 🎫 일반 방문 건이 아니면 정기권 출입증인지 확인한다.
+        #    (스캐너·QR 인프라를 그대로 쓰기 위해 토큰 체계를 공유한다)
+        p_row = conn.execute("SELECT * FROM visitor_pass WHERE token = ?", (token,)).fetchone()
+        if p_row:
+            result = scan_pass_action(conn, p_row)
+            conn.close()
+            return jsonify(result)
         conn.close()
         return jsonify({"success": False, "message": "유효하지 않은 QR 입니다."}), 404
 
@@ -1437,12 +2275,14 @@ def scan_action():
         conn.execute("UPDATE visitor_log SET status = '입실대기' WHERE id = ?", (v['id'],))
         conn.commit(); conn.close()
         return jsonify({"success": True, "name": v['name'], "company": v.get('company'),
-                        "action": "입실", "message": f"{v['name']} 님 입실 요청 접수 — 보안실 승인 대기"})
+                        "action": "입실",
+                        "message": f"{v['name']} 님 입실 요청 접수 — 보안실 승인 대기"})
     elif status == '입실완료':
         conn.execute("UPDATE visitor_log SET status = '퇴실대기' WHERE id = ?", (v['id'],))
         conn.commit(); conn.close()
         return jsonify({"success": True, "name": v['name'], "company": v.get('company'),
-                        "action": "퇴실", "message": f"{v['name']} 님 퇴실 요청 접수 — 보안실 승인 대기"})
+                        "action": "퇴실",
+                        "message": f"{v['name']} 님 퇴실 요청 접수 — 보안실 승인 대기"})
     elif status == '입실대기':
         conn.close()
         return jsonify({"success": True, "already": True, "name": v['name'],
@@ -1474,7 +2314,8 @@ def admin_logs():
     conn = get_db_connection()
     query = """
         SELECT v.id, v.visit_date, v.name, v.contact, v.company, v.purpose, v.checkin_time, v.checkout_time, v.status,
-               e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout,
+               e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout, v.pass_id,
+               (SELECT IFNULL(vp.pass_type, '정기') FROM visitor_pass vp WHERE vp.id = v.pass_id) AS pass_type,
                (SELECT COUNT(*) FROM visitor_log v2
                   WHERE IFNULL(v2.region, '') = IFNULL(v.region, '')
                     AND substr(v2.visit_date, 1, 7) = substr(v.visit_date, 1, 7)
@@ -1562,7 +2403,9 @@ def admin_excel():
                           OR (v2.visit_date = v.visit_date AND v2.id <= v.id) )
                ) AS month_seq,
                v.visit_date, v.name, v.company, v.purpose, e.name AS emp_name,
-               v.expected_checkin, v.expected_checkout, v.checkin_time, v.checkout_time, v.status
+               v.expected_checkin, v.expected_checkout, v.checkin_time, v.checkout_time, v.status,
+               v.contact, v.vehicle_no, v.region,
+               (SELECT IFNULL(vp.pass_type, '정기') FROM visitor_pass vp WHERE vp.id = v.pass_id) AS pass_type
         FROM visitor_log v LEFT JOIN employees e ON v.created_by = e.id WHERE 1=1
     """
     params = []
@@ -1576,18 +2419,59 @@ def admin_excel():
     logs = conn.execute(query, params).fetchall()
     conn.close()
     
-    df = pd.DataFrame([dict(log) for log in logs])
-    _cols = ['순번', '방문일', '이름', '소속', '방문 목적', '사내 담당자', '방문 예정시간', '퇴실 예정시간', '입실 시간', '퇴실 시간', '현재 상태']
-    if not df.empty:
-        df.columns = _cols
+    rows = [dict(log) for log in logs]
+
+    # 📗 시트 분리: 방문 성격이 달라 필요한 컬럼도 다르다.
+    #    - 일반 방문객: 사내 담당자·방문 예정시간이 핵심 (누구를 만나러 언제 오기로 했나)
+    #    - 정기·수시 이용권: 담당자·예정시간 개념이 없고, 대신 이용권 종류·차량이 핵심
+    #    두 시트 모두 같은 visitor_log 에서 나오며, 순번(month_seq)은 화면 표시와 동일한 통합 순번이다.
+    GENERAL_COLS = ['순번', '방문일', '이름', '소속', '방문 목적', '사내 담당자',
+                    '방문 예정시간', '퇴실 예정시간', '입실 시간', '퇴실 시간', '현재 상태']
+    PASS_COLS = ['순번', '방문일', '구분', '이름', '소속', '연락처', '차량 번호',
+                 '이용 목적', '사업장', '입실 시간', '퇴실 시간', '현재 상태']
+
+    def _status(v):
         # 화면과 동일한 표시 라벨 사용 (DB 저장값은 '입실완료' 그대로, 표시만 '재실중')
-        df['현재 상태'] = df['현재 상태'].replace({'입실완료': '재실중'})
-    else: df = pd.DataFrame(columns=_cols)
-        
+        return '재실중' if v == '입실완료' else v
+
+    def _phone(v):
+        # 하이픈을 넣어 저장한다: 숫자만 쓰면 엑셀이 수치로 인식해 앞자리 0 이 사라진다.
+        d = ''.join(ch for ch in str(v or '') if ch.isdigit())
+        if len(d) == 11:
+            return f"{d[:3]}-{d[3:7]}-{d[7:]}"
+        if len(d) == 10:
+            return f"{d[:2]}-{d[2:6]}-{d[6:]}" if d.startswith('02') else f"{d[:3]}-{d[3:6]}-{d[6:]}"
+        return d
+
+    general, passes = [], []
+    for r in rows:
+        if r.get('pass_type'):      # pass_id 가 있는 건만 pass_type 이 채워진다
+            passes.append({
+                '순번': r['month_seq'], '방문일': r['visit_date'], '구분': r['pass_type'],
+                '이름': r['name'], '소속': r['company'], '연락처': _phone(r.get('contact')),
+                '차량 번호': r.get('vehicle_no') or '', '이용 목적': r['purpose'],
+                '사업장': r.get('region') or '', '입실 시간': r.get('checkin_time') or '',
+                '퇴실 시간': r.get('checkout_time') or '', '현재 상태': _status(r['status']),
+            })
+        else:
+            general.append({
+                '순번': r['month_seq'], '방문일': r['visit_date'], '이름': r['name'],
+                '소속': r['company'], '방문 목적': r['purpose'], '사내 담당자': r.get('emp_name') or '',
+                '방문 예정시간': r.get('expected_checkin') or '', '퇴실 예정시간': r.get('expected_checkout') or '',
+                '입실 시간': r.get('checkin_time') or '', '퇴실 시간': r.get('checkout_time') or '',
+                '현재 상태': _status(r['status']),
+            })
+
+    df_general = pd.DataFrame(general, columns=GENERAL_COLS)
+    df_pass = pd.DataFrame(passes, columns=PASS_COLS)
+
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='방문기록')
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        # 건수가 0이어도 시트는 만든다 (헤더만) — 받는 쪽에서 시트가 사라지지 않게.
+        df_general.to_excel(writer, index=False, sheet_name='일반 방문객')
+        df_pass.to_excel(writer, index=False, sheet_name='정기·수시 이용권')
     output.seek(0)
-    
+
     file_name = f"VMS_Logs_{get_current_kst_time().strftime('%Y%m%d')}.xlsx"
     response = send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{urllib.parse.quote(file_name)}"
@@ -1743,6 +2627,7 @@ def _midnight_expiry_scheduler():
         next_run = (now + timedelta(days=1)).replace(hour=0, minute=0, second=10, microsecond=0)
         time.sleep(max((next_run - now).total_seconds(), 1))
         expire_stale_reservations()
+        expire_stale_passes()      # 🎫 유효기간이 끝난 정기권도 함께 만료 처리
 
 # ====================================================================
 # 🌳 [최고 관리자] 부서 트리 기반 임직원 관리 API  (/api/tree/...)

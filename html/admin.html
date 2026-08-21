@@ -32,6 +32,7 @@
                     <nav class="erp-nav">
                         <button id="menuVisitor" class="nav-item active" onclick="switchTab('visitor')">📊 출입 기록 관리</button>
                         <button id="menuEmployee" class="nav-item" onclick="switchTab('employee')">👥 임직원 정보 관리</button>
+                        <button id="menuPass" class="nav-item" onclick="switchTab('pass')">🎫 출입 이용권 관리</button>
                         <button class="nav-item" onclick="location.href='/emp'">🏠 VMS 메인화면</button>
                     </nav>
                     
@@ -120,6 +121,94 @@
                         <iframe id="empTreeFrame" class="emp-tree-frame" title="임직원 조직도"></iframe>
                     </div>
 
+                    <!-- 🎫 정기 이용 방문객(정기권) 관리.
+                         정기권은 '출입증'만 보관하고, 실제 방문 기록은 QR 을 스캔할 때마다
+                         출입 기록(visitor_log)에 자동으로 쌓인다. → 기존 기록·엑셀·통계에 그대로 포함. -->
+                    <div id="tabContentPass" class="tab-panel section-hidden">
+                        <div class="admin-header">
+                            <h2>🎫 출입 이용권 <span class="pass-title-sub">정기 · 수시</span></h2>
+                            <button class="btn btn-primary" onclick="openPassModal()">＋ 이용권 발급</button>
+                        </div>
+
+                        <p class="pass-help">
+                            매일 방문 신청 없이 <b>QR 이용권 한 장</b>으로 드나드는 상시 방문객을 관리합니다.
+                            QR을 스캔하면 그날의 출입 기록이 자동 생성되어 <b>경비실 승인 대기열</b>로 올라가며, 하루에 여러 번 출입할 수 있습니다.<br>
+                            <b class="pass-type-chip type-regular">정기 이용권</b> 매일 출입하는 상주 인력(청소·급식·상주 용역) — <u>오늘 안 오면</u> 경비실 화면에 미출입자로 표시됩니다.
+                            &nbsp;<b class="pass-type-chip type-occasional">수시 출입권</b> 매일은 아니지만 반복해서 오는 고정 거래처(정기 점검·비정기 납품) — <u>오래 안 쓰면</u> 정리 대상으로 표시됩니다.
+                        </p>
+
+                        <div class="region-filter-bar" id="passRegionFilterBar">
+                            <span class="filter-label">🗺️ 사업장:</span>
+                            <div class="region-filter-btns" id="passRegionFilterBtns"><!-- admin.js 렌더 --></div>
+                        </div>
+
+                        <div class="filter-bar">
+                            <label class="filter-label">🎫 종류:</label>
+                            <select id="passTypeFilter" onchange="loadPasses()">
+                                <option value="">전체</option>
+                                <option value="정기">정기 이용권</option>
+                                <option value="수시">수시 출입권</option>
+                            </select>
+                            <label class="filter-label">🎟️ 상태:</label>
+                            <select id="passStatusFilter" onchange="loadPasses()">
+                                <option value="">전체</option>
+                                <option value="신청">승인 대기</option>
+                                <option value="활성">활성</option>
+                                <option value="반려">반려</option>
+                                <option value="정지">정지</option>
+                                <option value="만료">만료</option>
+                                <option value="해지">해지</option>
+                            </select>
+                            <div class="search-box">
+                                <input type="text" id="passSearch" placeholder="🔎 이름 · 업체 · 연락처 · 차량번호 검색" oninput="onPassSearchInput()">
+                            </div>
+                        </div>
+
+                        <div class="admin-stat-grid pass-stat-grid pass-stat-grid-5">
+                            <div class="admin-stat-card stat-total">
+                                <span class="admin-stat-label">🎫 정기 이용권<span class="stat-label-sub"> (매일)</span></span>
+                                <span class="admin-stat-value" id="passStatRegular">-</span>
+                            </div>
+                            <div class="admin-stat-card stat-occasional">
+                                <span class="admin-stat-label">🔁 수시 출입권<span class="stat-label-sub"> (반복 방문)</span></span>
+                                <span class="admin-stat-value" id="passStatOccasional">-</span>
+                            </div>
+                            <div class="admin-stat-card stat-complete">
+                                <span class="admin-stat-label">🚶 오늘 출입<span class="stat-label-sub"> (이용권)</span></span>
+                                <span class="admin-stat-value" id="passStatToday">-</span>
+                            </div>
+                            <div class="admin-stat-card stat-pending-req">
+                                <span class="admin-stat-label">🙋 승인 대기<span class="stat-label-sub"> (손님 신청)</span></span>
+                                <span class="admin-stat-value" id="passStatPending">-</span>
+                            </div>
+                            <div class="admin-stat-card stat-incomplete">
+                                <span class="admin-stat-label">⏳ 정리 대상<span class="stat-label-sub"> (만료 임박·장기 미사용)</span></span>
+                                <span class="admin-stat-value" id="passStatAttention">-</span>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table id="passTable">
+                                <thead>
+                                    <tr>
+                                        <th>종류</th>
+                                        <th>방문객</th>
+                                        <th>연락처 / 차량</th>
+                                        <th>이용 목적</th>
+                                        <th>사업장</th>
+                                        <th>유효기간</th>
+                                        <th>이용 요일</th>
+                                        <th>승인 방식</th>
+                                        <th>상태</th>
+                                        <th>출입 (오늘/누적)</th>
+                                        <th>관리</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="passBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </section>
             </div>
         </main>
@@ -151,6 +240,92 @@
             <div class="modal-footer">
                 <button class="btn btn-primary" onclick="saveEmployee()">저장하기</button>
                 <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🎫 정기권 발급 / 수정 모달 -->
+    <div id="passModal" class="modal-overlay">
+        <div class="modal-window pass-modal-window">
+            <div class="modal-header" id="passModalTitle">출입 이용권 발급</div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="field full"><label>이용권 종류 *</label>
+                        <!-- 출입증 동작은 같고 관리 관점만 다르다. 유형을 바꾸면 이용 요일 기본값도 함께 바뀐다. -->
+                        <select id="passType" onchange="onPassTypeChange()">
+                            <option value="정기">정기 이용권 — 매일 출입 (청소·급식·상주 용역)</option>
+                            <option value="수시">수시 출입권 — 매일은 아니지만 반복 방문 (정기 점검·비정기 납품)</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>방문객 성명 *</label><input type="text" id="passName" placeholder="예: 홍길동"></div>
+                    <div class="field"><label>연락처 *</label><input type="text" id="passContact" placeholder="숫자만 입력"></div>
+                    <div class="field"><label>소속 업체 *</label><input type="text" id="passCompany" placeholder="예: OO물류"></div>
+                    <div class="field"><label>차량 번호</label><input type="text" id="passVehicle" placeholder="없을 시 비워둠"></div>
+                    <div class="field"><label>이용 목적 *</label><input type="text" id="passPurpose" placeholder="예: 제품 납품"></div>
+                    <div class="field"><label>사업장 *</label>
+                        <select id="passRegion">
+                            <option value="테크센터">테크센터</option>
+                            <option value="에코센터">에코센터</option>
+                            <option value="평택공장">평택공장</option>
+                            <option value="거제 오션센터">거제 오션센터</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>승인 방식</label>
+                        <!-- 데이터로 관리하는 정책값. 운영 중 언제든 바꿀 수 있다. -->
+                        <select id="passAutoApprove">
+                            <option value="0">경비실 승인 (기본 — 대기열로 전달)</option>
+                            <option value="1">자동 승인 (스캔 즉시 입·퇴실 확정)</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>유효 시작일 *</label><input type="date" id="passValidFrom" onchange="syncPassDateLimit()"></div>
+                    <div class="field"><label>이용 기간 *</label>
+                        <!-- 운영 단위는 1일·1주일·1개월 세 가지. 종료일은 시작일+단위로 자동 계산된다. -->
+                        <select id="passPeriod" onchange="syncPassDateLimit()">
+                            <option value="1일">1일</option>
+                            <option value="1주일">1주일</option>
+                            <option value="1개월">1개월</option>
+                        </select>
+                    </div>
+                    <div class="field full"><label>유효 종료일 <span class="field-hint">(자동 계산)</span></label>
+                        <input type="date" id="passValidTo" readonly></div>
+                    <div class="field full">
+                        <label>이용 요일 (체크한 요일만 출입 가능)</label>
+                        <div class="pass-weekday-box" id="passWeekdayBox">
+                            <label class="pass-weekday"><input type="checkbox" data-day="0" checked><span>월</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="1" checked><span>화</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="2" checked><span>수</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="3" checked><span>목</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="4" checked><span>금</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="5"><span>토</span></label>
+                            <label class="pass-weekday"><input type="checkbox" data-day="6"><span>일</span></label>
+                        </div>
+                    </div>
+                    <div class="field full"><label>메모</label><input type="text" id="passMemo" placeholder="예: 매주 화·목 자재 납품 / 계약 종료 시 해지"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="passSaveBtn" onclick="savePass()">저장하기</button>
+                <button class="btn btn-secondary" onclick="closePassModal()">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🎫 정기권 QR 출입증 (인쇄용) -->
+    <div id="passQrModal" class="modal-overlay">
+        <div class="modal-window pass-qr-window">
+            <div class="modal-header">🎫 출입 이용권</div>
+            <div class="modal-body">
+                <div id="passQrCard" class="pass-qr-card">
+                    <!-- admin.js 가 렌더 (인쇄 대상 영역) -->
+                </div>
+                <p class="pass-qr-note">
+                    이 QR 이미지를 방문객에게 전달하세요 (문자·메신저·메일 등). 정문 스캐너에 대면 입실, 다시 대면 퇴실 처리됩니다.
+                    유출·분실 시에는 <b>해지 후 재발급</b>하세요 (기존 QR은 즉시 사용 불가).
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="downloadPassQr()">📥 QR 이미지 저장</button>
+                <button class="btn btn-secondary" onclick="closePassQr()">닫기</button>
             </div>
         </div>
     </div>

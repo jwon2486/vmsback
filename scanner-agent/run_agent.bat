@@ -12,14 +12,21 @@ REM     online (Render) : https://snsys-vms.onrender.com
 REM     intranet test   : http://10.101.52.119:5000
 REM
 REM  COM port is detected automatically. If it fails, run once:
-REM     python scan_agent.py --setup
+REM     run_agent.bat --setup
 REM
 REM  Korean setup guide: see README.md
 REM ==================================================================
 
 set SERVER=https://snsys-vms.onrender.com
 
-python scan_agent.py --server %SERVER%
+REM --- pick how to run: exe first (no python needed), python as fallback ---
+if exist "%~dp0scan_agent.exe" (
+    "%~dp0scan_agent.exe" --server %SERVER% %*
+) else if exist "%~dp0dist\scan_agent.exe" (
+    "%~dp0dist\scan_agent.exe" --server %SERVER% %*
+) else (
+    python "%~dp0scan_agent.py" --server %SERVER% %*
+)
 
 echo.
 echo [ended] press any key to close this window.

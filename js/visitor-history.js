@@ -102,6 +102,221 @@
         ).join('');
     };
 
+    // 📅 'YYYY-MM-DD' 에 개월 수를 더한다. 말일 보정 포함 (1/31 +1개월 → 2/28).
+    //    이용권 유효기간 계산에 쓰이며, 서버의 _add_months() 와 같은 규칙이어야 한다.
+    //    (관리자·경비실·손님 화면 공용 — admin.html·guest.html 양쪽이 이 파일을 로드한다)
+    window.addMonthsStr = function (dateStr, months) {
+        const [y, m, d] = String(dateStr).split('-').map(Number);
+        const lastDay = new Date(y, m - 1 + months + 1, 0).getDate();
+        const dt = new Date(y, m - 1 + months, Math.min(d, lastDay));
+        const p = (n) => String(n).padStart(2, '0');
+        return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+    };
+
+    // 🎫 이용권 이용 요일 표기 ('1111100' → '평일'). 관리자·경비실·손님 화면 공용.
+    window.PASS_WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+    window.passWeekdayText = function (weekdays) {
+        const w = weekdays || '1111111';
+        if (w === '1111111') return '매일';
+        if (w === '1111100') return '평일';
+        return window.PASS_WEEKDAY_LABELS.filter((_, i) => w[i] === '1').join('·') || '-';
+    };
+
+    // 📅 이용권 유효기간 운영 단위. 서버 PASS_PERIODS 가 단일 출처이고, 각 화면이 API 응답으로 갱신한다.
+    window.PASS_PERIODS = ['1일', '1주일', '1개월'];
+    window.PASS_DEFAULT_PERIOD = '1개월';
+
+    /** 시작일 + 단위 → 종료일. 서버 pass_period_end() 와 같은 규칙(1개월은 말일 보정). */
+    window.passPeriodEnd = function (startStr, period) {
+        if (!startStr) return '';
+        if (period === '1일' || period === '1주일') {
+            const days = (period === '1일') ? 1 : 7;
+            const [y, m, d] = startStr.split('-').map(Number);
+            const dt = new Date(y, m - 1, d + days);
+            const p = (n) => String(n).padStart(2, '0');
+            return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+        }
+        return window.addMonthsStr(startStr, 1);
+    };
+
+    /** 저장된 기간이 어느 단위였는지 역산 (선택값 복원용). 해당 없으면 기본 단위. */
+    window.passPeriodOf = function (from, to) {
+        for (const p of window.PASS_PERIODS) {
+            if (window.passPeriodEnd(from, p) === to) return p;
+        }
+        return window.PASS_DEFAULT_PERIOD;
+    };
+
+    /**
+     * 📅 시작일·단위를 읽어 종료일 칸을 자동으로 채운다.
+     *    종료일은 사용자가 직접 고르지 않는다(읽기 전용) — 운영 단위를 벗어난 기간을 막기 위해서다.
+     */
+    window.syncPassPeriod = function (fromEl, periodEl, toEl, labelEl) {
+        if (!fromEl || !periodEl || !toEl) return;
+        const end = window.passPeriodEnd(fromEl.value, periodEl.value);
+        toEl.value = end;
+        if (labelEl) labelEl.textContent = end ? `${fromEl.value} ~ ${end}` : '';
+    };
+
+    // 🎫 이용권 카드 이미지(PNG) 만들기 — QR 만이 아니라 화면에 보이는 카드 그대로 저장한다.
+    //    · 캔버스에 직접 그린다: 외부 라이브러리(html2canvas 등) 없이 동작하고,
+    //      브라우저 폰트를 쓰므로 서버(Linux)에 한글 폰트가 없어도 글자가 깨지지 않는다.
+    //    · QR 은 서버가 만든 PNG(/api/qr?format=png)를 그대로 얹는다.
+    //    pass: {name, company, region, pass_type, valid_from, valid_to, vehicle_no, token}
+    //    weekdayText: 화면과 동일한 요일 표기('매일'·'평일'·'월·수·금' 등)를 넘긴다.
+    function buildPassCardCanvas(pass, weekdayText, onReady, onError) {
+        const KIND = pass.pass_type === '수시' ? '수시 출입권' : '정기 이용권';
+        const FONT = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+        const W = 640, H = 900, CX = W / 2;
+
+        const img = new Image();
+        img.onload = function () {
+            const cv = document.createElement('canvas');
+            cv.width = W; cv.height = H;
+            const g = cv.getContext('2d');
+
+            // 배경 + 테두리
+            g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+            g.strokeStyle = '#cbd5e1'; g.lineWidth = 3; g.strokeRect(12, 12, W - 24, H - 24);
+
+            g.textAlign = 'center';
+            // 머리말 (종류 · 사업장)
+            g.fillStyle = '#64748b'; g.font = `bold 26px ${FONT}`;
+            g.fillText(`${KIND} · ${pass.region || ''}`, CX, 72);
+
+            // QR
+            const qrSize = 380;
+            g.drawImage(img, CX - qrSize / 2, 105, qrSize, qrSize);
+
+            // 이름 · 소속
+            g.fillStyle = '#0f172a'; g.font = `bold 46px ${FONT}`;
+            g.fillText(pass.name || '', CX, 560);
+            g.fillStyle = '#475569'; g.font = `26px ${FONT}`;
+            g.fillText(pass.company || '', CX, 600);
+
+            // 구분선
+            g.strokeStyle = '#e2e8f0'; g.lineWidth = 2;
+            g.beginPath(); g.moveTo(70, 640); g.lineTo(W - 70, 640); g.stroke();
+
+            // 상세 정보 (라벨 왼쪽 / 값 오른쪽)
+            const rows = [
+                ['유효기간', `${pass.valid_from} ~ ${pass.valid_to}`],
+                ['이용 요일', weekdayText || '매일'],
+                ['차량 번호', pass.vehicle_no || '없음'],
+            ];
+            let y = 700;
+            rows.forEach(([label, value]) => {
+                g.textAlign = 'left';  g.fillStyle = '#64748b'; g.font = `24px ${FONT}`;
+                g.fillText(label, 80, y);
+                g.textAlign = 'right'; g.fillStyle = '#0f172a'; g.font = `bold 26px ${FONT}`;
+                g.fillText(value, W - 80, y);
+                y += 52;
+            });
+
+            // 안내 문구
+            g.textAlign = 'center'; g.fillStyle = '#94a3b8'; g.font = `20px ${FONT}`;
+            g.fillText('정문에서 이 QR을 보여주세요', CX, H - 48);
+
+            onReady(cv, `${KIND.replace(' ', '')}_${pass.name}_${pass.company}.png`, KIND);
+        };
+        img.onerror = function () {
+            if (onError) onError();
+            else alert('QR 이미지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        };
+        img.src = `/api/qr?token=${encodeURIComponent(pass.token)}&format=png`;
+    }
+
+    // 📱 휴대폰에서 '길게 눌러 사진에 저장'하도록 카드 이미지를 크게 띄운다.
+    //    (a.download 는 모바일에서 '파일 다운로드'로 처리돼 갤러리에 바로 들어가지 않는다.
+    //     이미지 자체를 길게 누르면 iOS '사진에 추가' / 안드로이드 '이미지 다운로드'로 한 번에 저장된다)
+    function showPassCardLongPress(dataUrl, filename) {
+        document.getElementById('pass-card-save-overlay')?.remove();
+        const ov = document.createElement('div');
+        ov.id = 'pass-card-save-overlay';
+        ov.setAttribute('style',
+            'position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.72);' +
+            'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px;');
+        ov.innerHTML =
+            `<div style="color:#fff;font-size:.95rem;font-weight:700;text-align:center;line-height:1.6">
+                아래 이미지를 <b>길게 눌러</b><br>‘사진에 추가’(또는 ‘이미지 저장’)를 선택하세요
+             </div>
+             <img src="${dataUrl}" alt="${filename}"
+                  style="max-width:min(88vw,340px);max-height:62vh;border-radius:12px;background:#fff;box-shadow:0 18px 40px rgba(0,0,0,.35)">
+             <button type="button" style="padding:.7rem 1.6rem;border:none;border-radius:10px;
+                     background:#fff;color:#334155;font-weight:700;font-size:.95rem;cursor:pointer">닫기</button>`;
+        ov.querySelector('button').addEventListener('click', () => ov.remove());
+        ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+        document.body.appendChild(ov);
+    }
+
+    // 만들어 둔 카드 이미지 보관함 (token → {blob, dataUrl, filename})
+    const _passCardCache = {};
+
+    /**
+     * 🎫 카드 이미지를 미리 만들어 둔다. 카드가 화면에 표시되는 시점에 호출한다.
+     *    저장 버튼을 눌렀을 때 곧바로 공유·저장할 수 있어야 iOS 의 '사용자 조작 직후' 제약에 걸리지 않는다.
+     */
+    window.preparePassCardImage = function (pass, weekdayText) {
+        if (!pass || !pass.token || _passCardCache[pass.token]) return;
+        buildPassCardCanvas(pass, weekdayText, function (cv, filename) {
+            const entry = { dataUrl: cv.toDataURL('image/png'), filename: filename, blob: null };
+            _passCardCache[pass.token] = entry;
+            if (cv.toBlob) cv.toBlob(function (b) { entry.blob = b; }, 'image/png');
+        }, function () { /* QR 로드 실패 → 저장 시점에 다시 시도한다 */ });
+    };
+
+    function _savePassCard(entry) {
+        const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+
+        // 터치 기기: 공유 시트 → '이미지 저장'이면 사진앱에 바로 들어간다. (HTTPS 에서만 제공됨)
+        //   실패하거나 지원하지 않으면 길게 눌러 저장하도록 안내한다. (HTTP 내부망 대비)
+        if (isTouch) {
+            if (entry.blob && navigator.canShare) {
+                try {
+                    const file = new File([entry.blob], entry.filename, { type: 'image/png' });
+                    if (navigator.canShare({ files: [file] })) {
+                        navigator.share({ files: [file], title: entry.filename })
+                            .catch((err) => {
+                                // 사용자가 취소한 경우는 그대로 종료, 그 외(권한·미지원)는 대체 경로로.
+                                if (err && err.name === 'AbortError') return;
+                                showPassCardLongPress(entry.dataUrl, entry.filename);
+                            });
+                        return;
+                    }
+                } catch (e) { /* 미지원 → 아래 대체 경로 */ }
+            }
+            showPassCardLongPress(entry.dataUrl, entry.filename);
+            return;
+        }
+
+        // 데스크톱: 파일로 저장 (메일 첨부·전달이 쉬움)
+        const a = document.createElement('a');
+        a.href = entry.dataUrl;
+        a.download = entry.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    /**
+     * 🎫 이용권 카드 저장 (버튼 클릭 진입점).
+     *    미리 만들어 둔 이미지가 있으면 즉시 처리하고, 없으면 그 자리에서 만들어 처리한다.
+     */
+    window.downloadPassCardPng = function (pass, weekdayText) {
+        const cached = pass && pass.token ? _passCardCache[pass.token] : null;
+        if (cached) return _savePassCard(cached);
+
+        buildPassCardCanvas(pass, weekdayText, function (cv, filename) {
+            const entry = { dataUrl: cv.toDataURL('image/png'), filename: filename, blob: null };
+            _passCardCache[pass.token] = entry;
+            if (cv.toBlob) {
+                cv.toBlob(function (b) { entry.blob = b; _savePassCard(entry); }, 'image/png');
+            } else {
+                _savePassCard(entry);
+            }
+        });
+    };
+
     // 연락처 표시용 포맷: 숫자만 저장된 번호에 하이픈을 넣어 가독성을 높인다. (표시 전용)
     //  - 관리자/경비실/손님/임직원 모든 화면 공용. admin.html·guest.html 양쪽이 이 파일을 로드한다.
     //  - 조회 매칭 키(openVisitorHistory 등)로 쓰는 값은 원본(숫자)을 그대로 사용해야 한다.

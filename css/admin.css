@@ -966,3 +966,129 @@ tr:hover td { background: #f8fafc; }
   #tabContentVisitor .col-merged-time .time-in { color: #16a34a; font-weight: 700; }
   #tabContentVisitor .col-merged-time .time-out { color: #dc2626; font-weight: 700; }
 }
+
+
+/* ====================================================================
+   🎫 정기 이용 방문객(정기권) 관리 탭
+   - 표는 11컬럼이라 사원 관리 표(8컬럼) 기준의 고정 컬럼폭을 그대로 쓰면 압착된다.
+     출입 기록 표와 같은 이유로 자동 배분으로 되돌린다.
+   ==================================================================== */
+#tabContentPass th, #tabContentPass td { width: auto; }
+
+.pass-help {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  color: #1e40af;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+/* 셀 안 보조 정보(소속·차량·부서·D-day) — 본문보다 작고 흐리게 */
+.pass-sub { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+.pass-sub-warn { color: #ea580c; font-weight: 700; }
+
+.pass-actions { white-space: nowrap; }
+.pass-actions .btn { margin: 2px; }
+
+/* 발급/수정 모달: 입력 항목이 많아 기본 모달보다 넓게 + 세로 스크롤 허용 */
+.pass-modal-window { width: min(94vw, 44rem); }
+.pass-modal-window .modal-body { max-height: 70vh; overflow-y: auto; }
+
+/* 이용 요일 선택: 체크박스를 버튼처럼 보이게 */
+.pass-weekday-box { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.pass-weekday { position: relative; }
+.pass-weekday input { position: absolute; opacity: 0; width: 0; height: 0; }
+.pass-weekday span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.5rem; padding: 0.45rem 0;
+  border: 1px solid var(--line); border-radius: 0.4rem;
+  font-size: 0.85rem; font-weight: 700; color: #64748b;
+  background: #fff; cursor: pointer; transition: all 0.15s;
+}
+.pass-weekday input:checked + span { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* QR 출입증 카드 (화면 표시용 — 인쇄는 printPassQr 가 별도 창에 자체 스타일로 출력) */
+.pass-qr-window { width: min(92vw, 24rem); }
+.pass-qr-card { text-align: center; }
+.pass-card-title { font-size: 0.78rem; color: var(--muted); font-weight: 700; letter-spacing: 1px; }
+.pass-card-qr { width: 12.5rem; height: 12.5rem; margin: 0.75rem auto; display: block; }
+.pass-card-name { font-size: 1.4rem; font-weight: 800; color: var(--text); }
+.pass-card-company { font-size: 0.9rem; color: #475569; margin-bottom: 0.75rem; }
+.pass-card-meta {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem;
+  font-size: 0.8rem; text-align: left; max-width: 17.5rem; margin: 0 auto;
+}
+.pass-card-meta span { color: var(--muted); }
+.pass-qr-note {
+  margin: 1rem 0 0; font-size: 0.78rem; color: var(--muted); line-height: 1.6;
+  background: #f8fafc; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.6rem 0.75rem;
+}
+
+/* 📱 모바일 카드뷰: 사원 표 기준의 nth-of-type 라벨(::before)이 잘못 붙지 않도록
+   정기권 표는 data-label 값을 그대로 라벨로 쓴다. */
+@media (max-width: 768px) {
+  #passBody tr td { width: 100% !important; white-space: normal; }
+  #passBody tr td::before {
+    content: attr(data-label);
+    display: inline-block; width: 5.5rem; min-width: 5.5rem;
+    font-weight: 700; color: var(--muted); font-size: 0.75rem;
+  }
+  #passBody tr td:nth-of-type(1) { font-size: 0.95rem; color: var(--brand); font-weight: 800; }
+  #passBody tr td.pass-actions { flex-wrap: wrap; justify-content: flex-end; padding-top: 0.4rem; }
+  #passBody tr td.pass-actions::before { display: none; }
+  #passBody tr td.pass-actions .btn { flex: 1 1 auto; padding: 6px; font-size: 0.75rem; }
+  .pass-weekday span { width: 2.2rem; }
+}
+
+/* 🎫 출입 기록에서 정기 출입증 방문 건 표시 */
+.pass-tag {
+  display: inline-block; margin-left: 0.25rem; padding: 1px 6px; border-radius: 0.25rem;
+  background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe;
+  font-size: 0.68rem; font-weight: 800; vertical-align: middle;
+}
+
+/* 🎫 출입증 유형 칩: 정기(매일) = 파랑 / 수시(가끔) = 보라 */
+.pass-type-chip {
+  display: inline-block; padding: 2px 8px; border-radius: 1.25rem;
+  font-size: 0.72rem; font-weight: 800; white-space: nowrap;
+}
+.pass-type-chip.type-regular   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.pass-type-chip.type-occasional{ background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+
+/* 정기권 탭 요약 카드는 4장 (유형별 2 + 오늘 출입 + 정리 대상) */
+.pass-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-stat-card.stat-occasional { border-left-color: #7c3aed; }
+.admin-stat-card.stat-occasional .admin-stat-value { color: #7c3aed; }
+
+@media (max-width: 768px) {
+  .pass-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 탭 제목 옆 보조 라벨 (정기 · 수시) */
+.pass-title-sub {
+  font-size: 0.8rem; font-weight: 700; color: var(--muted);
+  background: #f1f5f9; border: 1px solid var(--line); border-radius: 1.25rem;
+  padding: 2px 10px; margin-left: 0.5rem; vertical-align: middle;
+}
+
+/* 🙋 손님 발급 신청(승인 대기) */
+.badge-pending { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.pass-row-request td { background: #fffbeb; }
+.pass-row-request:hover td { background: #fef3c7; }
+.pass-stat-grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.admin-stat-card.stat-pending-req { border-left-color: #d97706; }
+.admin-stat-card.stat-pending-req .admin-stat-value { color: #d97706; }
+
+@media (max-width: 991px) {
+  .pass-stat-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .pass-stat-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 자동 계산되는 입력칸(유효 종료일) 표시 */
+.field-hint { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+.field input[readonly] { background: #f1f5f9; color: #475569; cursor: default; }
