@@ -3,11 +3,6 @@
  * 보안실 출입 관제 및 대면 승인 처리 (인라인 CSS 완벽 제거)
  */
 
-// ⏱️ 자동 새로고침 주기. 화면에 표기되는 '자동 갱신 N초'도 이 값에서 뽑아 쓴다.
-//    (주기와 안내 문구가 따로 놀지 않도록 정의를 한 곳으로 모은다)
-const SEC_REFRESH_MS = 3000;
-const SEC_REFRESH_LABEL = `자동 갱신 ${SEC_REFRESH_MS / 1000}초`;
-
 // 'YYYY-MM-DD HH:MM:SS' → 'HH:MM:SS' 만 반환.
 //  - 표에는 이미 '방문일' 컬럼이 있어 날짜가 중복되므로 입·퇴실 셀은 시간만 표시한다.
 //  - 값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-')을 그대로 반환.
@@ -17,58 +12,6 @@ function secTimeOnly(val) {
     return parts.length > 1 ? parts[parts.length - 1] : val;
 }
 
-// 🏷️ 경비실 화면 한정: 시스템 명칭(S&SYS VMS / 부제)을 상단 유틸리티 바 중앙에 넣는다.
-//    원래 자리인 .app-header 는 CSS 로 숨긴다 — 표가 많은 화면이라 세로 공간을 아낀다.
-//    renderEmpNavbar() 가 nav 를 다시 그린 뒤에 호출되므로 여기서 붙여도 지워지지 않는다.
-function secMountNavBrand() {
-    const nav = document.getElementById('utility-nav');
-    if (!nav || nav.querySelector('.sec-nav-brand')) return;   // 중복 삽입 방지
-    const box = document.createElement('div');
-    box.className = 'sec-nav-brand';
-    box.innerHTML = `<span class="sec-nav-title">S&amp;SYS VMS</span>`
-                  + `<span class="sec-nav-sub">에스엔시스 방문객 출입관리 시스템</span>`;
-    nav.appendChild(box);
-
-    secSyncNavBrandLayout();
-
-    // nav 폭이 바뀔 때마다 다시 판단한다.
-    //  - window resize 이벤트만으로는 nav 자체가 다른 이유로 줄어드는 경우를 놓친다.
-    //  - 세로(높이) 변화로는 재실행하지 않는다: 이 함수가 붙이는 클래스가 높이를 바꾸므로
-    //    높이까지 보면 무한 루프가 된다.
-    if (!window.__secNavBrandObserver && typeof ResizeObserver !== 'undefined') {
-        let lastW = 0;
-        window.__secNavBrandObserver = new ResizeObserver(entries => {
-            const w = Math.round(entries[0].contentRect.width);
-            if (w === lastW) return;
-            lastW = w;
-            secSyncNavBrandLayout();
-        });
-        window.__secNavBrandObserver.observe(nav);
-    }
-    // 안전망: ResizeObserver 가 동작하지 않는 환경을 대비해 창 리사이즈에도 붙여 둔다.
-    if (!window.__secNavBrandBound) {
-        window.__secNavBrandBound = true;
-        window.addEventListener('resize', secSyncNavBrandLayout);
-    }
-}
-
-// 브랜드를 nav 중앙에 겹쳐 놓을지(기본), 아랫줄로 내릴지 결정한다.
-//  - 폭 breakpoint 로 끊으면 '자리가 남는데도 내려가는' 구간이 생긴다.
-//    계정명·버튼 개수에 따라 필요한 여유가 달라지므로 실제 간격을 재서 판단한다.
-//  - 기본은 absolute 라 레이아웃에 영향이 없다 → 버튼이 밀려 내려가지 않는다.
-function secSyncNavBrandLayout() {
-    const nav = document.getElementById('utility-nav');
-    const brand = nav && nav.querySelector('.sec-nav-brand');
-    const prof = nav && nav.querySelector('.nav-profile-info');
-    const acts = nav && nav.querySelector('.nav-actions');
-    if (!brand || !prof || !acts) return;
-
-    brand.classList.remove('is-stacked');          // 먼저 중앙 상태로 되돌리고 재야 정확하다
-    const gap = acts.getBoundingClientRect().left - prof.getBoundingClientRect().right;
-    const need = brand.scrollWidth + 28;           // 좌우로 최소한 남겨 둘 간격
-    if (gap < need) brand.classList.add('is-stacked');
-}
-
 function showSecurityDashboard() {
     const emp = JSON.parse(sessionStorage.getItem('emp_session'));
     const empRegion = emp.region || '테크센터'; 
@@ -76,8 +19,6 @@ function showSecurityDashboard() {
 
     const container = document.querySelector('.container');
     if (container) container.classList.add('container-wide', 'container-security-wide');
-
-    secMountNavBrand();   // 🏷️ 시스템 명칭을 상단 유틸리티 바 중앙으로
 
     const appCard = document.getElementById('app-card');
     if (!appCard) return;
@@ -89,59 +30,39 @@ function showSecurityDashboard() {
     <div class="sec-erp-layout">
         <aside class="sec-erp-sidebar">
             <div class="sec-erp-brand">
+                <span class="sec-erp-brand-icon">🛡️</span>
                 <div class="sec-erp-brand-text">
-                    <strong>출입관리</strong>
-                    <span class="sec-brand-ver">SNSYS-VMS</span>
+                    <strong>보안실 관제</strong>
+                    <span class="sec-region-text">${empRegion}</span>
                 </div>
             </div>
             <nav class="sec-erp-nav">
                 <button id="secMenuQueue" class="sec-nav-item active" onclick="switchSecTab('queue')">
-                    <span class="sec-nav-label"><span class="sec-nav-dot"></span>승인 요청</span>
+                    <span>🚨 승인 요청</span>
                     <span id="secQueueCount" class="sec-nav-badge display-none">0</span>
                 </button>
                 <button id="secMenuLogs" class="sec-nav-item" onclick="switchSecTab('logs')">
-                    <span class="sec-nav-label"><span class="sec-nav-dot"></span>출입 기록</span>
+                    <span>📊 출입 기록</span>
                 </button>
                 <button id="secMenuOverdue" class="sec-nav-item" onclick="switchSecTab('overdue')">
-                    <span class="sec-nav-label"><span class="sec-nav-dot"></span>퇴실 지연</span>
+                    <span>⏰ 퇴실 지연</span>
                     <span id="secOverdueCount" class="sec-nav-badge sec-nav-badge-warn display-none">0</span>
                 </button>
                 <button id="secMenuPass" class="sec-nav-item" onclick="switchSecTab('pass')">
-                    <span class="sec-nav-label"><span class="sec-nav-dot"></span>출입 이용권</span>
+                    <span>🎫 출입 이용권</span>
                     <span id="secPassCount" class="sec-nav-badge display-none">0</span>
                 </button>
             </nav>
             <div class="sec-erp-sidebar-action">
                 <!-- 방문객 수동 예약: 요청에 의해 비활성화 (되살리려면 아래 버튼 주석 해제)
-                <button onclick="toggleSecRegForm()" class="btn-list-action bg-blue btn-sec-action w-100">방문객 수동 예약</button>
+                <button onclick="toggleSecRegForm()" class="btn-list-action bg-blue btn-sec-action w-100">➕ 방문객 수동 예약</button>
                 -->
             </div>
         </aside>
 
         <section class="sec-erp-content">
-            <!-- 🖥️ 콘솔 상태 바: 어느 거점의 무슨 화면을, 누가, 언제 기준으로 보고 있는지.
-                 관제 화면에서 가장 먼저 확인해야 하는 정보라 최상단에 고정한다. -->
-            <div class="sec-console-bar">
-                <div class="sec-console-loc">
-                    <span class="sec-console-live" id="secConsoleLive"></span>
-                    <span class="sec-console-region">${empRegion}</span>
-                    <span class="sec-console-sep">／</span>
-                    <span class="sec-console-view" id="secConsoleView">승인 요청</span>
-                </div>
-                <!-- 운영자 표기는 두지 않는다 — 상단 유틸리티 바(nav)에 이미 계정·소속이 있다. -->
-                <div class="sec-console-meta">
-                    <span class="sec-console-sync" id="secConsoleSync">동기화 대기</span>
-                    <span class="sec-console-clock" id="secConsoleClock">--:--:--</span>
-                </div>
-            </div>
-
-            <!-- 본문 2단: 좌 = 작업 영역, 우 = 관제 요약 패널.
-                 우측 패널은 넓은 화면(≥1440px)에서만 나타난다. 그보다 좁으면 표가 눌리므로 숨긴다. -->
-            <div class="sec-console-body">
-            <div class="sec-console-main">
-
             <div class="sec-scan-bar">
-                <span class="sec-scan-icon"></span>
+                <span class="sec-scan-icon">📷</span>
                 <!-- inputmode="none": 화상 키패드를 띄우지 않는다.
                      이 칸은 항상 포커스를 유지해야 리더기 스캔을 받을 수 있는데(secKeepScanFocus),
                      태블릿에서는 재실중·승인 대기 같은 빈 영역만 눌러도 포커스가 여기로 와서
@@ -153,33 +74,21 @@ function showSecurityDashboard() {
             <!-- 요약 카드 = 해당 탭 바로가기. button 으로 두어 키보드 포커스·엔터도 동작한다. -->
             <div class="sec-stat-grid">
                 <button type="button" class="sec-stat-card stat-pending" onclick="switchSecTab('queue')" title="승인 요청 탭으로 이동">
-                    <span class="sec-stat-label">승인 대기</span>
+                    <span class="sec-stat-label">🚨 승인 대기</span>
                     <span class="sec-stat-value" id="secStatPending">-</span>
                 </button>
                 <button type="button" class="sec-stat-card stat-onsite" onclick="switchSecTab('logs')" title="출입 기록 탭으로 이동">
-                    <span class="sec-stat-label">현재 재실중</span>
+                    <span class="sec-stat-label">🏢 현재 재실중</span>
                     <span class="sec-stat-value" id="secStatOnsite">-</span>
                 </button>
                 <button type="button" class="sec-stat-card stat-overdue" onclick="switchSecTab('overdue')" title="퇴실 지연 탭으로 이동">
-                    <span class="sec-stat-label">퇴실 지연</span>
+                    <span class="sec-stat-label">⏰ 퇴실 지연</span>
                     <span class="sec-stat-value" id="secStatOverdue">-</span>
                 </button>
             </div>
 
-            <!-- 📈 금일 시간대별 입실 추이: 별도 API 없이 이미 받아 둔 출입 기록(secLogsAll)에서 집계한다.
-                 06~20시를 1시간 단위로 끊어 그리며, 자기 거점·오늘 자 입실 기록만 센다. -->
-            <div class="sec-trend-strip">
-                <svg class="sec-trend-svg" id="secTrendSvg" viewBox="0 0 300 40"
-                     preserveAspectRatio="none" aria-hidden="true"></svg>
-                <div class="sec-trend-readout">
-                    <span class="sec-trend-label">금일 입실</span>
-                    <span class="sec-trend-value" id="secTrendTotal">-</span>
-                    <span class="sec-trend-peak" id="secTrendPeak"></span>
-                </div>
-            </div>
-
             <div id="secRegFormZone" class="display-none form-container sec-reg-form">
-                <h3 class="fs-10 my-title-color mb-15">경비실 방문객 수동 예약</h3>
+                <h3 class="fs-10 my-title-color mb-15">📝 경비실 방문객 수동 예약</h3>
                 <div class="input-row-group">
                     <div class="input-group"><label>방문 일자 <span class="req-star">*</span></label><input type="date" id="secRegDate" value="${weekRange.todayKst}"></div>
                     <div class="input-group"><label>방문객 이름 <span class="req-star">*</span></label><input type="text" id="secRegName" placeholder="성함 입력" autocomplete="off"></div>
@@ -193,12 +102,12 @@ function showSecurityDashboard() {
                 <div class="input-group mb-15">
                     <label>방문 목적 <span class="req-star">*</span></label>
                     <select id="secRegPurpose">
-                        <option value="회의/미팅">회의/미팅</option>
-                        <option value="제품 납품">제품 납품</option>
-                        <option value="상차/하차">상차/하차</option>
-                        <option value="품질 검사">품질 검사</option>
-                        <option value="시설 점검">시설 점검</option>
-                        <option value="기타 업무">기타 업무</option>
+                        <option value="회의/미팅">🤝 회의/미팅</option>
+                        <option value="제품 납품">📦 제품 납품</option>
+                        <option value="상차/하차">🚚 상차/하차</option>
+                        <option value="품질 검사">🔍 품질 검사</option>
+                        <option value="시설 점검">🛠️ 시설 점검</option>
+                        <option value="기타 업무">📁 기타 업무</option>
                     </select>
                 </div>
                 <div class="sec-reg-actions">
@@ -208,10 +117,10 @@ function showSecurityDashboard() {
             </div>
 
             <div id="secPanelQueue" class="sec-tab-panel active">
-                <div class="sec-panel-head sec-live-header">
-                    <h3 class="sec-live-title">실시간 승인 대기열</h3>
+                <div class="sec-live-header">
+                    <h3 class="sec-live-title">🚨 실시간 승인 대기열</h3>
                     <span class="sec-live-indicator">
-                        <span class="spinner sec-spinner"></span> ${SEC_REFRESH_LABEL}
+                        <span class="spinner sec-spinner"></span> 자동 새로고침 중
                     </span>
                 </div>
                 <div class="table-responsive sec-table-container h-500">
@@ -233,8 +142,8 @@ function showSecurityDashboard() {
             </div>
 
             <div id="secPanelLogs" class="sec-tab-panel">
-                <div class="sec-panel-head sec-logs-header">
-                    <h3 class="sec-logs-title">전체 출입 기록</h3>
+                <div class="sec-logs-header">
+                    <h3 class="sec-logs-title">📊 전체 출입 기록</h3>
                     <div class="date-range-picker-box flex-center-gap">
                         <input type="date" id="secLogStartDate" value="${weekRange.todayKst}" onchange="loadSecurityAllLogs()" class="sec-date-input">
                         <span class="range-tilde">~</span>
@@ -244,7 +153,7 @@ function showSecurityDashboard() {
                 <!-- 🗺️ 기록 조회는 관리자(3)·전체기록 열람(5)과 동일하게 전 사업장 + 거점 선택.
                      단 '퇴실 처리' 버튼은 자기 소속 센터(${empRegion}) 건에만 노출된다. -->
                 <div class="region-filter-bar" id="secRegionFilterBar">
-                    <span class="filter-label">사업장</span>
+                    <span class="filter-label">🗺️ 사업장:</span>
                     <!-- 순서: '전 사업장' → 본인 소속 센터 → 나머지 (visitor-history.js 공용 헬퍼) -->
                     <div class="region-filter-btns">${regionFilterButtonsHtml(empRegion, 'setSecRegion')}</div>
                 </div>
@@ -252,13 +161,13 @@ function showSecurityDashboard() {
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
                             <tr>
-                                <th class="p-10 col-lo">순번</th>
+                                <th class="p-10">순번</th>
                                 <th class="p-10">방문일</th>
                                 <th class="p-10">이름</th>
-                                <th class="p-10 col-lo">연락처</th>
+                                <th class="p-10">연락처</th>
                                 <th class="p-10">방문 횟수</th>
                                 <th class="p-10">소속</th>
-                                <th class="p-10 col-lo">방문 목적</th>
+                                <th class="p-10">방문 목적</th>
                                 <th class="p-10">담당자</th>
                                 <th class="p-10 col-split-time">입실 시간</th>
                                 <th class="p-10 col-split-time">퇴실 시간</th>
@@ -275,8 +184,8 @@ function showSecurityDashboard() {
             </div>
 
             <div id="secPanelOverdue" class="sec-tab-panel">
-                <div class="sec-panel-head sec-logs-header">
-                    <h3 class="sec-logs-title">퇴실 지연자 <span class="sec-region-text">${empRegion}</span></h3>
+                <div class="sec-logs-header">
+                    <h3 class="sec-logs-title">⏰ 퇴실 지연자 <span class="sec-region-text">(${empRegion})</span></h3>
                     <div class="date-range-picker-box flex-center-gap">
                         <input type="date" id="secOverdueStartDate" value="${weekRange.todayKst}" onchange="loadSecurityOverdue()" class="sec-date-input">
                         <span class="range-tilde">~</span>
@@ -289,11 +198,11 @@ function showSecurityDashboard() {
                             <tr>
                                 <th class="p-10">방문일</th>
                                 <th class="p-10">이름 (소속)</th>
-                                <th class="p-10 col-lo">연락처</th>
-                                <th class="p-10 col-lo">차량 번호</th>
+                                <th class="p-10">연락처</th>
+                                <th class="p-10">차량 번호</th>
                                 <th class="p-10">담당자</th>
                                 <th class="p-10">입실 시간</th>
-                                <th class="p-10 col-lo">퇴실 예정</th>
+                                <th class="p-10">퇴실 예정</th>
                                 <th class="p-10">지연 시간</th>
                                 <th class="p-10">퇴실 처리</th>
                             </tr>
@@ -308,13 +217,12 @@ function showSecurityDashboard() {
             <!-- 🎫 정기 이용 방문객: 상시 출입증 발급·관리 + 오늘 출입 현황.
                  발급 권한은 자기 거점(${empRegion})으로 한정된다(서버가 세션 거점으로 강제). -->
             <div id="secPanelPass" class="sec-tab-panel">
-                <!-- 이 탭은 아래에 표가 바로 붙지 않고 구역이 여러 개라, 제목 바는 독립형(solo)으로 둔다. -->
-                <div class="sec-panel-head sec-panel-head-solo sec-logs-header">
-                    <h3 class="sec-logs-title">출입 이용권 <span class="sec-region-text">${empRegion}</span></h3>
-                    <button onclick="toggleSecPassForm()" class="btn-list-action bg-blue btn-sec-action">이용권 발급</button>
+                <div class="sec-logs-header">
+                    <h3 class="sec-logs-title">🎫 출입 이용권 <span class="sec-region-text">(${empRegion})</span></h3>
+                    <button onclick="toggleSecPassForm()" class="btn-list-action bg-blue btn-sec-action">➕ 이용권 발급</button>
                 </div>
                 <div id="secPassFormZone" class="display-none form-container sec-reg-form">
-                    <h3 class="fs-10 my-title-color mb-15">출입 이용권 발급 <span class="sec-region-text">${empRegion}</span></h3>
+                    <h3 class="fs-10 my-title-color mb-15">📝 출입 이용권 발급 <span class="sec-region-text">(${empRegion})</span></h3>
                     <div class="input-group mb-15">
                         <label>이용권 종류 <span class="req-star">*</span></label>
                         <select id="secPassType" onchange="onSecPassTypeChange()">
@@ -369,17 +277,14 @@ function showSecurityDashboard() {
 
                 <!-- 🙋 손님이 낸 발급 신청. 승인해야 이용권이 발급된다(그 전에는 스캔해도 출입 불가). -->
                 <div id="secPassReqZone" class="display-none">
-                    <div class="sec-panel-head sec-pass-head">
-                        <span class="sec-pass-head-title">발급 신청</span>
-                        <span id="secPassReqCount" class="sec-pass-summary"></span>
-                    </div>
+                    <h4 class="sec-pass-subtitle">🙋 발급 신청 <span id="secPassReqCount" class="sec-pass-summary"></span></h4>
                     <div class="table-responsive sec-table-container">
                         <table class="modern-table w-100 min-w-900">
                             <thead class="sec-table-head">
                                 <tr>
                                     <th class="p-10">신청자 (소속)</th>
-                                    <th class="p-10 col-lo">연락처 / 차량</th>
-                                    <th class="p-10 col-lo">이용 목적</th>
+                                    <th class="p-10">연락처 / 차량</th>
+                                    <th class="p-10">이용 목적</th>
                                     <th class="p-10">희망 종류</th>
                                     <th class="p-10">유효기간 확정</th>
                                     <th class="p-10">처리</th>
@@ -390,16 +295,13 @@ function showSecurityDashboard() {
                     </div>
                 </div>
 
-                <div class="sec-panel-head sec-pass-head">
-                    <span class="sec-pass-head-title">오늘 출입 현황</span>
-                    <span id="secPassTodaySummary" class="sec-pass-summary"></span>
-                </div>
+                <h4 class="sec-pass-subtitle">🚶 오늘 출입 현황 <span id="secPassTodaySummary" class="sec-pass-summary"></span></h4>
                 <div class="table-responsive sec-table-container">
                     <table class="modern-table w-100 min-w-700">
                         <thead class="sec-table-head">
                             <tr>
                                 <th class="p-10">방문자 (소속)</th>
-                                <th class="p-10 col-lo">차량 번호</th>
+                                <th class="p-10">차량 번호</th>
                                 <th class="p-10">입실</th>
                                 <th class="p-10">퇴실</th>
                                 <th class="p-10">상태</th>
@@ -411,21 +313,18 @@ function showSecurityDashboard() {
                     </table>
                 </div>
 
-                <div class="sec-panel-head sec-pass-head">
-                    <span class="sec-pass-head-title">발급된 이용권</span>
-                    <span id="secPassIssuedSummary" class="sec-pass-summary"></span>
-                </div>
+                <h4 class="sec-pass-subtitle">🎫 발급된 이용권 <span id="secPassIssuedSummary" class="sec-pass-summary"></span></h4>
                 <div class="table-responsive sec-table-container h-500">
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
                             <tr>
                                 <th class="p-10">종류</th>
                                 <th class="p-10">방문객 (소속)</th>
-                                <th class="p-10 col-lo">연락처 / 차량</th>
-                                <th class="p-10 col-lo">이용 목적</th>
+                                <th class="p-10">연락처 / 차량</th>
+                                <th class="p-10">이용 목적</th>
                                 <th class="p-10">유효기간</th>
-                                <th class="p-10 col-lo">요일</th>
-                                <th class="p-10 col-lo">승인</th>
+                                <th class="p-10">요일</th>
+                                <th class="p-10">승인</th>
                                 <th class="p-10">상태</th>
                                 <th class="p-10">관리</th>
                             </tr>
@@ -436,218 +335,22 @@ function showSecurityDashboard() {
                     </table>
                 </div>
             </div>
-            </div><!-- /.sec-console-main -->
-
-            <aside class="sec-console-side">
-                <!-- 거점별 현황: 사용자가 바꾸는 조회 필터와 무관하게, 항상 '오늘 · 전 사업장' 기준으로
-                     따로 조회한다. (기록 탭의 secLogsAll 을 재활용하면 날짜·거점 필터에 딸려 흔들린다) -->
-                <div class="sec-side-block">
-                    <div class="sec-side-head">
-                        <span class="sec-side-title">거점별 현황</span>
-                        <span class="sec-side-meta" id="secRegionMeta">오늘</span>
-                    </div>
-                    <div class="sec-side-list" id="secRegionList">
-                        <div class="sec-side-empty">불러오는 중</div>
-                    </div>
-                </div>
-
-                <!-- 승인 대기 큐: 대기열 표와 같은 데이터를 쓰되, '지금 처리할 것'만 압축해 보여준다. -->
-                <div class="sec-side-block">
-                    <div class="sec-side-head">
-                        <span class="sec-side-title">승인 대기 큐</span>
-                        <span class="sec-side-meta" id="secQueueSideMeta">0건</span>
-                    </div>
-                    <div class="sec-side-list" id="secQueueSideList">
-                        <div class="sec-side-empty">불러오는 중</div>
-                    </div>
-                </div>
-            </aside>
-
-            </div><!-- /.sec-console-body -->
-
-            <!-- 🖥️ 콘솔 하단 상태 바: 이 화면이 '살아 있는지' 판단할 근거를 항상 노출한다.
-                 (자동 갱신 주기 / 마지막 동기화 시각 / 조회 거점 / 접속 계정) -->
-            <div class="sec-console-foot">
-                <span>${SEC_REFRESH_LABEL}</span>
-                <span id="secFootSync">마지막 동기화 --:--:--</span>
-                <span>조회 거점 ${empRegion}</span>
-                <span class="sec-console-foot-end">${emp.id || emp.name || '-'}</span>
-            </div>
         </section>
     </div>
     `;
-
+    
     fetchSecurityQueue();
     loadSecurityAllLogs();
     loadSecurityOverdue();
     loadSecPassData();      // 🎫 정기권 목록 + 오늘 출입 현황 (사이드바 배지 포함)
-    loadSecRegionStatus();  // 🗺️ 우측 패널 거점별 현황 (오늘 · 전 사업장)
     initSecScan();
-    secStartConsoleClock();   // 🖥️ 상단 시계 + '동기화 N초 전' 카운터 기동
 
     if (securityRefreshTimer) clearInterval(securityRefreshTimer);
     securityRefreshTimer = setInterval(() => {
         fetchSecurityQueue(true);
         loadSecurityAllLogs(true);
         loadSecurityOverdue(true);
-        loadSecRegionStatus();
-    }, SEC_REFRESH_MS);
-}
-
-/* ============================================================================
-   🖥️ 콘솔 계기(시계 · 동기화 표시 · 시간대별 추이)
-   ----------------------------------------------------------------------------
-   모두 이미 화면에 있는 데이터로만 그린다. 새 API 를 부르지 않는다.
-   ============================================================================ */
-
-let secClockTimer = null;
-let secLastSyncAt = null;
-
-// 두 자리 0 채움 (시:분:초 표기용)
-function secPad2(n) { return String(n).padStart(2, '0'); }
-function secHms(d) { return `${secPad2(d.getHours())}:${secPad2(d.getMinutes())}:${secPad2(d.getSeconds())}`; }
-
-// 1초마다 시계와 '동기화 N초 전'을 함께 갱신한다.
-// 화면이 경비실에서 벗어나면(요소 소멸) 스스로 타이머를 정리한다.
-function secStartConsoleClock() {
-    if (secClockTimer) clearInterval(secClockTimer);
-    const tick = () => {
-        const clockEl = document.getElementById('secConsoleClock');
-        if (!clockEl) { clearInterval(secClockTimer); secClockTimer = null; return; }
-        clockEl.textContent = secHms(new Date());
-        secRenderSyncAge();
-    };
-    tick();
-    secClockTimer = setInterval(tick, 1000);
-}
-
-// 데이터 로드가 성공한 시점을 기록한다. (각 load* 함수가 호출)
-function secMarkSync() {
-    secLastSyncAt = new Date();
-    const footEl = document.getElementById('secFootSync');
-    if (footEl) footEl.textContent = `마지막 동기화 ${secHms(secLastSyncAt)}`;
-    secRenderSyncAge();
-}
-
-// 마지막 동기화 후 경과 시간. 30초를 넘으면 '지연'으로 표시해 멈춘 화면을 구분한다.
-function secRenderSyncAge() {
-    const el = document.getElementById('secConsoleSync');
-    const live = document.getElementById('secConsoleLive');
-    if (!el) return;
-    if (!secLastSyncAt) { el.textContent = '동기화 대기'; return; }
-    const age = Math.max(0, Math.round((Date.now() - secLastSyncAt.getTime()) / 1000));
-    el.textContent = `실시간 동기화 · ${age}초 전`;
-    // '지연' 판정도 주기에서 파생시킨다. 갱신을 5회 연속 놓치면 멈춘 화면으로 본다.
-    //  (주기를 바꿔도 기준이 같이 따라오도록 — 고정 30초로 두면 3초 주기에선 너무 느슨하다)
-    const stale = age > (SEC_REFRESH_MS / 1000) * 5;
-    el.classList.toggle('is-stale', stale);
-    if (live) live.classList.toggle('is-stale', stale);
-}
-
-// 📈 금일 시간대별 입실 추이 스파크라인.
-//    secLogsAll(전체 기록 탭이 받아 둔 배열)에서 '오늘 + 내 거점 + 입실시각 있음'만 집계한다.
-function secRenderTrend() {
-    const svg = document.getElementById('secTrendSvg');
-    const totalEl = document.getElementById('secTrendTotal');
-    const peakEl = document.getElementById('secTrendPeak');
-    if (!svg || !Array.isArray(secLogsAll)) return;
-
-    const H_FROM = 6, H_TO = 20;                      // 06시~20시 (경비실 운영 시간대)
-    const buckets = new Array(H_TO - H_FROM + 1).fill(0);
-    const today = getKstThisWeekRange().todayKst;
-    const myRegion = secMyRegion();
-
-    secLogsAll.forEach(v => {
-        if (v.visit_date !== today || v.region !== myRegion) return;
-        const hour = parseInt(String(secTimeOnly(v.checkin_time)).slice(0, 2), 10);
-        if (isNaN(hour) || hour < H_FROM || hour > H_TO) return;
-        buckets[hour - H_FROM]++;
-    });
-
-    const total = buckets.reduce((a, b) => a + b, 0);
-    const max = Math.max(1, ...buckets);              // 0 나눗셈 방지
-    const W = 300, H = 40, PAD = 3;
-    const step = W / (buckets.length - 1);
-    const pts = buckets.map((v, i) => `${(i * step).toFixed(1)},${(H - PAD - (v / max) * (H - PAD * 2)).toFixed(1)}`);
-
-    svg.innerHTML =
-        `<polygon points="0,${H} ${pts.join(' ')} ${W},${H}" fill="currentColor" opacity="0.13"></polygon>` +
-        `<polyline points="${pts.join(' ')}" fill="none" stroke="currentColor" stroke-width="1.4"></polyline>`;
-
-    if (totalEl) totalEl.textContent = `${total}명`;
-    if (peakEl) {
-        const peakIdx = buckets.indexOf(Math.max(...buckets));
-        peakEl.textContent = total ? `피크 ${H_FROM + peakIdx}시 (${buckets[peakIdx]}명)` : '기록 없음';
-    }
-}
-
-// 🗺️ 우측 패널 - 거점별 현황.
-//    기록 탭의 날짜·거점 필터에 영향받지 않도록 '오늘 · 전 사업장'을 따로 조회한다.
-//    거점 목록은 REGION_LIST(js/common.js)를 기준으로 삼아, 오늘 기록이 없는 거점도 빠뜨리지 않는다.
-async function loadSecRegionStatus() {
-    const listEl = document.getElementById('secRegionList');
-    if (!listEl) return;
-
-    const today = getKstThisWeekRange().todayKst;
-    const myRegion = secMyRegion();
-
-    try {
-        const res = await fetch(`/api/admin/logs?start_date=${today}&end_date=${today}`);
-        if (!res.ok) { listEl.innerHTML = '<div class="sec-side-empty">조회 권한 없음</div>'; return; }
-        const logs = await res.json();
-        if (!Array.isArray(logs)) { listEl.innerHTML = '<div class="sec-side-empty">조회 불가</div>'; return; }
-
-        const regions = (typeof REGION_LIST !== 'undefined' && REGION_LIST.length)
-            ? REGION_LIST
-            : [...new Set(logs.map(v => v.region).filter(Boolean))];
-
-        let live = 0;
-        listEl.innerHTML = regions.map(rg => {
-            const mine = logs.filter(v => v.region === rg);
-            const entered = mine.filter(v => v.checkin_time).length;
-            const onsite = mine.filter(v => v.status === '입실완료').length;
-            // 상태색: 오늘 아무도 안 온 거점만 주의 표시. 정상 운영 중인 곳은 무채색으로 둔다.
-            const quiet = entered === 0;
-            if (!quiet) live++;
-            return `
-                <div class="sec-side-row${rg === myRegion ? ' is-mine' : ''}">
-                    <span class="sec-side-row-name">
-                        <span class="sec-side-dot${quiet ? ' is-warn' : ' is-ok'}"></span>${rg}
-                    </span>
-                    <span class="sec-side-row-val">${quiet ? '미출입' : `입실 ${entered} · 재실 ${onsite}`}</span>
-                </div>`;
-        }).join('');
-
-        const meta = document.getElementById('secRegionMeta');
-        if (meta) meta.textContent = `${live}/${regions.length} 운영`;
-    } catch (e) {
-        listEl.innerHTML = '<div class="sec-side-empty">연동 오류</div>';
-    }
-}
-
-// 🚨 우측 패널 - 승인 대기 큐. 대기열 표와 같은 목록을 압축해 표시한다.
-//    (fetchSecurityQueue 가 데이터를 받은 뒤 호출한다 — 별도 조회 없음)
-function secRenderQueueSide(list) {
-    const listEl = document.getElementById('secQueueSideList');
-    const metaEl = document.getElementById('secQueueSideMeta');
-    if (!listEl) return;
-
-    if (metaEl) metaEl.textContent = `${list.length}건`;
-    if (!list.length) {
-        listEl.innerHTML = '<div class="sec-side-empty">대기 없음</div>';
-        return;
-    }
-    // 오래 기다린 건이 위로 오도록 접수 순(id 오름차순)
-    listEl.innerHTML = [...list].sort((a, b) => a.id - b.id).slice(0, 8).map(v => {
-        const kind = v.status === '입실대기' ? '입실' : '퇴실';
-        return `
-            <div class="sec-side-row">
-                <span class="sec-side-row-name">
-                    <span class="sec-side-dot is-warn"></span>${v.name || '-'}
-                </span>
-                <span class="sec-side-row-val">${kind} 대기</span>
-            </div>`;
-    }).join('') + (list.length > 8 ? `<div class="sec-side-more">외 ${list.length - 8}건</div>` : '');
+    }, 10000);
 }
 
 // 📷 대시보드 내장 스캔 입력: 하드웨어 리더기 입력을 받아 /api/scan 처리 (별도 페이지 불필요)
@@ -726,11 +429,6 @@ function switchSecTab(tab) {
         if (panel) panel.classList.toggle('active', on);
         if (menu) menu.classList.toggle('active', on);
     });
-    // 🖥️ 콘솔 상단 바에 현재 보고 있는 화면 이름을 반영한다.
-    const viewEl = document.getElementById('secConsoleView');
-    if (viewEl) {
-        viewEl.textContent = { queue: '승인 요청', logs: '출입 기록', overdue: '퇴실 지연', pass: '출입 이용권' }[tab];
-    }
     // 정기권 탭은 진입할 때 조회한다(자동 새로고침 대상이 아님 — 변경이 잦지 않다).
     if (tab === 'pass') loadSecPassData();
 }
@@ -763,9 +461,7 @@ async function fetchSecurityQueue(isAuto = false) {
         }
         const pendingStatEl = document.getElementById('secStatPending');
         if (pendingStatEl) pendingStatEl.textContent = totalPending;
-
-        secRenderQueueSide(data.list);   // 🚨 우측 패널 대기 큐도 같은 데이터로 갱신
-
+        
         if (data.list.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="no-data-box">현재 [${empRegion}] 승인 대기 중인 방문객 내역이 없습니다.</td></tr>`;
             return;
@@ -789,11 +485,11 @@ async function fetchSecurityQueue(isAuto = false) {
                 html += `
                     <tr class="sec-group-row">
                         <td colspan="4" class="sec-group-title">
-                            그룹 방문객 (총 ${members.length}명 대기중) - 그룹장: ${members[0].name}
+                            👥 그룹 방문객 (총 ${members.length}명 대기중) - 그룹장: ${members[0].name}
                         </td>
                         <td class="p-10">
                             <button onclick="approveSecurityGroup('${gId}', '${actionTarget}')" class="sec-btn-approve ${groupBtnClass}">
-                                일괄 ${actionTarget.replace('완료', '')} 승인
+                                ⚡ 일괄 ${actionTarget.replace('완료', '')} 승인
                             </button>
                         </td>
                     </tr>
@@ -898,8 +594,6 @@ async function loadSecurityAllLogs(isAuto = false) {
         // 자동 새로고침(isAuto)일 때는 보고 있던 페이지를 유지한다.
         if (!isAuto) secLogPage = 1;
         renderSecurityLogTable();
-        secMarkSync();      // 🖥️ 콘솔 상태 바: 이 시각을 '마지막 동기화'로 표시
-        secRenderTrend();   // 📈 방금 받은 기록으로 시간대별 추이 다시 그림
     } catch (e) {
         if (!isAuto) {
             tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
@@ -943,13 +637,13 @@ function renderSecurityLogTable() {
 
                 html += `
                     <tr class="border-bottom-eee">
-                        <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
+                        <td class="p-10">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
                         <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? `<span class="sec-pass-tag">${v.pass_type || '정기'}</span>` : ''}</td>
-                        <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
+                        <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
-                        <td class="p-10 col-lo"><span class="sec-purpose-badge">${v.purpose}</span></td>
+                        <td class="p-10"><span class="sec-purpose-badge">${v.purpose}</span></td>
                         <td class="p-10">${managerDisplay}</td>
                         <td class="p-10 text-green fw-600 col-split-time">${secTimeOnly(v.checkin_time)}</td>
                         <td class="p-10 text-red fw-600 col-split-time">${secTimeOnly(v.checkout_time)}</td>
@@ -1027,11 +721,11 @@ async function loadSecurityOverdue(isAuto = false) {
                 <tr class="sec-overdue-row">
                     <td class="p-10">${v.visit_date}</td>
                     <td class="p-10"><b>${v.name}</b><br><span class="text-gray-light">${v.company || '-'}</span></td>
-                    <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
-                    <td class="p-10 col-lo">${v.vehicle_no || '-'}</td>
+                    <td class="p-10">${formatPhone(v.contact)}</td>
+                    <td class="p-10">${v.vehicle_no || '-'}</td>
                     <td class="p-10">${v.manager_text || '-'}</td>
                     <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
-                    <td class="p-10 col-lo fw-600">${secTimeOnly(v.expected_checkout_dt || v.expected_checkout)}</td>
+                    <td class="p-10 fw-600">${secTimeOnly(v.expected_checkout_dt || v.expected_checkout)}</td>
                     <td class="p-10"><span class="sec-overdue-badge">${fmtDelay(v.overdue_minutes)}</span></td>
                     <td class="p-10">
                         <button onclick="approveSecurityAction(${v.id}, '퇴실완료')" class="sec-btn-approve-item bg-orange">퇴실 처리</button>
@@ -1256,17 +950,17 @@ function renderSecPassList(today) {
             : '';
         const typeChip = `<span class="sec-pass-chip ${p.pass_type === '수시' ? 'type-occasional' : 'type-regular'}">${p.pass_type || '정기'}</span>`;
         const dormantMark = p.dormant
-            ? `<br><span class="fs-8 sec-pass-dormant">${p.idle_days != null ? p.idle_days + '일 전' : '미사용'}</span>`
+            ? `<br><span class="fs-8 sec-pass-dormant">💤 ${p.idle_days != null ? p.idle_days + '일 전' : '미사용'}</span>`
             : '';
         return `
             <tr class="sec-item-row">
                 <td class="p-10">${typeChip}${dormantMark}</td>
                 <td class="p-10"><b>${p.name}</b><br><span class="text-gray-light">${p.company}</span></td>
-                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
-                <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
+                <td class="p-10">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">🚗 ${p.vehicle_no || '없음'}</span></td>
+                <td class="p-10"><span class="sec-purpose-badge">${p.purpose}</span></td>
                 <td class="p-10">${p.valid_from}<br>~ ${p.valid_to}${p.period ? `<br><span class="fs-8 text-gray-light">${p.period}</span>` : ''}</td>
-                <td class="p-10 col-lo">${secPassWeekdayText(p.weekdays)}</td>
-                <td class="p-10 col-lo">${p.auto_approve ? '자동' : '승인'}</td>
+                <td class="p-10">${secPassWeekdayText(p.weekdays)}</td>
+                <td class="p-10">${p.auto_approve ? '자동' : '승인'}</td>
                 <td class="p-10"><span class="sec-pass-badge ${statusClass}">${p.status}</span></td>
                 <td class="p-10 sec-pass-actions">
                     <button onclick="showSecPassQr(${p.id})" class="sec-btn-approve-item bg-blue">QR</button>
@@ -1289,12 +983,12 @@ function renderSecPassRequests(today) {
     if (!reqs.length) { tbody.innerHTML = ''; return; }
 
     tbody.innerHTML = reqs.map(p => {
-        const memo = p.memo ? `<br><span class="fs-8 text-gray-light">${p.memo}</span>` : '';
+        const memo = p.memo ? `<br><span class="fs-8 text-gray-light">💬 ${p.memo}</span>` : '';
         return `
             <tr class="sec-item-row sec-pass-req-row">
                 <td class="p-10"><b>${p.name}</b><br><span class="text-gray-light">${p.company}</span>${memo}</td>
-                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
-                <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
+                <td class="p-10">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">🚗 ${p.vehicle_no || '없음'}</span></td>
+                <td class="p-10"><span class="sec-purpose-badge">${p.purpose}</span></td>
                 <td class="p-10">
                     <select id="secReqType_${p.id}" class="sec-req-input">
                         <option value="정기" ${p.pass_type !== '수시' ? 'selected' : ''}>정기</option>
@@ -1392,7 +1086,7 @@ async function loadSecPassToday() {
                 <tr class="sec-item-row">
                     <td class="p-10"><span class="sec-pass-chip ${v.pass_type === '수시' ? 'type-occasional' : 'type-regular'}">${v.pass_type || '정기'}</span>
                         <b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
-                    <td class="p-10 col-lo">${v.vehicle_no || '-'}</td>
+                    <td class="p-10">${v.vehicle_no || '-'}</td>
                     <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
                     <td class="p-10 text-orange fw-600">${secTimeOnly(v.checkout_time)}</td>
                     <td class="p-10">${v.status}</td>
@@ -1484,7 +1178,7 @@ function showSecPassQr(passId) {
                 <span>차량 번호</span><b>${p.vehicle_no || '없음'}</b>
             </div>
             <div class="sec-qr-actions">
-                <button onclick="downloadSecPassQr(${p.id})" class="btn-list-action bg-blue btn-sec-action">QR 이미지 저장</button>
+                <button onclick="downloadSecPassQr(${p.id})" class="btn-list-action bg-blue btn-sec-action">📥 QR 이미지 저장</button>
                 <button onclick="closeSecPassQr()" class="btn-cancel-outline btn-sec-action">닫기</button>
             </div>
         </div>`;

@@ -20,7 +20,7 @@ function renderEmpNavbar() {
     
     utilityNav.innerHTML = `
         <div class="nav-profile-info">
-            <span class="user-text"><b>${emp.name} ${emp.rank || ''}</b> <span class="dept-tag">${emp.dept}</span></span>
+            <span class="user-text"><b>${emp.name}<span class="nav-rank"> ${emp.rank || ''}</span></b> <span class="dept-tag">${emp.dept}</span></span>
         </div>
         <div class="nav-actions nav-actions-flex-wrapper">
             <button onclick="openRegionQrModal()" class="btn-nav-link btn-region-qr">거점 QR 안내</button>

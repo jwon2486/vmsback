@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>회사 방문객 관리 시스템</title>
+    <link rel="stylesheet" href="../css/guest.css">
+</head>
+<body>
+    <div class="container">
+        <nav id="utility-nav" class="display-none"></nav>
+
+        <div id="visitor-view" class="view-section">
+            <header class="app-header">
+                <div class="brand-logo">
+                    <img src="../logo/SnSYS_logo.png" alt="에스엔시스 로고" class="brand-logo-img">
+                </div>
+                <h1 class="brand-title-color">S&SYS VMS</h1>
+                <p class="brand-sub brand-title-color">에스엔시스 방문객 출입관리 시스템</p>
+            </header>
+
+            <div id="app-card" class="card">
+                <div class="shimmer-loader">
+                    <div class="spinner"></div>
+                    <p>시스템 레이아웃을 구성하고 있습니다...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="admin-view" class="view-section hidden">
+            <div class="admin-header">
+                <div class="admin-header-title">
+                    <img src="../logo/SnSYS_logo.png" alt="S&SYS" class="admin-logo-img">
+                    <h2>방문객 출입 관리 대시보드</h2>
+                </div>
+                <button class="btn-excel" onclick="downloadExcel()">📊 엑셀 다운로드</button>
+            </div>
+            
+            <div class="filter-bar">
+                <div class="filter-inner">
+                    <label>📅 기록 조회 필터: </label>
+                    <div class="date-range-picker-box flex-center-gap">
+                        <input type="date" id="adminStartDate" onchange="loadAdminLogs()">
+                        <span class="range-tilde">~</span>
+                        <input type="date" id="adminEndDate" onchange="loadAdminLogs()">
+                    </div>
+                </div>
+                <a href="/" class="btn-home">🏠 방문자 등록화면 이동</a>
+            </div>
+
+            <div class="table-responsive">
+                <table class="modern-table">
+                    <thead>
+                        <tr>
+                            <th>순번</th>
+                            <th>방문일</th>
+                            <th>방문자 이름</th>
+                            <th>방문자 소속</th>
+                            <th>방문 목적</th>
+                            <th>상태</th>
+                            <th>입실 시간</th>
+                            <th>퇴실 시간</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminLogBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="allVisitorLogModal" class="modal-overlay-flex display-none">
+        <div class="visitor-modal-window records-window">
+            <div class="records-topbar">
+                <span class="records-topbar-title">📊 사내 전체 출입 기록</span>
+                <button onclick="closeVisitorLogModal()" class="btn-modal-close">✖ 닫기</button>
+            </div>
+            <!-- 관리자 tab-panel(/records)을 그대로 iframe으로 재사용 -->
+            <iframe id="recordsFrame" class="records-frame" title="전체 출입 기록"></iframe>
+        </div>
+    </div>
+
+    <!-- 📍 거점별 링크·QR 안내 (직원용) -->
+    <div id="regionQrModal" class="modal-overlay-flex display-none">
+        <div class="visitor-modal-window region-qr-window">
+            <div class="records-topbar">
+                <span class="records-topbar-title">📍 거점별 방문객 링크·QR 안내</span>
+                <button onclick="closeRegionQrModal()" class="btn-modal-close">✖ 닫기</button>
+            </div>
+            <div class="region-qr-body">
+                <div id="regionQrGrid" class="region-qr-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/visitor-history.js"></script>
+    <script src="../js/scan-util.js"></script>
+    <script src="../js/common.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/visitor.js"></script>
+    <script src="../js/emp.js"></script>
+    <script src="../js/security.js"></script>
+</body>
+</html>

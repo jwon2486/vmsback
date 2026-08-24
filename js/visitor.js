@@ -966,9 +966,6 @@ function showPassRequestForm() {
 
     appCard.innerHTML = `
         <h2 class="guest-title-bold-style">🎫 출입 이용권 신청</h2>
-        <p class="guest-pass-guide">
-            <b>QR 한 장</b>으로 출입 · 매번 등록 불필요 — <b>경비실 승인</b> 후 사용
-        </p>
 
         <div class="pass-req-types">
             <button type="button" id="passReqTypeRegular" class="pass-req-type active" onclick="selectPassReqType('정기')">
@@ -977,7 +974,7 @@ function showPassRequestForm() {
             </button>
             <button type="button" id="passReqTypeOccasional" class="pass-req-type" onclick="selectPassReqType('수시')">
                 <b>수시 출입권</b>
-                <span>매일은 아니지만 자주 와요</span>
+                <span>종종 방문해요</span>
             </button>
         </div>
 
@@ -1014,7 +1011,7 @@ function showPassRequestForm() {
                 </div>
                 <div class="pass-req-period">
                     <b id="passReqRangeText">${passReqTodayStr()} ~ ${window.passPeriodEnd(passReqTodayStr(), passReqPeriod)}</b>
-                    <span>선택하신 시작일부터 적용됩니다 · 기간이 끝나면 다시 신청해 주세요</span>
+                    <span>사용 기한 만료 시 재신청 필요.</span>
                 </div>
             </div>
             <div class="input-group">
@@ -1026,7 +1023,7 @@ function showPassRequestForm() {
                 </div>
             </div>
             <div class="input-group">
-                <label>신청 사유 / 남길 말</label>
+                <label>신청 사유</label>
                 <input type="text" id="passReqMemo" placeholder="예: 매주 화·목 자재 납품 예정" autocomplete="off">
             </div>
         </div>
