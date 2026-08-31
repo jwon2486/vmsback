@@ -170,7 +170,7 @@ async function loadAdminLogs() {
     
     const tbody = document.getElementById('adminLogBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
         const regionParam = adminRegionFilter ? `&region=${encodeURIComponent(adminRegionFilter)}` : '';
@@ -210,11 +210,50 @@ async function loadAdminLogs() {
         adminLogPage = 1;          // 조회 조건이 바뀌면 항상 1페이지부터
         renderAdminLogTable();
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="14" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
     }
 }
 
 // 📄 현재 페이지 몫만 표에 렌더 + 페이지 버튼 갱신
+/* ↩️ 입·퇴실 승인 취소
+     날짜를 착각해 잘못 누른 승인을 되돌린다. 서버가 상태를 '입실대기'로 돌리고
+     입·퇴실 시각을 지우므로, 경비실 승인 대기열에 다시 올라간다.
+     되돌릴 승인이 있는 상태에만 버튼을 노출한다(서버도 같은 조건으로 한 번 더 막는다). */
+const ADMIN_RESET_STATUSES = ['입실완료', '퇴실대기', '퇴실완료'];   // 전체 취소 대상
+const ADMIN_RESET_OUT_STATUSES = ['퇴실대기', '퇴실완료'];            // 퇴실만 취소 대상
+
+/* mode
+     'all'      : 입실·퇴실을 모두 잘못 눌렀을 때 → 입실대기, 두 시각 삭제
+     'checkout' : 입실은 정상이고 퇴실만 잘못 눌렀을 때 → 입실완료, 퇴실 시각만 삭제 */
+async function resetApproval(logId, mode) {
+    // 이름은 onclick 에 넣지 않고 여기서 찾는다 (따옴표·특수문자가 속성을 깨뜨리지 않게)
+    const target = (adminLogsAll || []).find(x => x.id === logId);
+    const name = target ? target.name : '';
+    const lines = (mode === 'checkout')
+        ? [`↩️ ${name} 님의 퇴실 처리만 취소합니다.`,
+           '',
+           '· 상태가 「재실중」으로 돌아갑니다. 입실 기록은 그대로 둡니다.',
+           '· 퇴실 시간만 삭제됩니다.']
+        : [`↩️ ${name} 님의 입·퇴실 승인을 모두 취소합니다.`,
+           '',
+           '· 상태가 「입실 대기」로 돌아가 경비실이 다시 승인할 수 있습니다.',
+           '· 입실 시간과 퇴실 시간이 모두 삭제됩니다.'];
+    if (!confirm(lines.concat(['', '진행할까요?']).join('\n'))) return;
+
+    try {
+        const res = await fetch('/api/admin/reset-approval', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: logId, mode: mode || 'all' })
+        });
+        const d = await res.json();
+        if (!d.success) { alert(d.message || '승인 취소에 실패했습니다.'); return; }
+        alert(d.message);
+        loadAdminLogs();      // 목록 새로고침
+    } catch (e) {
+        alert('승인 취소 중 통신 오류가 발생했습니다.');
+    }
+}
+
 function renderAdminLogTable() {
     const tbody = document.getElementById('adminLogBody');
     if (!tbody) return;
@@ -228,7 +267,7 @@ function renderAdminLogTable() {
     {
         let html = '';
         if (adminLogsAll.length === 0) {
-            html = '<tr><td colspan="14" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
+            html = '<tr><td colspan="15" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
@@ -243,6 +282,15 @@ function renderAdminLogTable() {
                 // 🎫 출입권으로 생성된 방문 건은 이름 옆에 표시 (일반 방문객과 구분)
                 const passTag = v.pass_id ? '<span class="pass-tag">출입권</span>' : '';
                 const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>${passTag}`;
+                // ↩️ 날짜를 착각해 잘못 누른 입·퇴실 승인을 되돌린다. 이미 끝난 건(만료)·아직 승인 전은 대상이 아니다.
+                let resetBtn = '<span class="no-manager-dash">-</span>';
+                if (ADMIN_RESET_STATUSES.includes(v.status)) {
+                    // 퇴실 단계면 '퇴실만' 되돌릴 선택지를 함께 준다 (입실은 정상인 경우가 많다)
+                    const outBtn = ADMIN_RESET_OUT_STATUSES.includes(v.status)
+                        ? `<button class="btn btn-secondary btn-action-sm" onclick="resetApproval(${v.id}, 'checkout')">퇴실만 취소</button>`
+                        : '';
+                    resetBtn = `${outBtn}<button class="btn btn-secondary btn-action-sm" onclick="resetApproval(${v.id}, 'all')">전체 취소</button>`;
+                }
 
                 html += `
                     <tr>
@@ -265,6 +313,7 @@ function renderAdminLogTable() {
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
                         </td>
                         <td data-label="상태"><b>${statusLabel(v.status)}</b></td>
+                        <td data-label="관리">${resetBtn}</td>
                         <!-- 📱 모바일 카드 전용 헤더(이름·일행·상태·연락처·횟수를 한 블록으로).
                              데스크톱·태블릿에선 숨김. 맨 끝에 두어 표의 고정 컬럼폭(nth-child)을 어긋나지 않게 하고,
                              카드에선 order:-1 로 최상단에 올린다. -->

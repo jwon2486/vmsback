@@ -2719,6 +2719,76 @@ def admin_db_download():
                      download_name=f"VMS_DB_{now.strftime('%Y%m%d_%H%M')}.sqlite")
 
 # ====================================================================
+# ↩️ [최고 관리자 전용] 입·퇴실 승인 취소 (되돌리기)
+#   - 왜: 날짜를 착각해 엉뚱한 건에 입실 승인·퇴실 처리를 눌러버리는 일이 생긴다.
+#         경비실은 되돌릴 수단이 없어(승인은 단방향) 기록이 잘못된 채로 남는다.
+#   - 무엇을: 상태를 '입실대기'로 되돌리고 입·퇴실 시각을 비운다.
+#         → 경비실 승인 대기열에 다시 올라가 정상적으로 다시 승인할 수 있다.
+#         → 실제로 일어나지 않은 출입이므로 시각을 남기지 않는다.
+#   - 권한: 최고 관리자(3)만. 경비실이 자기 실수를 스스로 지우게 두지 않는다.
+# ====================================================================
+#   - 두 가지 경우가 있어 mode 로 나눈다.
+#       · all      : 입실·퇴실을 모두 잘못 눌렀다 → '입실대기'로, 두 시각 모두 삭제
+#       · checkout : 입실은 정상이고 퇴실만 잘못 눌렀다 → '입실완료'로, 퇴실 시각만 삭제
+RESET_APPROVAL_FROM = ('입실완료', '퇴실대기', '퇴실완료')   # mode=all 에서 되돌릴 수 있는 상태
+RESET_CHECKOUT_FROM = ('퇴실대기', '퇴실완료')               # mode=checkout 에서 되돌릴 수 있는 상태
+
+@app.route('/api/admin/reset-approval', methods=['POST'])
+def admin_reset_approval():
+    if not is_admin_authenticated():
+        return jsonify({"success": False, "message": "최고 관리자만 승인을 취소할 수 있습니다."}), 403
+
+    data = request.json or {}
+    log_id = data.get('id')
+    mode = (data.get('mode') or 'all').strip()
+    if mode not in ('all', 'checkout'):
+        return jsonify({"success": False, "message": "취소 방식이 올바르지 않습니다."}), 400
+    if not str(log_id or '').strip().isdigit():
+        return jsonify({"success": False, "message": "대상이 없습니다."}), 400
+
+    conn = get_db_connection()
+    row = conn.execute("""
+        SELECT id, name, visit_date, status, checkin_time, checkout_time
+          FROM visitor_log WHERE id = ?
+    """, (log_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "message": "방문 정보를 찾을 수 없습니다."}), 404
+
+    if mode == 'checkout':
+        if row['status'] not in RESET_CHECKOUT_FROM:
+            conn.close()
+            return jsonify({"success": False,
+                            "message": f"'{row['status']}' 상태는 되돌릴 퇴실 처리가 없습니다."}), 400
+        # 입실 시각이 없으면 '입실완료'로 되돌릴 근거가 없다 → 전체 취소를 쓰게 안내한다.
+        if not (row['checkin_time'] or '').strip():
+            conn.close()
+            return jsonify({"success": False,
+                            "message": "입실 시각이 없어 퇴실만 되돌릴 수 없습니다. 전체 취소를 사용해 주세요."}), 400
+        conn.execute("UPDATE visitor_log SET status = '입실완료', checkout_time = '' WHERE id = ?",
+                     (log_id,))
+        after, note, msg = '입실완료', '퇴실 시각만 삭제', '퇴실 처리를 취소했습니다. 재실 중 상태로 돌아갑니다.'
+    else:
+        if row['status'] not in RESET_APPROVAL_FROM:
+            conn.close()
+            return jsonify({"success": False,
+                            "message": f"'{row['status']}' 상태는 되돌릴 승인이 없습니다."}), 400
+        conn.execute("""
+            UPDATE visitor_log SET status = '입실대기', checkin_time = '', checkout_time = ''
+             WHERE id = ?
+        """, (log_id,))
+        after, note, msg = '입실대기', '입·퇴실 시각 삭제', '승인을 취소했습니다. 다시 승인 대기 상태입니다.'
+
+    conn.commit()
+    conn.close()
+    print(f"↩️ [승인취소:{mode}] log={row['id']} {row['name']}({row['visit_date']}) "
+          f"{row['status']} → {after}, {note} (by {session['user'].get('id', '')})")
+    return jsonify({"success": True,
+                    "message": f"{row['name']} 님의 {msg}",
+                    "before": row['status'], "after": after})
+
+
+# ====================================================================
 # 👥 [최고 관리자 전용] 임직원 마스터 데이터 CRUD
 # ====================================================================
 @app.route('/admin/employees', methods=['GET'])
