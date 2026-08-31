@@ -43,6 +43,14 @@
                             <button class="btn btn-secondary btn-full" onclick="uploadEmployeeFile()">업로드 실행</button>
                         </div>
                     </div>
+
+                    <!-- 💾 DB 전체 백업 — 개인정보가 통째로 나가는 동작이라
+                         일상 기능(엑셀 저장)과 섞이지 않게 사이드바 하단에 따로 둔다. -->
+                    <div class="erp-sidebar-actions db-backup-box">
+                        <label class="db-backup-label">💾 DB 전체 백업</label>
+                        <button class="btn btn-danger-outline btn-full" onclick="downloadDbFile()">DB 파일 내려받기</button>
+                        <p class="db-backup-warn">전 직원·방문객 개인정보가 모두 포함됩니다. 사내 보관 규정에 따라 관리하세요.</p>
+                    </div>
                 </aside>
 
                 <section class="erp-content">
@@ -126,15 +134,13 @@
                          출입 기록(visitor_log)에 자동으로 쌓인다. → 기존 기록·엑셀·통계에 그대로 포함. -->
                     <div id="tabContentPass" class="tab-panel section-hidden">
                         <div class="admin-header">
-                            <h2>🎫 출입 이용권 <span class="pass-title-sub">정기 · 수시</span></h2>
+                            <h2>🎫 출입 이용권</h2>
                             <button class="btn btn-primary" onclick="openPassModal()">＋ 이용권 발급</button>
                         </div>
 
                         <p class="pass-help">
                             매일 방문 신청 없이 <b>QR 이용권 한 장</b>으로 드나드는 상시 방문객을 관리합니다.
-                            QR을 스캔하면 그날의 출입 기록이 자동 생성되어 <b>경비실 승인 대기열</b>로 올라가며, 하루에 여러 번 출입할 수 있습니다.<br>
-                            <b class="pass-type-chip type-regular">정기 이용권</b> 매일 출입하는 상주 인력(청소·급식·상주 용역) — <u>오늘 안 오면</u> 경비실 화면에 미출입자로 표시됩니다.
-                            &nbsp;<b class="pass-type-chip type-occasional">수시 출입권</b> 매일은 아니지만 반복해서 오는 고정 거래처(정기 점검·비정기 납품) — <u>오래 안 쓰면</u> 정리 대상으로 표시됩니다.
+                            QR을 스캔하면 그날의 출입 기록이 자동 생성되어 <b>경비실 승인 대기열</b>로 올라가며, 하루에 여러 번 출입할 수 있습니다.
                         </p>
 
                         <div class="region-filter-bar" id="passRegionFilterBar">
@@ -143,12 +149,6 @@
                         </div>
 
                         <div class="filter-bar">
-                            <label class="filter-label">🎫 종류:</label>
-                            <select id="passTypeFilter" onchange="loadPasses()">
-                                <option value="">전체</option>
-                                <option value="정기">정기 이용권</option>
-                                <option value="수시">수시 출입권</option>
-                            </select>
                             <label class="filter-label">🎟️ 상태:</label>
                             <select id="passStatusFilter" onchange="loadPasses()">
                                 <option value="">전체</option>
@@ -164,14 +164,10 @@
                             </div>
                         </div>
 
-                        <div class="admin-stat-grid pass-stat-grid pass-stat-grid-6">
+                        <div class="admin-stat-grid pass-stat-grid pass-stat-grid-5">
                             <div class="admin-stat-card stat-total">
-                                <span class="admin-stat-label">🎫 정기 이용권<span class="stat-label-sub"> (매일)</span></span>
-                                <span class="admin-stat-value" id="passStatRegular">-</span>
-                            </div>
-                            <div class="admin-stat-card stat-occasional">
-                                <span class="admin-stat-label">🔁 수시 출입권<span class="stat-label-sub"> (반복 방문)</span></span>
-                                <span class="admin-stat-value" id="passStatOccasional">-</span>
+                                <span class="admin-stat-label">🎫 활성 출입권<span class="stat-label-sub"> (사용 가능)</span></span>
+                                <span class="admin-stat-value" id="passStatActive">-</span>
                             </div>
                             <div class="admin-stat-card stat-complete">
                                 <span class="admin-stat-label">🚶 오늘 출입<span class="stat-label-sub"> (이용권)</span></span>
@@ -200,7 +196,6 @@
                             <table id="passTable">
                                 <thead>
                                     <tr>
-                                        <th>종류</th>
                                         <th>방문객</th>
                                         <th>연락처 / 차량</th>
                                         <th>이용 목적</th>
@@ -259,16 +254,9 @@
             <div class="modal-header" id="passModalTitle">출입 이용권 발급</div>
             <div class="modal-body">
                 <div class="form-grid">
-                    <div class="field full"><label>이용권 종류 *</label>
-                        <!-- 출입증 동작은 같고 관리 관점만 다르다. 유형을 바꾸면 이용 요일 기본값도 함께 바뀐다. -->
-                        <select id="passType" onchange="onPassTypeChange()">
-                            <option value="정기">정기 이용권 — 매일 출입 (청소·급식·상주 용역)</option>
-                            <option value="수시">수시 출입권 — 매일은 아니지만 반복 방문 (정기 점검·비정기 납품)</option>
-                        </select>
-                    </div>
                     <div class="field"><label>방문객 성명 *</label><input type="text" id="passName" placeholder="예: 홍길동"></div>
                     <div class="field"><label>연락처 *</label><input type="text" id="passContact" placeholder="숫자만 입력"></div>
-                    <div class="field"><label>소속 업체 *</label><input type="text" id="passCompany" placeholder="예: OO물류"></div>
+                    <div class="field"><label>소속 업체 *</label><input type="text" id="passCompany" placeholder="방문객 업체명"></div>
                     <div class="field"><label>차량 번호</label><input type="text" id="passVehicle" placeholder="없을 시 비워둠"></div>
                     <div class="field"><label>이용 목적 *</label><input type="text" id="passPurpose" placeholder="예: 제품 납품"></div>
                     <div class="field"><label>사업장 *</label>

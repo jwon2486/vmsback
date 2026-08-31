@@ -113,6 +113,14 @@ function showIntegratedEmpDashboard() {
         <div class="dashboard-split-wrapper">
             <div class="dashboard-form-zone mobile-tab-content active" id="emp-form-zone">
                 <h3 class="zone-title desktop-only-title">📋 새 방문객 예약 ${titleBadge}</h3>
+                <!-- 🔢 방문 담당자 번호: 방문객에게 미리 알려주면 담당자 이름을 몰라도(또는 한글을 못 써도)
+                     이 번호만으로 나를 담당자로 지정해 입실 등록을 할 수 있다. -->
+                <div class="my-visit-code" id="myVisitCodeBox">
+                    <span class="mvc-label">내 담당자 번호</span>
+                    <b class="mvc-value" id="myVisitCode">••••••</b>
+                    <button type="button" class="mvc-btn" onclick="copyMyVisitCode()">복사</button>
+                    <button type="button" class="mvc-btn mvc-btn-sub" onclick="reissueMyVisitCode()">재발급</button>
+                </div>
                 <div class="form-container form-container-flush">
                     <input type="hidden" id="proxyStaffId" value="${emp.id}">
 
@@ -191,6 +199,51 @@ function showIntegratedEmpDashboard() {
         </div>
     `;
     fetchFilteredMySchedule();
+    loadMyVisitCode();
+}
+
+/* ===== 🔢 방문 담당자 번호 =====
+   방문객이 담당자 이름을 한글로 치지 않아도 되도록, 직원이 자기 번호를 알려 주는 용도.
+   인증 수단이 아니라 '누구를 만나러 왔는지' 지정하는 값이다. */
+async function loadMyVisitCode() {
+    const el = document.getElementById('myVisitCode');
+    if (!el) return;
+    try {
+        const d = await fetch('/api/emp/visit-code').then(r => r.json());
+        if (d.success) el.textContent = d.visit_code || '-';
+    } catch (e) { el.textContent = '-'; }
+}
+
+function copyMyVisitCode() {
+    const code = (document.getElementById('myVisitCode') || {}).textContent || '';
+    if (!code || code === '-' || code.startsWith('•')) return;
+    // navigator.clipboard 는 https/localhost 에서만 동작한다 → 실패 시 수동 안내
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(code).then(() => alert(`담당자 번호 ${code} 를 복사했습니다.`))
+            .catch(() => alert(`담당자 번호: ${code}`));
+    } else {
+        alert(`담당자 번호: ${code}`);
+    }
+}
+
+async function reissueMyVisitCode() {
+    // 번호를 바꾸면 이전 번호로 오는 신청은 그때부터 매칭되지 않는다 → 바꾸기 전에 알린다.
+    const warn = [
+        '번호를 새로 발급하면 이전 번호로는 담당자 지정이 되지 않습니다.',
+        '이미 알려 준 방문객이 있다면 새 번호를 다시 알려 주세요.',
+        '',
+        '계속할까요?'
+    ].join('\n');
+    if (!confirm(warn)) return;
+    try {
+        const d = await fetch('/api/emp/visit-code', { method: 'POST' }).then(r => r.json());
+        if (!d.success) return alert(d.message || '재발급에 실패했습니다.');
+        const el = document.getElementById('myVisitCode');
+        if (el) el.textContent = d.visit_code;
+        alert(`새 담당자 번호: ${d.visit_code}`);
+    } catch (e) {
+        alert('재발급 중 통신 오류가 발생했습니다.');
+    }
 }
 
 async function fetchFilteredMySchedule() {
@@ -318,6 +371,12 @@ function renderScheduleItems() {
                 actionHtml = `<span class="status-badge badge-waiting">퇴실 대기중</span>`;
             } else {
                 actionHtml = `<span class="status-badge badge-done">${statusLabel(v.status)}</span>`;
+            }
+
+            // 🔳 내가 대신 등록해 준 손님에게 QR·링크를 전달한다 (손님이 직접 입·퇴실 신청).
+            //    이미 방문이 끝난 건은 전달할 이유가 없으므로 진행 중인 상태에만 붙인다.
+            if (EMP_QR_STATUSES.includes(v.status)) {
+                actionHtml += `<button onclick="showEmpVisitorQr(${v.id})" class="btn-list-action bg-emp-sub">QR 전달</button>`;
             }
             
             // 입실/퇴실을 각각 '실제 | 예정' 한 줄로 표기 (실제값 없으면 대기중/-)
@@ -685,5 +744,146 @@ async function loadAllVisitorLogs() {
         tbody.innerHTML = html;
     } catch (e) {
         tbody.innerHTML = '<tr><td colspan="11" class="text-center-p20-red">네트워크 통신 에러가 발생했습니다.</td></tr>';
+    }
+}
+
+
+/* ====================================================================
+   🔳 방문객 QR 전달 (직원 화면)
+     - 직원이 대신 등록해 준 손님은 QR 이 없어 스스로 입·퇴실 신청을 못 한다.
+       여기서 QR·링크를 꺼내 손님에게 보내주면, 손님은 그 화면에서 평소처럼 신청한다.
+     - QR 은 /v/scan?token=... 링크를 담고 있어, 스캔하든 링크를 열든 같은 화면이 뜬다.
+   ==================================================================== */
+
+// QR 을 전달할 의미가 있는 상태 (퇴실완료·취소 등 끝난 건은 제외)
+const EMP_QR_STATUSES = ['사전예약', '입실대기', '입실완료', '퇴실대기'];
+
+// 복사 클릭이 동기 실행되도록 QR PNG 를 미리 data URI 로 받아 둔다. (token → dataUri)
+const _empQrPngCache = {};
+
+function empVisitorScanLink(token) {
+    return window.location.origin + '/v/scan?token=' + encodeURIComponent(token);
+}
+
+async function showEmpVisitorQr(logId) {
+    const modal = document.getElementById('empQrModal');
+    const grid = document.getElementById('empQrGrid');
+    const help = document.getElementById('empQrHelp');
+    if (!modal || !grid) return;
+
+    grid.innerHTML = '<p class="no-data-box">불러오는 중입니다...</p>';
+    if (help) help.textContent = '';
+    modal.classList.remove('display-none');
+
+    let d;
+    try {
+        const res = await fetch(`/api/emp/visitor-qr?id=${encodeURIComponent(logId)}`);
+        if (res.status === 401) {
+            alert('보안 세션이 만료되었습니다. 다시 로그인해 주세요.');
+            closeEmpQrModal();
+            handleEmpLogout();
+            return;
+        }
+        d = await res.json();
+    } catch (e) {
+        grid.innerHTML = '<p class="no-data-box">통신 오류가 발생했습니다.</p>';
+        return;
+    }
+    if (!d || !d.success) {
+        grid.innerHTML = `<p class="no-data-box">${(d && d.message) || '조회에 실패했습니다.'}</p>`;
+        return;
+    }
+
+    if (help) {
+        help.innerHTML =
+            `<b>${d.visit_date}</b> 방문 건입니다. 아래 QR 이미지나 링크를 손님에게 보내주세요.<br>` +
+            '손님은 <b>"이 QR로 입장·퇴장 신청을 하시면 됩니다"</b> 안내대로 QR 을 열어 직접 신청할 수 있습니다.';
+    }
+
+    grid.innerHTML = d.members.map(m => {
+        const link = empVisitorScanLink(m.token);
+        const fileName = `방문QR_${m.name}`;
+        return `
+            <div class="region-qr-card">
+                <div class="region-qr-name">${m.name}
+                    <span class="region-qr-area">${m.company || ''}</span></div>
+                <div class="emp-qr-status">${statusLabel(m.status)}</div>
+                <div class="region-qr-imgwrap">
+                    <img class="region-qr-img" src="/api/qr?token=${encodeURIComponent(m.token)}"
+                         alt="${m.name} 방문 QR">
+                </div>
+                <div class="region-qr-link" title="${link}">${link}</div>
+                <div class="emp-qr-actions">
+                    <button type="button" class="region-qr-copy"
+                            onclick="copyEmpVisitorQr('${m.name}', '${m.token}', this)">안내문·QR 복사</button>
+                    <a class="emp-qr-save"
+                       href="/api/qr?token=${encodeURIComponent(m.token)}&format=png&download=1&filename=${encodeURIComponent(fileName)}">
+                       이미지 저장</a>
+                </div>
+            </div>`;
+    }).join('');
+
+    // 복사용 PNG 미리 캐시
+    d.members.forEach(m => {
+        if (_empQrPngCache[m.token]) return;
+        fetch(`/api/qr?token=${encodeURIComponent(m.token)}&format=png`)
+            .then(res => res.ok ? res.blob() : Promise.reject())
+            .then(blobToDataUri)
+            .then(uri => { _empQrPngCache[m.token] = uri; })
+            .catch(() => {});
+    });
+}
+
+function closeEmpQrModal() {
+    const modal = document.getElementById('empQrModal');
+    if (modal) modal.classList.add('display-none');
+}
+
+// 손님에게 그대로 보낼 수 있게 '안내 문구 + QR 이미지 + 링크'를 한 번에 복사한다.
+//   거점 QR 복사(copyRegionInfo)와 같은 방식 — execCommand 기반이라 http 내부망에서도 동작하고,
+//   실패하면 텍스트(안내문 + 링크)만 복사하는 폴백으로 넘어간다.
+async function copyEmpVisitorQr(name, token, btn) {
+    const link = empVisitorScanLink(token);
+    const line1 = `${name} 님, 방문 등록이 완료되었습니다.`;
+    const line2 = '아래 QR 로 입장·퇴장 신청을 하시면 됩니다.';
+    const orig = btn.textContent;
+    const flash = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = orig; }, 1800); };
+
+    try {
+        let png = _empQrPngCache[token];
+        if (!png) {
+            const res = await fetch(`/api/qr?token=${encodeURIComponent(token)}&format=png`);
+            if (!res.ok) throw new Error('qr fetch failed');
+            png = await blobToDataUri(await res.blob());
+            _empQrPngCache[token] = png;
+        }
+        const tmp = document.createElement('div');
+        tmp.setAttribute('contenteditable', 'true');
+        // 배경·글자색을 명시해 페이지 배경이 함께 복사되지 않게 한다 (Word 음영 방지).
+        tmp.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:normal;background:#ffffff;color:#000000;';
+        tmp.innerHTML =
+            '<div style="background:#ffffff;color:#000000;"><strong>' + line1 + '</strong></div>' +
+            '<div style="background:#ffffff;color:#000000;">' + line2 + '</div>' +
+            '<div style="background:#ffffff;"><img src="' + png + '" width="200" height="200" alt="' + name + ' 방문 QR"></div>' +
+            '<div style="background:#ffffff;color:#000000;">' + link + '</div>';
+        document.body.appendChild(tmp);
+        const range = document.createRange();
+        range.selectNodeContents(tmp);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        const ok = document.execCommand('copy');
+        sel.removeAllRanges();
+        document.body.removeChild(tmp);
+        if (ok) { flash('복사됨 ✓'); return; }
+    } catch (e) { /* 아래 텍스트 폴백 */ }
+
+    const text = `${line1}\n${line2}\n${link}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+            .then(() => flash('복사됨 ✓ (텍스트)'))
+            .catch(() => fallbackCopyLink(text, () => flash('복사됨 ✓ (텍스트)')));
+    } else {
+        fallbackCopyLink(text, () => flash('복사됨 ✓ (텍스트)'));
     }
 }

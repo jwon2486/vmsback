@@ -16,6 +16,29 @@ let currentRegion = null;
 //   사업장이 늘거나 이름이 바뀌면 여기만 고치면 된다.
 const REGION_LIST = ['테크센터', '에코센터', '평택공장', '거제 오션센터'];
 
+/**
+ * 🌐 tOr — 여러 화면이 함께 쓰는 코드에서 안전하게 번역하는 헬퍼.
+ *
+ * 왜 t() 를 그냥 쓰면 안 되나
+ *   다국어는 '손님 화면'에만 적용된다. 그런데 손님·임직원·경비실이 같은 guest.html 을
+ *   쓰기 때문에 i18n.js 는 세 화면 모두에 로드된다. 사전(lang/*.json)만 손님 화면에서 받는다.
+ *   → 임직원·경비실 화면에서는 t() 가 존재하지만 번역을 못 찾아 '키'를 그대로 돌려준다.
+ *     실제로 시간 선택기에 "tp.am", "tp.placeholder" 가 그대로 찍힌 적이 있다.
+ *
+ * 사용법
+ *   공용 파일(common.js 등)에서는 t('key') 대신 tOr('key', '한국어 기본값') 을 쓴다.
+ *     tOr('tp.am', '오전')      → 손님 화면: AM / 上午,  그 외 화면: 오전
+ *   손님 화면 전용 파일(visitor.js)에서는 t() 를 그대로 써도 된다.
+ *
+ * @param {string} key 번역 키
+ * @param {string} ko  번역이 없을 때 쓸 한국어 문구 (필수 — 생략하면 키가 노출된다)
+ */
+function tOr(key, ko) {
+    if (typeof t !== 'function') return ko;
+    const s = t(key);
+    return (!s || s === key) ? ko : s;   // 사전 미로드 시 t() 는 키를 그대로 반환한다
+}
+
 // 🕒 시간 선택기 — 크롬 기본 시간 픽커 스타일의 커스텀 '컬럼 스크롤' 드롭다운.
 //   - 네이티브 <input type=time> 은 분 단위를 못 바꾸므로 동일한 컬럼 UI 를 직접 구현.
 //   - [오전/오후] [시 01~12] [분 00,10,…,50] 3열. 선택값은 hidden input({prefix}_ap/_h/_m)에 저장.
@@ -38,7 +61,7 @@ function timeSelectHtml(prefix, def) {
     const selAp = def ? def.ap : '';
     const selH = def ? String(def.h) : '';
     const selM = def ? String(def.m) : '';
-    const apCol = [['AM', '오전'], ['PM', '오후']]
+    const apCol = [['AM', tOr('tp.am', '오전')], ['PM', tOr('tp.pm', '오후')]]
         .map(([v, l]) => `<div class="tp-opt${v === selAp ? ' sel' : ''}" onclick="tpSelect('${prefix}','ap','${v}',this)">${l}</div>`).join('');
     let hCol = '';
     for (let h = 1; h <= 12; h++)
@@ -47,8 +70,8 @@ function timeSelectHtml(prefix, def) {
     for (let m = 0; m < 60; m += 10)
         mCol += `<div class="tp-opt${String(m) === selM ? ' sel' : ''}" onclick="tpSelect('${prefix}','m','${m}',this)">${String(m).padStart(2, '0')}</div>`;
     const displayHtml = def
-        ? `<span class="tp-value">${def.ap === 'AM' ? '오전' : '오후'} ${String(def.h).padStart(2, '0')}:${String(def.m).padStart(2, '0')}</span>`
-        : `<span class="tp-placeholder">시간 선택</span>`;
+        ? `<span class="tp-value">${def.ap === 'AM' ? tOr('tp.am', '오전') : tOr('tp.pm', '오후')} ${String(def.h).padStart(2, '0')}:${String(def.m).padStart(2, '0')}</span>`
+        : `<span class="tp-placeholder">${tOr('tp.placeholder', '시간 선택')}</span>`;
     return `
         <div class="tp-wrap" id="${prefix}_wrap">
             <input type="hidden" id="${prefix}_ap" value="${selAp}">
@@ -105,7 +128,7 @@ function tpSelect(prefix, type, value, el) {
     const h = document.getElementById(prefix + '_h').value;
     const m = document.getElementById(prefix + '_m').value;
     if (ap && h !== '' && m !== '') {
-        const apLabel = ap === 'AM' ? '오전' : '오후';
+        const apLabel = ap === 'AM' ? tOr('tp.am', '오전') : tOr('tp.pm', '오후');
         document.getElementById(prefix + '_display').innerHTML =
             `<span class="tp-value">${apLabel} ${String(h).padStart(2, '0')}:${String(parseInt(m, 10)).padStart(2, '0')}</span>`;
     }

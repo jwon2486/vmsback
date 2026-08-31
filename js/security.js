@@ -315,17 +315,10 @@ function showSecurityDashboard() {
                 </div>
                 <div id="secPassFormZone" class="display-none form-container sec-reg-form">
                     <h3 class="fs-10 my-title-color mb-15">출입 이용권 발급 <span class="sec-region-text">${empRegion}</span></h3>
-                    <div class="input-group mb-15">
-                        <label>이용권 종류 <span class="req-star">*</span></label>
-                        <select id="secPassType" onchange="onSecPassTypeChange()">
-                            <option value="정기">정기 이용권 — 매일 출입 (청소·급식·상주 용역)</option>
-                            <option value="수시">수시 출입권 — 매일은 아니지만 반복 방문 (정기 점검·비정기 납품)</option>
-                        </select>
-                    </div>
                     <div class="input-row-group">
                         <div class="input-group"><label>방문객 성명 <span class="req-star">*</span></label><input type="text" id="secPassName" placeholder="성함 입력" autocomplete="off"></div>
                         <div class="input-group"><label>연락처 <span class="req-star">*</span></label>${phoneInputHtml('secPassContact')}</div>
-                        <div class="input-group"><label>소속 업체 <span class="req-star">*</span></label><input type="text" id="secPassCompany" placeholder="예: OO물류" autocomplete="off"></div>
+                        <div class="input-group"><label>소속 업체 <span class="req-star">*</span></label><input type="text" id="secPassCompany" placeholder="방문객 업체명" autocomplete="off"></div>
                     </div>
                     <div class="input-row-group">
                         <div class="input-group"><label>차량 번호</label><input type="text" id="secPassVehicle" placeholder="없을 시 비워둠" autocomplete="off"></div>
@@ -380,7 +373,6 @@ function showSecurityDashboard() {
                                     <th class="p-10">신청자 (소속)</th>
                                     <th class="p-10 col-lo">연락처 / 차량</th>
                                     <th class="p-10 col-lo">이용 목적</th>
-                                    <th class="p-10">희망 종류</th>
                                     <th class="p-10">유효기간 확정</th>
                                     <th class="p-10">처리</th>
                                 </tr>
@@ -419,7 +411,6 @@ function showSecurityDashboard() {
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
                             <tr>
-                                <th class="p-10">종류</th>
                                 <th class="p-10">방문객 (소속)</th>
                                 <th class="p-10 col-lo">연락처 / 차량</th>
                                 <th class="p-10 col-lo">이용 목적</th>
@@ -431,7 +422,7 @@ function showSecurityDashboard() {
                             </tr>
                         </thead>
                         <tbody id="secPassListBody">
-                            <tr><td colspan="9" class="no-data-box">불러오는 중입니다...</td></tr>
+                            <tr><td colspan="8" class="no-data-box">불러오는 중입니다...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -609,13 +600,16 @@ async function loadSecRegionStatus() {
             // 상태색: 오늘 아무도 안 온 거점만 주의 표시. 정상 운영 중인 곳은 무채색으로 둔다.
             const quiet = entered === 0;
             if (!quiet) live++;
+            // 누르면 '출입 기록' 탭으로 이동해 이 거점만 조회한다.
+            const arg = `decodeURIComponent('${encodeURIComponent(rg)}')`;
             return `
-                <div class="sec-side-row${rg === myRegion ? ' is-mine' : ''}">
+                <button type="button" class="sec-side-row sec-side-row-btn${rg === myRegion ? ' is-mine' : ''}"
+                        onclick="secOpenRegionLogs(${arg})" title="${rg} 출입 기록 보기">
                     <span class="sec-side-row-name">
                         <span class="sec-side-dot${quiet ? ' is-warn' : ' is-ok'}"></span>${rg}
                     </span>
                     <span class="sec-side-row-val">${quiet ? '미출입' : `입실 ${entered} · 재실 ${onsite}`}</span>
-                </div>`;
+                </button>`;
         }).join('');
 
         const meta = document.getElementById('secRegionMeta');
@@ -814,7 +808,7 @@ async function fetchSecurityQueue(isAuto = false) {
 
                 html += `
                     <tr class="sec-item-row ${bgClass}">
-                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? `<span class="sec-pass-tag">${v.pass_type || '정기'}</span>` : ''}<br><span class="text-gray-light">${v.company}</span></td>
+                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span></td>
                         <td class="p-10">${v.vehicle_no || '-'}</td>
                         <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
@@ -843,12 +837,27 @@ let secRegionFilter = '';
 let secLogsAll = [];
 let secLogPage = 1;
 
+// 거점 필터를 '값'으로 적용한다. ('' = 전 사업장)
+//  - 필터 버튼 클릭과 거점별 현황 클릭이 같은 경로를 타도록 여기로 모았다.
+function applySecRegionFilter(region) {
+    secRegionFilter = region || '';
+    const bar = document.getElementById('secRegionFilterBar');
+    if (bar) {
+        bar.querySelectorAll('.region-filter-btn').forEach(b =>
+            b.classList.toggle('active', (b.dataset.region || '') === secRegionFilter));
+    }
+    loadSecurityAllLogs();
+}
+
 function setSecRegion(btn) {
     if (!btn) return;
-    secRegionFilter = btn.dataset.region || '';
-    const bar = document.getElementById('secRegionFilterBar');
-    if (bar) bar.querySelectorAll('.region-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
-    loadSecurityAllLogs();
+    applySecRegionFilter(btn.dataset.region || '');
+}
+
+// 🗺️ 우측 '거점별 현황'에서 센터를 누르면 '출입 기록' 탭으로 이동해 그 거점만 조회한다.
+function secOpenRegionLogs(region) {
+    switchSecTab('logs');
+    applySecRegionFilter(region);
 }
 
 // 로그인 세션의 담당 거점 (퇴실 처리 버튼 노출 판정용). 서버도 동일하게 재검증한다.
@@ -945,7 +954,7 @@ function renderSecurityLogTable() {
                     <tr class="border-bottom-eee">
                         <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
-                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? `<span class="sec-pass-tag">${v.pass_type || '정기'}</span>` : ''}</td>
+                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}</td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
@@ -1171,15 +1180,6 @@ function toggleSecPassForm() {
     }
 }
 
-// 정기는 평일 상주가 일반적, 수시는 언제 올지 모르니 전 요일 허용이 기본.
-function onSecPassTypeChange() {
-    const type = (document.getElementById('secPassType') || {}).value;
-    const preset = (type === '수시') ? '1111111' : '1111100';
-    document.querySelectorAll('#secPassWeekdayBox input[type="checkbox"]').forEach(cb => {
-        cb.checked = preset[parseInt(cb.dataset.day, 10)] === '1';
-    });
-}
-
 // 발급 폼: 종료일 선택 범위를 시작일 기준으로 다시 계산
 function syncSecPassDateLimit() {
     window.syncPassPeriod(document.getElementById('secPassFrom'),
@@ -1202,7 +1202,7 @@ async function loadSecPassData() {
 async function loadSecPassList() {
     const tbody = document.getElementById('secPassListBody');
     if (!tbody) return;
-    const fail = (msg) => { tbody.innerHTML = `<tr><td colspan="9" class="no-data-box">${msg}</td></tr>`; };
+    const fail = (msg) => { tbody.innerHTML = `<tr><td colspan="8" class="no-data-box">${msg}</td></tr>`; };
 
     // ① 통신 단계
     let data;
@@ -1234,7 +1234,7 @@ function renderSecPassList(today) {
     // 승인 대기 건은 위쪽 '발급 신청' 표에서 처리하므로 아래 목록에서는 뺀다.
     const issued = secPassCache.filter(p => p.status !== '신청');
     if (!issued.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="no-data-box">발급된 출입 이용권이 없습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="no-data-box">발급된 출입 이용권이 없습니다.</td></tr>';
         return;
     }
 
@@ -1254,13 +1254,8 @@ function renderSecPassList(today) {
         const toggleBtn = (p.status === '활성' || p.status === '정지')
             ? `<button onclick="setSecPassStatus(${p.id}, '${p.status === '활성' ? '정지' : '활성'}')" class="sec-btn-approve-item ${p.status === '활성' ? 'bg-orange' : 'bg-green'}">${p.status === '활성' ? '정지' : '활성화'}</button>`
             : '';
-        const typeChip = `<span class="sec-pass-chip ${p.pass_type === '수시' ? 'type-occasional' : 'type-regular'}">${p.pass_type || '정기'}</span>`;
-        const dormantMark = p.dormant
-            ? `<br><span class="fs-8 sec-pass-dormant">${p.idle_days != null ? p.idle_days + '일 전' : '미사용'}</span>`
-            : '';
         return `
             <tr class="sec-item-row">
-                <td class="p-10">${typeChip}${dormantMark}</td>
                 <td class="p-10"><b>${p.name}</b><br><span class="text-gray-light">${p.company}</span></td>
                 <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
                 <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
@@ -1296,12 +1291,6 @@ function renderSecPassRequests(today) {
                 <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
                 <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
                 <td class="p-10">
-                    <select id="secReqType_${p.id}" class="sec-req-input">
-                        <option value="정기" ${p.pass_type !== '수시' ? 'selected' : ''}>정기</option>
-                        <option value="수시" ${p.pass_type === '수시' ? 'selected' : ''}>수시</option>
-                    </select>
-                </td>
-                <td class="p-10">
                     <input type="date" id="secReqFrom_${p.id}" class="sec-req-input" value="${p.valid_from}"
                            onchange="syncSecReqDateLimit(${p.id})">
                     <select id="secReqPeriod_${p.id}" class="sec-req-input" onchange="syncSecReqDateLimit(${p.id})">
@@ -1323,12 +1312,12 @@ async function approveSecPass(passId) {
     const p = secPassCache.find(x => x.id === passId);
     const get = (id) => (document.getElementById(id) || {}).value || '';
     const payload = {
-        pass_type: get(`secReqType_${passId}`),
+        // 종류(정기/수시)는 화면에서 고르지 않는다 — 서버가 신청 시 저장된 값을 그대로 쓴다.
         valid_from: get(`secReqFrom_${passId}`),
         period: get(`secReqPeriod_${passId}`),      // 종료일은 서버가 '시작일 + 단위'로 계산
     };
     const endDate = window.passPeriodEnd(payload.valid_from, payload.period);
-    if (!confirm(`${p ? p.name + ' 님의 ' : ''}${payload.pass_type} 이용권을 발급합니다.\n유효기간: ${payload.valid_from} ~ ${endDate} (${payload.period})\n\n승인할까요?`)) return;
+    if (!confirm(`${p ? p.name + ' 님의 ' : ''}이용권을 발급합니다.\n유효기간: ${payload.valid_from} ~ ${endDate} (${payload.period})\n\n승인할까요?`)) return;
 
     const res = await fetch(`/api/pass/${passId}/approve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1380,18 +1369,15 @@ async function loadSecPassToday() {
             badge.classList.toggle('sec-nav-badge-warn', pending > 0);
             badge.classList.toggle('display-none', pending === 0 && list.length === 0);
         }
-        const byType = data.active_by_type || {};
         const summary = document.getElementById('secPassTodaySummary');
         if (summary) {
-            summary.textContent = `오늘 ${list.length}건 · 오늘 사용 가능 ${data.active_total}장`
-                + ` (정기 ${byType['정기'] || 0} · 수시 ${byType['수시'] || 0})`;
+            summary.textContent = `오늘 ${list.length}건 · 오늘 사용 가능 ${data.active_total}장`;
         }
 
         tbody.innerHTML = list.length
             ? list.map(v => `
                 <tr class="sec-item-row">
-                    <td class="p-10"><span class="sec-pass-chip ${v.pass_type === '수시' ? 'type-occasional' : 'type-regular'}">${v.pass_type || '정기'}</span>
-                        <b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
+                    <td class="p-10"><b>${v.name}</b><br><span class="text-gray-light">${v.company}</span></td>
                     <td class="p-10 col-lo">${v.vehicle_no || '-'}</td>
                     <td class="p-10 text-green fw-600">${secTimeOnly(v.checkin_time)}</td>
                     <td class="p-10 text-orange fw-600">${secTimeOnly(v.checkout_time)}</td>
@@ -1416,7 +1402,6 @@ async function submitSecPass() {
     }
 
     const payload = {
-        pass_type: get('secPassType'),
         name: get('secPassName').trim(),
         contact: readPhone('secPassContact'),           // 3박스 입력 → 숫자만 결합 (js/common.js)
         company: get('secPassCompany').trim(),
@@ -1466,7 +1451,7 @@ async function setSecPassStatus(passId, status) {
 function showSecPassQr(passId) {
     const p = secPassCache.find(x => x.id === passId);
     if (!p) return;
-    const kind = p.pass_type === '수시' ? '수시 출입권' : '정기 이용권';
+    const kind = '출입권';
 
     document.getElementById('secPassQrOverlay')?.remove();
     const ov = document.createElement('div');

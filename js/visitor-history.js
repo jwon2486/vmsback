@@ -4,6 +4,15 @@
  * 사용: openVisitorHistory(name, contact)
  */
 (function () {
+    /* 🌐 이 파일은 손님(다국어) 화면과 관리자·경비실(한국어 전용) 화면이 함께 쓴다.
+       관리자 쪽은 i18n.js 를 로드하지 않으므로 t() 를 직접 부르면 ReferenceError 가 난다.
+       → 사전이 있으면 번역문을, 없으면 한국어 원문을 그대로 쓴다. */
+    function L(key, fallback) {
+        if (typeof t !== 'function') return fallback;
+        const v = t(key);
+        return (v && v !== key) ? v : fallback;
+    }
+
     function fmt(d) {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
@@ -115,11 +124,14 @@
 
     // 🎫 이용권 이용 요일 표기 ('1111100' → '평일'). 관리자·경비실·손님 화면 공용.
     window.PASS_WEEKDAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'];
+    window.PASS_WEEKDAY_KEYS = ['wd.mon', 'wd.tue', 'wd.wed', 'wd.thu', 'wd.fri', 'wd.sat', 'wd.sun'];
     window.passWeekdayText = function (weekdays) {
         const w = weekdays || '1111111';
-        if (w === '1111111') return '매일';
-        if (w === '1111100') return '평일';
-        return window.PASS_WEEKDAY_LABELS.filter((_, i) => w[i] === '1').join('·') || '-';
+        if (w === '1111111') return L('wd.everyday', '매일');
+        if (w === '1111100') return L('wd.weekday', '평일');
+        return window.PASS_WEEKDAY_LABELS
+            .map((lab, i) => L(window.PASS_WEEKDAY_KEYS[i], lab))
+            .filter((_, i) => w[i] === '1').join('·') || '-';
     };
 
     // 📅 이용권 유효기간 운영 단위. 서버 PASS_PERIODS 가 단일 출처이고, 각 화면이 API 응답으로 갱신한다.
@@ -162,10 +174,10 @@
     //    · 캔버스에 직접 그린다: 외부 라이브러리(html2canvas 등) 없이 동작하고,
     //      브라우저 폰트를 쓰므로 서버(Linux)에 한글 폰트가 없어도 글자가 깨지지 않는다.
     //    · QR 은 서버가 만든 PNG(/api/qr?format=png)를 그대로 얹는다.
-    //    pass: {name, company, region, pass_type, valid_from, valid_to, vehicle_no, token}
+    //    pass: {name, company, region, valid_from, valid_to, vehicle_no, token}
     //    weekdayText: 화면과 동일한 요일 표기('매일'·'평일'·'월·수·금' 등)를 넘긴다.
     function buildPassCardCanvas(pass, weekdayText, onReady, onError) {
-        const KIND = pass.pass_type === '수시' ? '수시 출입권' : '정기 이용권';
+        const KIND = L('pass.kind', '출입권');
         const FONT = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
         const W = 640, H = 900, CX = W / 2;
 
@@ -200,9 +212,9 @@
 
             // 상세 정보 (라벨 왼쪽 / 값 오른쪽)
             const rows = [
-                ['유효기간', `${pass.valid_from} ~ ${pass.valid_to}`],
-                ['이용 요일', weekdayText || '매일'],
-                ['차량 번호', pass.vehicle_no || '없음'],
+                [L('passmy.validity', '유효기간'), `${pass.valid_from} ~ ${pass.valid_to}`],
+                [L('passmy.days', '이용 요일'), weekdayText || L('wd.everyday', '매일')],
+                [L('label.vehicle', '차량 번호'), pass.vehicle_no || L('passmy.noVehicle', '없음')],
             ];
             let y = 700;
             rows.forEach(([label, value]) => {
@@ -215,13 +227,13 @@
 
             // 안내 문구
             g.textAlign = 'center'; g.fillStyle = '#94a3b8'; g.font = `20px ${FONT}`;
-            g.fillText('정문에서 이 QR을 보여주세요', CX, H - 48);
+            g.fillText(L('card.showQr', '정문에서 이 QR을 보여주세요'), CX, H - 48);
 
             onReady(cv, `${KIND.replace(' ', '')}_${pass.name}_${pass.company}.png`, KIND);
         };
         img.onerror = function () {
             if (onError) onError();
-            else alert('QR 이미지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            else alert(L('card.qrFail', 'QR 이미지를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'));
         };
         img.src = `/api/qr?token=${encodeURIComponent(pass.token)}&format=png`;
     }
@@ -238,12 +250,12 @@
             'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:18px;');
         ov.innerHTML =
             `<div style="color:#fff;font-size:.95rem;font-weight:700;text-align:center;line-height:1.6">
-                아래 이미지를 <b>길게 눌러</b><br>‘사진에 추가’(또는 ‘이미지 저장’)를 선택하세요
+                ${L('card.longPress', '아래 이미지를 <b>길게 눌러</b><br>‘사진에 추가’(또는 ‘이미지 저장’)를 선택하세요')}
              </div>
              <img src="${dataUrl}" alt="${filename}"
                   style="max-width:min(88vw,340px);max-height:62vh;border-radius:12px;background:#fff;box-shadow:0 18px 40px rgba(0,0,0,.35)">
              <button type="button" style="padding:.7rem 1.6rem;border:none;border-radius:10px;
-                     background:#fff;color:#334155;font-weight:700;font-size:.95rem;cursor:pointer">닫기</button>`;
+                     background:#fff;color:#334155;font-weight:700;font-size:.95rem;cursor:pointer">${L('btn.close', '닫기')}</button>`;
         ov.querySelector('button').addEventListener('click', () => ov.remove());
         ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
         document.body.appendChild(ov);

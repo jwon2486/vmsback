@@ -53,6 +53,28 @@ body {
 /* 💡 서브 타이틀(에스엔시스 방문객 출입 관리 시스템) 색상도 동일하게 #2d4d96 로 지정 */
 .app-header .brand-sub { font-size: 1.4rem; color: #2d4d96; margin-top: 0.2rem; }
 
+/* 🌐 손님 화면 언어 선택 (한국어 / English / 中文)
+   - 외국인 방문객이 메뉴를 찾지 않아도 되도록 헤더 바로 아래에 항상 보이게 둔다.
+   - 세 개뿐이라 드롭다운 대신 버튼으로 나열해 한 번에 바꾼다. */
+.guest-lang-bar {
+    display: flex; justify-content: center; align-items: center; gap: 0.4rem;
+    margin-top: 0.6rem;
+}
+.guest-lang-label { font-size: 1rem; line-height: 1; }
+.guest-lang-select {
+    padding: 0.35rem 2rem 0.35rem 0.75rem;
+    border: 1px solid var(--border-color); border-radius: 999px;
+    background: var(--card-bg); color: #334155;
+    font-family: inherit; font-size: 0.9rem; font-weight: 700;
+    cursor: pointer; outline: none; transition: all 0.15s ease;
+    /* 기본 화살표를 지우고 직접 그린다 (브라우저마다 모양이 제각각이라) */
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.7rem center;
+}
+.guest-lang-select:hover { border-color: #94a3b8; }
+.guest-lang-select:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
+
 #utility-nav {
     background: var(--card-bg); border: 1px solid var(--border-color); padding: 0.85rem 1.5rem;
     border-radius: var(--radius-md); margin-bottom: 0.6rem; align-items: center;
@@ -156,6 +178,27 @@ body {
 @media (max-width: 640px) {
     .region-date-group { gap: 0.5rem; }
 }
+
+/* 🔢 임직원 화면: 내 담당자 번호 (방문객에게 알려 주는 값) */
+.my-visit-code {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    padding: 0.6rem 0.9rem; margin-bottom: 0.9rem;
+    background: #eef6ff; border: 1px solid #bcdcff; border-radius: var(--radius-md);
+}
+.my-visit-code .mvc-label { font-size: 0.88rem; font-weight: 700; color: #1d4ed8; }
+.my-visit-code .mvc-value {
+    font-size: 1.25rem; font-weight: 800; color: #1d4ed8;
+    letter-spacing: 0.12em; font-variant-numeric: tabular-nums;
+}
+.my-visit-code .mvc-btn {
+    margin-left: auto; padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--primary); background: var(--primary); color: #fff;
+    font-family: inherit; font-size: 0.82rem; font-weight: 700;
+}
+.my-visit-code .mvc-btn-sub {
+    margin-left: 0; background: #fff; color: var(--primary);
+}
+.my-visit-code .mvc-btn:hover { opacity: 0.88; }
 
 .purpose-button-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; width: 100%; margin-top: 0.5rem; }
 .btn-choice {
@@ -355,6 +398,8 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .bg-green { background: #10b981 !important; }
 .bg-green-dark { background: #059669 !important; }
 .bg-orange-dark { background: #d97706 !important; }
+/* 임직원 목록의 보조 액션(개별 신청·QR 전달). 규칙이 없어 배경 없이 흰 글씨로 나오던 것을 채운다. */
+.bg-emp-sub { background: #64748b !important; }
 
 .fw-bold { font-weight: bold; }
 .fw-600 { font-weight: 600; }
@@ -430,6 +475,16 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .region-qr-copy { padding: 0.4rem 0.8rem; border: 1px solid var(--primary); background: var(--primary); color: #fff; border-radius: 8px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
 .region-qr-copy:hover { background: var(--primary-hover); }
 
+/* 🔳 방문객 QR 전달 (직원 화면) — 카드 뼈대는 거점 QR 안내와 같은 스타일을 쓴다 */
+.emp-qr-status { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+.emp-qr-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+.emp-qr-save {
+    padding: 0.4rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px;
+    background: #fff; color: var(--text-muted); font-weight: 700; font-size: 0.82rem;
+    text-decoration: none; cursor: pointer;
+}
+.emp-qr-save:hover { border-color: var(--primary); color: var(--primary); }
+
 /* 📱 모바일: 거점 QR 팝업을 2열 + QR·폰트·여백 축소로 콤팩트하게 (긴 세로 스크롤 완화) */
 @media (max-width: 640px) {
     .region-qr-window { width: 96vw; max-height: 90vh; }
@@ -441,6 +496,8 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .region-qr-img, .region-qr-missing { max-width: 120px; }
     .region-qr-link { font-size: 0.75rem; }
     .region-qr-copy { padding: 0.32rem 0.4rem; font-size: 0.7rem; }
+    .emp-qr-save { padding: 0.32rem 0.4rem; font-size: 0.7rem; }
+    .emp-qr-status { font-size: 0.7rem; }
 }
 .warning-text { color: #d97706; font-weight: bold; }
 
@@ -1133,17 +1190,6 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     font-size: 0.68rem; font-weight: 800; vertical-align: middle;
 }
 
-/* 🎫 경비실 - 출입증 유형 칩 및 미출입 알림 */
-.sec-pass-chip {
-    display: inline-block; padding: 2px 7px; border-radius: 999px; margin-right: 4px;
-    font-size: 0.7rem; font-weight: 800; white-space: nowrap;
-}
-.sec-pass-chip.type-regular    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.sec-pass-chip.type-occasional { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
-
-/* 수시 출입증 장기 미사용 표시 (해지 검토 대상) */
-.sec-pass-dormant { color: #b45309; font-weight: 700; }
-
 /* ====================================================================
    🎫 손님 화면 — 출입 이용권 신청 / 내 이용권 조회
    ==================================================================== */
@@ -1180,27 +1226,6 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     border-radius: var(--radius-md); font-size: 0.92rem; color: var(--text-muted); line-height: 1.55;
 }
 
-/* 이용권 종류 선택 (2지 택1 카드) */
-/* 이용권 종류 선택: 모바일·태블릿·데스크톱 모두 좌우 2열을 유지한다.
-   좁아지면 세로로 쌓지 않고 여백·글자만 단계적으로 줄인다. */
-.pass-req-types { display: flex; gap: 0.6rem; margin-bottom: 0.8rem; }
-.pass-req-type {
-    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; align-items: center;
-    padding: 0.85rem 0.5rem; border-radius: var(--radius-md); cursor: pointer;
-    background: #fff; border: 2px solid var(--border-color); transition: all 0.18s ease;
-    /* 보조 설명도 같은 크기를 쓴다 → 구분은 색·굵기로만 (버튼 폰트를 내려받아 통일) */
-    font-size: 1.15rem; text-align: center; word-break: keep-all; line-height: 1.35;
-}
-.pass-req-type b { font-size: inherit; color: var(--text-main); }
-.pass-req-type span { font-size: inherit; color: var(--text-muted); font-weight: 500; }
-.pass-req-type.active { border-color: var(--primary); background: #eff6ff; }
-.pass-req-type.active b { color: var(--primary); }
-
-/* 📲 태블릿(641~900px): 좌우 2열 유지, 글자만 한 단계 축소 */
-@media (min-width: 641px) and (max-width: 900px) {
-    .pass-req-type { font-size: 1.05rem; padding: 0.8rem 0.45rem; }
-}
-
 /* 방문 요일 선택 */
 .pass-req-weekdays { display: flex; gap: 5px; flex-wrap: wrap; }
 .pass-req-day { position: relative; }
@@ -1218,9 +1243,10 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     border-radius: var(--radius-md); background: #fff; text-align: center;
 }
 .pass-my-head { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 0.5rem; }
-.pass-my-type { padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; }
-.pass-my-type.type-regular    { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.pass-my-type.type-occasional { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+.pass-my-type {
+    padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 800;
+    background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+}
 .pass-my-region { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; }
 .pass-my-qr { width: 180px; height: 180px; margin: 0.6rem auto; display: block; }
 /* 경비실 QR 창(sec-qr-dialog)과 같은 구성 — 이름·소속·상세정보 */
@@ -1253,9 +1279,6 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 }
 
 @media (max-width: 640px) {
-    /* 좁은 화면에서도 좌우 2열 유지 (세로로 쌓지 않는다) */
-    .pass-req-types { gap: 0.4rem; }
-    .pass-req-type { font-size: 0.95rem; padding: 0.7rem 0.35rem; }
     .pass-my-qr { width: 150px; height: 150px; }
     /* 좁은 화면에서도 좌우 배치를 유지한다 → 세로로 쌓지 않고 폭·글자만 줄인다 */
     .guest-pass-btns { gap: 0.45rem; }
@@ -1310,12 +1333,6 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 /* 경비실 발급 폼: 자동 계산되는 종료일 표시 */
 .sec-auto-hint { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
 #secPassTo[readonly] { background: #f1f5f9; color: #475569; cursor: default; }
-
-/* 📱 초소형 화면(≤360px): 이용권 종류 카드가 두 열로 들어가도록 한 단계 더 축소 */
-@media (max-width: 360px) {
-    .pass-req-types { gap: 0.3rem; }
-    .pass-req-type { font-size: 0.88rem; padding: 0.6rem 0.25rem; }
-}
 
 /* ============================================================================
    🔒 경비실 관제 테마 (다크 콘솔)
@@ -1543,16 +1560,6 @@ body:has(.container-security-wide) {
     background: rgba(44, 111, 147, 0.12); border-color: var(--sec-accent); color: var(--sec-accent);
 }
 
-/* 이용권 종류 칩 (정기 / 수시) — 밝은 파스텔 배경을 저채도 다크로 */
-.container-security-wide .sec-pass-chip.type-regular {
-    background: rgba(44, 111, 147, 0.12); color: var(--sec-accent);
-    border: 1px solid rgba(44, 111, 147, 0.4); border-radius: 3px;
-}
-.container-security-wide .sec-pass-chip.type-occasional {
-    background: rgba(109, 40, 217, 0.1); color: #6d28d9;
-    border: 1px solid rgba(109, 40, 217, 0.35); border-radius: 3px;
-}
-
 /* 이용권 탭의 구역 소제목 — 표 위에 붙는 작은 라벨로 처리 */
 .container-security-wide .sec-pass-subtitle {
     font-size: 0.72rem; font-weight: 600; color: var(--sec-txt-faint);
@@ -1598,7 +1605,10 @@ body:has(.container-security-wide) {
 
 /* ── 본문 2단 (좌: 작업 영역 / 우: 관제 요약 패널) ────────────────
    기본은 1단이고, 우측 패널은 넓은 화면에서만 켠다. 아래 @media 참조. */
-.container-security-wide .sec-console-body { display: block; }
+/* 본문 영역은 남는 세로 공간을 모두 차지한다.
+   (내용 높이에만 맞추면 하단 상태바(margin-top:auto)와의 사이가 비고,
+    2단일 때 우측 패널의 좌측 경계선이 중간에서 끊겨 보인다) */
+.container-security-wide .sec-console-body { display: block; flex: 1 1 auto; min-height: 0; }
 .container-security-wide .sec-console-main { min-width: 0; }
 .container-security-wide .sec-console-side { display: none; }
 
@@ -1649,6 +1659,17 @@ body:has(.container-security-wide) {
     padding: 0.42rem 0.85rem; border-bottom: 1px solid var(--sec-line); font-size: 0.76rem;
 }
 .container-security-wide .sec-side-list > .sec-side-row:last-child { border-bottom: none; }
+/* 거점 행은 '출입 기록' 탭으로 넘어가는 버튼이다.
+   button 기본 스타일(테두리·배경·폰트 미상속)을 지워 다른 행과 같은 모양을 유지한다. */
+.container-security-wide .sec-side-row-btn {
+    width: 100%; background: none; border: none; border-bottom: 1px solid var(--sec-line);
+    font: inherit; color: inherit; text-align: left; cursor: pointer;
+    transition: background 0.12s ease;
+}
+.container-security-wide .sec-side-row-btn:hover { background: rgba(44, 111, 147, 0.07); }
+.container-security-wide .sec-side-row-btn:focus-visible {
+    outline: 1px solid var(--sec-accent); outline-offset: -1px;
+}
 .container-security-wide .sec-side-row-name {
     display: flex; align-items: center; gap: 0.45rem; color: var(--sec-txt);
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

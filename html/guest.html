@@ -16,7 +16,9 @@
                     <img src="../logo/SnSYS_logo.png" alt="에스엔시스 로고" class="brand-logo-img">
                 </div>
                 <h1 class="brand-title-color">S&SYS VMS</h1>
-                <p class="brand-sub brand-title-color">에스엔시스 방문객 출입관리 시스템</p>
+                <p class="brand-sub brand-title-color" id="guest-brand-sub">에스엔시스 방문객 출입관리 시스템</p>
+                <!-- 🌐 손님 화면 언어 선택 (js/i18n.js 가 채운다) -->
+                <div id="guest-lang-host"></div>
             </header>
 
             <div id="app-card" class="card">
@@ -92,6 +94,21 @@
         </div>
     </div>
 
+    <!-- 🔳 직원이 대신 등록해 준 방문객의 QR·링크 (손님에게 전달용) -->
+    <div id="empQrModal" class="modal-overlay-flex display-none">
+        <div class="visitor-modal-window region-qr-window">
+            <div class="records-topbar">
+                <span class="records-topbar-title">🔳 방문객 QR 전달</span>
+                <button onclick="closeEmpQrModal()" class="btn-modal-close">✖ 닫기</button>
+            </div>
+            <div class="region-qr-body">
+                <p class="region-qr-help" id="empQrHelp"></p>
+                <div id="empQrGrid" class="region-qr-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/i18n.js"></script>
     <script src="../js/visitor-history.js"></script>
     <script src="../js/scan-util.js"></script>
     <script src="../js/common.js"></script>
