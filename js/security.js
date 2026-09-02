@@ -69,6 +69,47 @@ function secSyncNavBrandLayout() {
     if (gap < need) brand.classList.add('is-stacked');
 }
 
+/* ====================================================================
+   🔍 경비실 콘솔 글자 배율 (노안 대응)
+     - 루트 폰트만 배율로 곱한다. 글자·여백·버튼이 대부분 rem 이라 전체가 같은 비율로
+       확대돼 레이아웃이 어긋나지 않는다.
+     - 경비실 화면에서만 적용한다. 손님 화면으로 나가면 resetWideLayout() 이 해제한다.
+     - 선택한 배율은 그 기기에 저장한다 (경비실 PC 는 계속 같은 사람이 쓴다).
+   ==================================================================== */
+const SEC_FONT_MIN = 0.9;
+const SEC_FONT_MAX = 1.5;
+const SEC_FONT_STEP = 0.05;
+const SEC_FONT_KEY = 'sec_font_scale';
+
+function secFontScaleRead() {
+    const v = parseFloat(localStorage.getItem(SEC_FONT_KEY));
+    if (!isFinite(v)) return 1;
+    return Math.min(SEC_FONT_MAX, Math.max(SEC_FONT_MIN, v));
+}
+
+/** 배율을 화면에 적용하고 저장한다.
+    CSS 규칙이 html:has(.container-security-wide) 로 범위를 좁히고 있어
+    이 변수는 경비실 화면에서만 효과가 있다 — 손님 화면으로 새지 않는다. */
+function applySecFontScale(scale) {
+    const v = Math.min(SEC_FONT_MAX, Math.max(SEC_FONT_MIN, Math.round(scale * 100) / 100));
+    const root = document.documentElement;
+    root.style.setProperty('--sec-font-scale', String(v));
+    try { localStorage.setItem(SEC_FONT_KEY, String(v)); } catch (e) {}
+
+    const val = document.getElementById('secFontVal');
+    if (val) val.textContent = Math.round(v * 100) + '%';
+    // 한계에 닿으면 버튼을 비활성화해 '눌러도 안 바뀌는' 혼란을 없앤다
+    const minus = document.getElementById('secFontMinus');
+    const plus = document.getElementById('secFontPlus');
+    if (minus) minus.disabled = (v <= SEC_FONT_MIN + 0.001);
+    if (plus) plus.disabled = (v >= SEC_FONT_MAX - 0.001);
+    return v;
+}
+
+function changeSecFontScale(dir) {
+    applySecFontScale(secFontScaleRead() + dir * SEC_FONT_STEP);
+}
+
 function showSecurityDashboard() {
     const emp = JSON.parse(sessionStorage.getItem('emp_session'));
     const empRegion = emp.region || '테크센터'; 
@@ -130,6 +171,11 @@ function showSecurityDashboard() {
                 </div>
                 <!-- 운영자 표기는 두지 않는다 — 상단 유틸리티 바(nav)에 이미 계정·소속이 있다. -->
                 <div class="sec-console-meta">
+                    <span class="sec-font-zoom" title="글자 크기 조절">
+                        <button type="button" id="secFontMinus" onclick="changeSecFontScale(-1)">−</button>
+                        <span class="sec-font-zoom-val" id="secFontVal">100%</span>
+                        <button type="button" id="secFontPlus" onclick="changeSecFontScale(1)">+</button>
+                    </span>
                     <span class="sec-console-sync" id="secConsoleSync">동기화 대기</span>
                     <span class="sec-console-clock" id="secConsoleClock">--:--:--</span>
                 </div>
@@ -701,6 +747,7 @@ async function secSubmitScan(raw) {
     } catch (e) {
         alert('스캔 처리 중 통신 오류가 발생했습니다.');
     }
+    applySecFontScale(secFontScaleRead());   // 저장해 둔 글자 배율 복원
     secKeepScanFocus();
 }
 
@@ -815,10 +862,11 @@ async function fetchSecurityQueue(isAuto = false) {
                             <b>${managerName}</b><br>
                             ${managerDeptLine}
                         </td>
-                        <td class="p-10">
+                        <td class="p-10 sec-queue-actions">
                             <button onclick="approveSecurityAction(${v.id}, '${actionTargetItem}')" class="sec-btn-approve-item ${btnColorClass}">
                                 ${actionTargetItem.replace('완료', '')} 승인
                             </button>
+                            ${v.status === '입실대기' ? `<button onclick="deleteVisitRequest(${v.id}, ${JSON.stringify(v.name || '')}, ${JSON.stringify(v.company || '')})" class="sec-btn-approve-item bg-gray">삭제</button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -954,7 +1002,7 @@ function renderSecurityLogTable() {
                     <tr class="border-bottom-eee">
                         <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
-                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}</td>
+                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}</td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
@@ -1054,6 +1102,34 @@ async function loadSecurityOverdue(isAuto = false) {
             tbody.innerHTML = '<tr><td colspan="9" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
         }
     }
+}
+
+/* 🗑️ 중복 입실 신청 삭제
+     그룹 신청에 이미 포함된 사람이 그 사실을 모르고 개별 신청을 또 올리는 경우가 있다.
+     그대로 두면 대기열에 두 번 뜨고 방문 횟수도 2회로 잡힌다.
+     아직 입실 전인 건만 지운다 — 서버도 '사전예약·입실대기' 로 한 번 더 막는다. */
+async function deleteVisitRequest(logId, name, company) {
+    const who = name ? (name + (company ? ' (' + company + ')' : '')) : '이 신청';
+    if (!confirm([
+        '🗑️ ' + who + ' 님의 입실 신청을 삭제합니다.',
+        '',
+        '· 중복 신청을 정리할 때 쓰는 기능입니다.',
+        '· 삭제하면 되돌릴 수 없고 방문 횟수에서도 빠집니다.',
+        '',
+        '삭제할까요?'
+    ].join(String.fromCharCode(10)))) return;
+
+    try {
+        const res = await fetch('/api/schedule/' + logId, { method: 'DELETE' });
+        const d = await res.json();
+        if (!d.success) { alert(d.message || '삭제에 실패했습니다.'); return; }
+    } catch (e) {
+        alert('삭제 중 통신 오류가 발생했습니다.');
+        return;
+    }
+    fetchSecurityQueue();
+    loadSecurityAllLogs();
+    loadSecurityOverdue();
 }
 
 async function approveSecurityAction(id, targetStatus, force = false) {

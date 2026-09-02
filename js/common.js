@@ -131,6 +131,14 @@ function tpSelect(prefix, type, value, el) {
         const apLabel = ap === 'AM' ? tOr('tp.am', '오전') : tOr('tp.pm', '오후');
         document.getElementById(prefix + '_display').innerHTML =
             `<span class="tp-value">${apLabel} ${String(h).padStart(2, '0')}:${String(parseInt(m, 10)).padStart(2, '0')}</span>`;
+        // 마지막 칸인 '분'을 고르면 선택이 끝난 것으로 보고 바로 닫는다.
+        //   '세 칸이 다 챠을 때' 로 하면 안 된다 — 입실 예정시간은 기본값이 미리 들어 있어
+        //   오전/오후만 눌러도 공란이 다 차서, 시·분을 고르기 전에 닫혀버린다.
+        //   고른 항목에 표시(sel)가 들어온 걸 눈으로 확인할 여유만 짧게 둔다.
+        if (type === 'm') {
+            const panel = document.getElementById(prefix + '_panel');
+            if (panel) setTimeout(() => panel.classList.remove('open'), 150);
+        }
     }
 }
 

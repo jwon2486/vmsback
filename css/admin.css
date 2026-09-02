@@ -185,37 +185,6 @@ body {
   margin-bottom: 0.5rem;
 }
 
-/* 💾 DB 전체 백업 — 되돌릴 수 없는 반출이라 붉은 계열 외곽선으로 일반 버튼과 구분한다.
-   (사이드바 배경이 어두워 흰 박스로 띄운다) */
-.db-backup-box {
-  margin-top: 1.25rem;
-  padding: 0.75rem;
-  margin-left: 0.6rem;
-  margin-right: 0.6rem;
-  background: #fff7f7;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-.db-backup-label {
-  font-weight: bold;
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #7f1d1d;
-}
-.btn-danger-outline {
-  background: #fff;
-  color: #b91c1c;
-  border: 1px solid #ef4444;
-}
-.btn-danger-outline:hover { background: #fef2f2; }
-.db-backup-warn {
-  margin: 0.5rem 0 0;
-  font-size: 0.72rem;
-  line-height: 1.45;
-  color: #9f1239;
-}
-
 /* --- [4. 우측 탭 판넬 및 카드 컴포넌트] --- */
 .erp-content { 
   display: flex; 
@@ -1074,9 +1043,10 @@ tr:hover td { background: #f8fafc; }
   .pass-weekday span { width: 2.2rem; }
 }
 
-/* 🎫 출입 기록에서 정기 출입증 방문 건 표시 */
+/* 🎫 출입 기록에서 출입권 방문 건 표시. 이름 아래 줄에 놓는다. */
+.pass-tag-line { margin-top: 2px; line-height: 1; }
 .pass-tag {
-  display: inline-block; margin-left: 0.25rem; padding: 1px 6px; border-radius: 0.25rem;
+  display: inline-block; padding: 1px 6px; border-radius: 0.25rem;
   background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe;
   font-size: 0.68rem; font-weight: 800; vertical-align: middle;
 }

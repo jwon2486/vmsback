@@ -219,12 +219,40 @@ async function loadAdminLogs() {
      날짜를 착각해 잘못 누른 승인을 되돌린다. 서버가 상태를 '입실대기'로 돌리고
      입·퇴실 시각을 지우므로, 경비실 승인 대기열에 다시 올라간다.
      되돌릴 승인이 있는 상태에만 버튼을 노출한다(서버도 같은 조건으로 한 번 더 막는다). */
+const ADMIN_DELETABLE_STATUSES = ['사전예약', '입실대기'];            // 삭제 가능(아직 입실 전)
 const ADMIN_RESET_STATUSES = ['입실완료', '퇴실대기', '퇴실완료'];   // 전체 취소 대상
 const ADMIN_RESET_OUT_STATUSES = ['퇴실대기', '퇴실완료'];            // 퇴실만 취소 대상
 
 /* mode
      'all'      : 입실·퇴실을 모두 잘못 눌렀을 때 → 입실대기, 두 시각 삭제
      'checkout' : 입실은 정상이고 퇴실만 잘못 눌렀을 때 → 입실완료, 퇴실 시각만 삭제 */
+/* 🗑️ 중복 입실 신청 삭제
+     그룹 신청에 이미 포함된 사람이 그 사실을 모르고 개별 신청을 또 올리면
+     대기열에 두 번 뜨고 방문 횟수도 2회로 잡힌다. 아직 입실 전인 건만 지운다.
+     (서버도 '사전예약·입실대기' 로 한 번 더 막는다) */
+async function deleteVisitRequest(logId) {
+    const target = (adminLogsAll || []).find(x => x.id === logId);
+    const who = target ? (target.name + (target.company ? ' (' + target.company + ')' : '')) : '이 신청';
+    if (!confirm([
+        '🗑️ ' + who + ' 님의 입실 신청을 삭제합니다.',
+        '',
+        '· 중복 신청을 정리할 때 쓰는 기능입니다.',
+        '· 삭제하면 되돌릴 수 없고 방문 횟수에서도 빠집니다.',
+        '',
+        '삭제할까요?'
+    ].join(String.fromCharCode(10)))) return;
+
+    try {
+        const res = await fetch('/api/schedule/' + logId, { method: 'DELETE' });
+        const d = await res.json();
+        if (!d.success) { alert(d.message || '삭제에 실패했습니다.'); return; }
+        alert(d.message);
+        loadAdminLogs();
+    } catch (e) {
+        alert('삭제 중 통신 오류가 발생했습니다.');
+    }
+}
+
 async function resetApproval(logId, mode) {
     // 이름은 onclick 에 넣지 않고 여기서 찾는다 (따옴표·특수문자가 속성을 깨뜨리지 않게)
     const target = (adminLogsAll || []).find(x => x.id === logId);
@@ -279,12 +307,16 @@ function renderAdminLogTable() {
 
                 // 방문 이력 팝업 호출(이름 클릭). 따옴표·한글이 섞여도 안전하게 인코딩해 전달.
                 const historyCall = `openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name || '').replace(/'/g, '%27')}'),decodeURIComponent('${encodeURIComponent(v.contact || '').replace(/'/g, '%27')}'))`;
-                // 🎫 출입권으로 생성된 방문 건은 이름 옆에 표시 (일반 방문객과 구분)
-                const passTag = v.pass_id ? '<span class="pass-tag">출입권</span>' : '';
-                const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>${passTag}`;
+                // 🎫 출입권으로 생성된 방문 건 표시 (일반 방문객과 구분). 이름 아래 줄에 둔다 —
+                //    이름 옆에 붙이면 긴 이름·좁은 열에서 줄바꿈이 지저분해진다.
+                const passTag = v.pass_id ? '<div class="pass-tag-line"><span class="pass-tag">출입권</span></div>' : '';
+                const nameLink = `<span class="visitor-name-link" onclick="${historyCall}">${v.name}</span>`;
                 // ↩️ 날짜를 착각해 잘못 누른 입·퇴실 승인을 되돌린다. 이미 끝난 건(만료)·아직 승인 전은 대상이 아니다.
                 let resetBtn = '<span class="no-manager-dash">-</span>';
-                if (ADMIN_RESET_STATUSES.includes(v.status)) {
+                if (ADMIN_DELETABLE_STATUSES.includes(v.status)) {
+                    // 아직 입실 전 → 중복 신청 정리용 삭제. (입실 후에는 실제 출입 사실이라 지우지 않는다)
+                    resetBtn = `<button class="btn btn-secondary btn-action-sm" onclick="deleteVisitRequest(${v.id})">삭제</button>`;
+                } else if (ADMIN_RESET_STATUSES.includes(v.status)) {
                     // 퇴실 단계면 '퇴실만' 되돌릴 선택지를 함께 준다 (입실은 정상인 경우가 많다)
                     const outBtn = ADMIN_RESET_OUT_STATUSES.includes(v.status)
                         ? `<button class="btn btn-secondary btn-action-sm" onclick="resetApproval(${v.id}, 'checkout')">퇴실만 취소</button>`
@@ -296,10 +328,10 @@ function renderAdminLogTable() {
                     <tr>
                         <td data-label="순번">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td data-label="방문일">${v.visit_date}</td>
-                        <td class="col-split-visitor" data-label="이름">${nameLink}</td>
+                        <td class="col-split-visitor" data-label="이름">${nameLink}${passTag}</td>
                         <td class="col-split-visitor" data-label="연락처">${formatPhone(v.contact)}</td>
                         <td class="col-merged-visitor" data-label="방문객">
-                            ${nameLink}<br>
+                            ${nameLink}${passTag}
                             <span class="manager-dept-info">${formatPhone(v.contact)}</span>
                         </td>
                         <td data-label="방문 횟수">${visitCountDisplay}</td>
@@ -321,7 +353,7 @@ function renderAdminLogTable() {
                             <div class="card-head-main">
                                 <div class="card-head-id">
                                     <span class="card-seq">#${v.month_seq != null ? v.month_seq : '-'}</span>
-                                    <span class="card-name">${nameLink}</span>
+                                    <span class="card-name">${nameLink}${passTag}</span>
                                 </div>
                                 <span class="card-status ${adminStatusClass(v.status)}">${statusLabel(v.status)}</span>
                             </div>
@@ -352,24 +384,6 @@ function downloadExcel() {
     // 화면의 거점 필터를 엑셀에도 동일 적용 (필터를 걸고 저장했는데 전 사업장이 나오면 혼란)
     const regionParam = adminRegionFilter ? `&region=${encodeURIComponent(adminRegionFilter)}` : '';
     window.location.href = `/api/admin/excel-download?start_date=${startDate}&end_date=${endDate}${regionParam}`;
-}
-
-/**
- * 💾 DB 파일 전체 내려받기.
- * 엑셀 저장(출입기록만)과 달리 직원 마스터·이용권까지 전부 포함된다.
- * 실수로 눌러 개인정보 파일이 PC 에 떨어지는 일이 없도록 한 번 확인받는다.
- */
-function downloadDbFile() {
-    const ok = confirm([
-        '💾 DB 파일 전체를 내려받습니다.',
-        '',
-        '전 직원 정보, 방문객 출입기록, 이용권이 모두 포함된 파일입니다.',
-        '사내 개인정보 보관 규정에 따라 관리해 주세요.',
-        '',
-        '내려받기를 진행할까요?'
-    ].join('\n'));
-    if (!ok) return;
-    window.location.href = '/api/admin/db-download';
 }
 
 // ==========================================

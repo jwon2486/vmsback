@@ -1,3 +1,13 @@
+/* 🔢 담당자 고유번호 (visit_code)
+     방문객이 담당자 이름을 한글로 치지 않고 이 6자리 번호로 지정한다.
+     번호 발급은 서버가 하고(직원 생성 시 자동), 재발급은 직원 본인이 임직원 화면에서 한다.
+     여기서는 '누구에게 알려줘야 하는 번호인지' 확인만 할 수 있으면 된다. */
+function visitCodeCell(code) {
+    const c = (code || '').trim();
+    if (!c) return '<span class="text-gray-400">-</span>';
+    return `<span class="font-mono font-bold text-gray-900">${c}</span>`;
+}
+
 // VMS 권한(level) 표시용. 방문객 시스템 전용 개념이라 전산장비 원본에는 없다.
 const VMS_LEVELS = { 1: '일반', 3: '최고관리자', 4: '경비실', 5: '전체기록' };
 function vmsLevelBadge(level) {
@@ -230,6 +240,7 @@ async function selectDepartment(id, name) {
                     <td class="table-td font-bold text-gray-900">${emp.emp_name}</td>
                     <td class="table-td text-gray-600">${emp.position || '일반'}</td>
                     <td class="table-td text-gray-600">${emp.dept_name}</td>
+                    <td class="table-td">${visitCodeCell(emp.visit_code)}</td>
                     <td class="table-td text-gray-600">${emp.region || '-'}</td>
                     <td class="table-td">${vmsLevelBadge(emp.level)}</td>
                     <td class="table-td-center flex gap-1 justify-center">
@@ -248,7 +259,7 @@ async function selectDepartment(id, name) {
 
 // 직속 인원이 0명인 부서: 겸임 부서장(직접/상위겸임)을 한 줄 표시. 인원수 집계에는 미포함.
 async function renderVacantManagerRow(deptId, tbody) {
-    const emptyMsg = `<tr><td colspan="7" class="table-td-center py-10 text-gray-400">해당 부서에 등록된 직원이 없습니다.</td></tr>`;
+    const emptyMsg = `<tr><td colspan="8" class="table-td-center py-10 text-gray-400">해당 부서에 등록된 직원이 없습니다.</td></tr>`;
     try {
         const res = await fetch(`/api/tree/departments/${deptId}/manager`);
         const data = await res.json();
@@ -260,7 +271,7 @@ async function renderVacantManagerRow(deptId, tbody) {
                     <td class="table-td font-bold text-slate-700">${m.name}</td>
                     <td class="table-td text-gray-500">${m.rank || '-'}</td>
                     <td class="table-td text-gray-500">${m.dept_name} <span class="text-[10px] text-gray-400">(원소속)</span></td>
-                    <td class="table-td-center text-xs text-gray-400">직속 인원 없음 · 인원수 미집계</td>
+                    <td colspan="4" class="table-td-center text-xs text-gray-400">직속 인원 없음 · 인원수 미집계</td>
                 </tr>`;
         } else {
             tbody.innerHTML = emptyMsg;
@@ -507,7 +518,7 @@ async function deleteDept(deptId, deptName) {
             if (currentDeptId === deptId) {
                 currentDeptId = null;
                 document.getElementById('selectedAreaName').innerText = '선택된 부서가 없습니다.';
-                document.getElementById('employeeTableBody').innerHTML = '<tr><td colspan="7" class="table-td-center py-10 text-gray-400">부서를 선택해주세요.</td></tr>';
+                document.getElementById('employeeTableBody').innerHTML = '<tr><td colspan="8" class="table-td-center py-10 text-gray-400">부서를 선택해주세요.</td></tr>';
             }
         } else { alert('삭제 불가: ' + result.message); }
     } catch (error) { alert('통신 중 오류가 발생했습니다.'); }

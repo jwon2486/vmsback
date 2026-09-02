@@ -1036,16 +1036,25 @@ function showPassRequestForm() {
                 <div class="input-group"><label>${t('label.vehicle')}</label>
                     <input type="text" id="passReqVehicle" placeholder="${t('passreq.vehiclePh')}" autocomplete="off"></div>
             </div>
-            <div class="input-row-group">
-                <div class="input-group">
-                    <label>${t('passreq.purpose')} <span class="req-star">*</span></label>
-                    <input type="text" id="passReqPurpose" placeholder="${t('passreq.purposePh')}" autocomplete="off">
+            <!-- 이용 목적: 일반 방문 등록과 같은 버튼 선택식.
+                 직접 타이핑하면 표기가 제각각이라 집계가 안 되고, 외국인 방문객은 한글 입력도 어렵다.
+                 저장값은 한국어 그대로 두고(경비실·엑셀이 이 값을 쓴다) 화면 표시만 번역한다. -->
+            <div class="input-group">
+                <label>${t('passreq.purpose')} <span class="req-star">*</span></label>
+                <input type="hidden" id="passReqPurpose" value="회의/미팅">
+                <div class="purpose-button-group">
+                    <button type="button" class="btn-choice active" onclick="selectPurpose(this, '회의/미팅', 'passReqPurpose')">🤝 ${t('purpose.meeting')}</button>
+                    <button type="button" class="btn-choice" onclick="selectPurpose(this, '제품 납품', 'passReqPurpose')">📦 ${t('purpose.delivery')}</button>
+                    <button type="button" class="btn-choice" onclick="selectPurpose(this, '상차/하차', 'passReqPurpose')">🚚 ${t('purpose.loading')}</button>
+                    <button type="button" class="btn-choice" onclick="selectPurpose(this, '품질 검사', 'passReqPurpose')">🔍 ${t('purpose.quality')}</button>
+                    <button type="button" class="btn-choice" onclick="selectPurpose(this, '시설 점검', 'passReqPurpose')">🛠️ ${t('purpose.facility')}</button>
+                    <button type="button" class="btn-choice" onclick="selectPurpose(this, '기타 업무', 'passReqPurpose')">📁 ${t('purpose.etc')}</button>
                 </div>
-                <div class="input-group">
-                    <label>${t('passreq.startDate')} <span class="req-star">*</span></label>
-                    <input type="date" id="passReqFrom" value="${passReqTodayStr()}" min="${passReqTodayStr()}"
-                           onchange="refreshPassReqRange()">
-                </div>
+            </div>
+            <div class="input-group">
+                <label>${t('passreq.startDate')} <span class="req-star">*</span></label>
+                <input type="date" id="passReqFrom" value="${passReqTodayStr()}" min="${passReqTodayStr()}"
+                       onchange="refreshPassReqRange()">
             </div>
             <div class="input-group">
                 <label>${t('pass.period')} <span class="req-star">*</span></label>
@@ -1066,10 +1075,6 @@ function showPassRequestForm() {
                         `<label class="pass-req-day"><input type="checkbox" data-day="${i}" ${i < 5 ? 'checked' : ''}><span>${t(k)}</span></label>`
                     ).join('')}
                 </div>
-            </div>
-            <div class="input-group">
-                <label>${t('pass.reason')}</label>
-                <input type="text" id="passReqMemo" placeholder="${t('passreq.memoPh')}" autocomplete="off">
             </div>
         </div>
 
@@ -1106,7 +1111,6 @@ async function submitPassRequest() {
         weekdays: weekdays,
         valid_from: passReqStartDate(),
         period: passReqPeriod,
-        memo: get('passReqMemo').trim(),
         region: (document.getElementById('passReqRegion') || {}).value || '',
     };
     if (!payload.name) return alert(t('alert.needName'));

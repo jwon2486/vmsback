@@ -949,8 +949,11 @@ def cancel_individual_schedule(log_id):
 
     try:
         conn = get_db_connection()
-        # Level 4(경비 담당)는 소유자 무관하게 취소 가능. 그 외에는 본인(created_by) 등록 건만.
-        if requester_level == 4:
+        # 중복 신청 정리용. 같은 사람이 그룹 신청에 포함된 줄 모르고 개별 신청을 또 올리면
+        # 방문 횟수가 부풀고 대기열에 두 번 뜬다. 아직 입실 전(사전예약·입실대기)인 건만 지운다.
+        #   → 이미 입실한 건을 지우면 실제 출입 사실이 기록에서 사라지므로 허용하지 않는다.
+        # 최고 관리자(3)·경비실(4)은 소유자 무관하게, 그 외에는 본인(created_by) 등록 건만.
+        if requester_level in (3, 4):
             cur = conn.execute(
                 "DELETE FROM visitor_log WHERE id = ? AND status IN ('사전예약', '입실대기')",
                 (log_id,)
@@ -2987,7 +2990,7 @@ def tree_dept_employees(dept_id):
     conn = get_db_connection()
     rows = conn.execute("""
         SELECT e.id, e.name AS emp_name, e.rank AS position, e.dept_id, d.dept_name,
-               e.region, e.type, e.level
+               e.region, e.type, e.level, e.visit_code
         FROM employees e JOIN department_tree d ON e.dept_id = d.id
         WHERE e.dept_id = ?
         ORDER BY

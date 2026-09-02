@@ -43,14 +43,6 @@
                             <button class="btn btn-secondary btn-full" onclick="uploadEmployeeFile()">업로드 실행</button>
                         </div>
                     </div>
-
-                    <!-- 💾 DB 전체 백업 — 개인정보가 통째로 나가는 동작이라
-                         일상 기능(엑셀 저장)과 섞이지 않게 사이드바 하단에 따로 둔다. -->
-                    <div class="erp-sidebar-actions db-backup-box">
-                        <label class="db-backup-label">💾 DB 전체 백업</label>
-                        <button class="btn btn-danger-outline btn-full" onclick="downloadDbFile()">DB 파일 내려받기</button>
-                        <p class="db-backup-warn">전 직원·방문객 개인정보가 모두 포함됩니다. 사내 보관 규정에 따라 관리하세요.</p>
-                    </div>
                 </aside>
 
                 <section class="erp-content">
@@ -318,7 +310,6 @@
                 </div>
                 <p class="pass-qr-note">
                     이 QR 이미지를 방문객에게 전달하세요 (문자·메신저·메일 등). 정문 스캐너에 대면 입실, 다시 대면 퇴실 처리됩니다.
-                    유출·분실 시에는 <b>해지 후 재발급</b>하세요 (기존 QR은 즉시 사용 불가).
                 </p>
             </div>
             <div class="modal-footer">
