@@ -407,7 +407,10 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .bg-orange-dark { background: #d97706 !important; }
 /* 중복 신청 삭제 — 승인 버튼과 색으로 확실히 구분한다 */
 .bg-gray { background: #64748b !important; }
-.sec-queue-actions { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; }
+/* 승인·삭제를 한 줄에 좌우로 나란히. 기본 .sec-btn-approve-item 은 width:100% 라
+   그대로 두면 각자 한 줄을 차지해 세로로 쌓인다 → 여기서만 auto 로 되돌린다. */
+.sec-queue-actions { display: flex; gap: 0.35rem; align-items: center; flex-wrap: nowrap; }
+.sec-queue-actions .sec-btn-approve-item { width: auto; flex: 1 1 0; white-space: nowrap; padding: 6px 8px; }
 /* 임직원 목록의 보조 액션(개별 신청·QR 전달). 규칙이 없어 배경 없이 흰 글씨로 나오던 것을 채운다. */
 .bg-emp-sub { background: #64748b !important; }
 
