@@ -776,6 +776,20 @@ function switchSecTab(tab) {
     if (tab === 'pass') loadSecPassData();
 }
 
+/* 🕗 신청이 접수된 시각. 같은 사람이 두 번 올라온 경우 어느 쪽이 나중 것인지 가려내는 근거가 된다.
+   오늘 접수분은 시각만, 지난 날짜는 날짜까지 보여 준다.
+   이 컬럼이 생기기 전에 접수된 건은 값이 없어 '-' 로 표시된다. */
+function secReqTimeText(createdAt) {
+    const v = (createdAt || '').trim();
+    if (!v) return '-';
+    const d = new Date();
+    const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+                + '-' + String(d.getDate()).padStart(2, '0');
+    return v.slice(0, 10) === today ? v.slice(11, 16) : v.slice(5, 16);
+}
+
+let secQueueCache = [];   // 승인 대기열 원본 (삭제 확인창에서 이름·소속을 찾는 데 쓴다)
+
 async function fetchSecurityQueue(isAuto = false) {
     try {
         const emp = JSON.parse(sessionStorage.getItem('emp_session'));
@@ -805,6 +819,7 @@ async function fetchSecurityQueue(isAuto = false) {
         const pendingStatEl = document.getElementById('secStatPending');
         if (pendingStatEl) pendingStatEl.textContent = totalPending;
 
+        secQueueCache = data.list;
         secRenderQueueSide(data.list);   // 🚨 우측 패널 대기 큐도 같은 데이터로 갱신
 
         if (data.list.length === 0) {
@@ -855,7 +870,7 @@ async function fetchSecurityQueue(isAuto = false) {
 
                 html += `
                     <tr class="sec-item-row ${bgClass}">
-                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span></td>
+                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span><br><span class="fs-8 sec-req-time">신청 ${secReqTimeText(v.created_at)}</span></td>
                         <td class="p-10">${v.vehicle_no || '-'}</td>
                         <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
@@ -866,7 +881,7 @@ async function fetchSecurityQueue(isAuto = false) {
                             <button onclick="approveSecurityAction(${v.id}, '${actionTargetItem}')" class="sec-btn-approve-item ${btnColorClass}">
                                 ${actionTargetItem.replace('완료', '')} 승인
                             </button>
-                            ${v.status === '입실대기' ? `<button onclick="deleteVisitRequest(${v.id}, ${JSON.stringify(v.name || '')}, ${JSON.stringify(v.company || '')})" class="sec-btn-approve-item bg-gray">삭제</button>` : ''}
+                            ${v.status === '입실대기' ? `<button onclick="deleteVisitRequest(${v.id})" class="sec-btn-approve-item bg-gray">삭제</button>` : ''}
                         </td>
                     </tr>
                 `;
@@ -1002,7 +1017,7 @@ function renderSecurityLogTable() {
                     <tr class="border-bottom-eee">
                         <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
-                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}</td>
+                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}<div class="fs-8 sec-req-time">신청 ${secReqTimeText(v.created_at)}</div></td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>
@@ -1108,8 +1123,10 @@ async function loadSecurityOverdue(isAuto = false) {
      그룹 신청에 이미 포함된 사람이 그 사실을 모르고 개별 신청을 또 올리는 경우가 있다.
      그대로 두면 대기열에 두 번 뜨고 방문 횟수도 2회로 잡힌다.
      아직 입실 전인 건만 지운다 — 서버도 '사전예약·입실대기' 로 한 번 더 막는다. */
-async function deleteVisitRequest(logId, name, company) {
-    const who = name ? (name + (company ? ' (' + company + ')' : '')) : '이 신청';
+async function deleteVisitRequest(logId) {
+    // 이름·소속은 onclick 에 넣지 않고 여기서 찾는다 (따옴표가 속성을 깨뜨리지 않게)
+    const v = (secQueueCache || []).find(x => x.id === logId);
+    const who = v ? (v.name + (v.company ? ' (' + v.company + ')' : '')) : '이 신청';
     if (!confirm([
         '🗑️ ' + who + ' 님의 입실 신청을 삭제합니다.',
         '',

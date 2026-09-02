@@ -122,6 +122,13 @@ window.addEventListener("pageshow", (event) => {
 
 // 'YYYY-MM-DD HH:MM:SS' → 'HH:MM:SS' 만 반환 (방문일 컬럼에 날짜가 있어 시간만 표시).
 //  값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-') 반환. (경비실 표와 동일 규칙)
+/* 🕗 신청이 접수된 시각. 같은 사람이 두 번 올라온 경우 어느 쪽이 나중 것인지 가려내는 근거.
+   이 컬럼이 생기기 전에 접수된 건은 값이 없어 '-' 로 표시된다. */
+function adminReqTime(createdAt) {
+    const v = (createdAt || '').trim();
+    return v ? v.slice(5, 16) : '-';
+}
+
 function adminTimeOnly(val) {
     if (!val) return '-';
     const parts = String(val).trim().split(' ');
@@ -328,11 +335,12 @@ function renderAdminLogTable() {
                     <tr>
                         <td data-label="순번">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td data-label="방문일">${v.visit_date}</td>
-                        <td class="col-split-visitor" data-label="이름">${nameLink}${passTag}</td>
+                        <td class="col-split-visitor" data-label="이름">${nameLink}${passTag}<div class="req-time-line">신청 ${adminReqTime(v.created_at)}</div></td>
                         <td class="col-split-visitor" data-label="연락처">${formatPhone(v.contact)}</td>
                         <td class="col-merged-visitor" data-label="방문객">
                             ${nameLink}${passTag}
                             <span class="manager-dept-info">${formatPhone(v.contact)}</span>
+                            <div class="req-time-line">신청 ${adminReqTime(v.created_at)}</div>
                         </td>
                         <td data-label="방문 횟수">${visitCountDisplay}</td>
                         <td data-label="소속">${v.company}</td>

@@ -1196,6 +1196,8 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 /* 출입 기록·대기열의 출입권 표시 — 일반 방문객과 한눈에 구분 */
 /* 출입 기록에서는 이름 아래 줄로 내린다 (대기열은 이름 옆 유지: 그쪽은 아래에 소속이 붙는다) */
 .sec-pass-tag-line { margin-top: 2px; line-height: 1; }
+/* 신청이 접수된 시각 — 중복 신청을 가려낼 때 본다 */
+.sec-req-time { color: var(--text-muted); }
 .sec-pass-tag-line .sec-pass-tag { margin-left: 0; }
 .sec-pass-tag {
     display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 4px;

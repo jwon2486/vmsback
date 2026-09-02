@@ -224,6 +224,15 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 🕗 신청이 접수된 시각. 같은 사람이 그룹 신청에 포함된 줄 모르고 개별 신청을 또 올리면
+    #    어느 쪽이 먼저·나중인지 화면에서 구분이 안 돼 중복 정리가 어렵다.
+    #    (기존 행은 값이 없다 — 이 컬럼이 생기기 전에 접수된 건이라 소급해 채울 근거가 없다)
+    try:
+        cursor.execute("ALTER TABLE visitor_log ADD COLUMN created_at TEXT DEFAULT ''")
+        print("🕗 [신청 시각] visitor_log.created_at 컬럼 추가")
+    except sqlite3.OperationalError:
+        pass
+
     # 방문 기록 ↔ 정기권 연결 (NULL = 일반 방문객). 기록 화면의 유형 배지·집계에 쓰인다.
     try:
         cursor.execute("ALTER TABLE visitor_log ADD COLUMN pass_id INTEGER")
@@ -1032,9 +1041,9 @@ def group_preregister_visitor():
             expected_checkout = (v.get('expected_checkout') or '').strip()
 
             cursor.execute("""
-                INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, group_id, expected_checkin, expected_checkout)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '입실대기', ?, ?, ?, ?)
-            """, (visit_date, name, contact, company, vehicle_no, purpose, manager_name, created_by, region, group_id, expected_checkin, expected_checkout))
+                INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, group_id, expected_checkin, expected_checkout, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '입실대기', ?, ?, ?, ?, ?)
+            """, (visit_date, name, contact, company, vehicle_no, purpose, manager_name, created_by, region, group_id, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
 
         conn.commit()
         conn.close()
@@ -1267,9 +1276,9 @@ def security_preregister():
         bind_id = emp_id_match if emp_id_match != 'guard_pending' else session['user'].get('id')
         
         conn.execute("""
-            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '사전예약', ?)
-        """, (visit_date, name, contact, company, vehicle_no, purpose, manager_text, bind_id, region))
+            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '사전예약', ?, ?)
+        """, (visit_date, name, contact, company, vehicle_no, purpose, manager_text, bind_id, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "방문 예약이 정상적으로 등록되었습니다."})
@@ -1356,10 +1365,9 @@ def handle_integrated_checkin():
         if matched_name: manager_text = matched_name
         
         cursor.execute("""
-            INSERT INTO visitor_log 
-            (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, expected_checkin, expected_checkout)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?)
-        """, (today_date, name, company, contact, vehicle_no, purpose, manager_text, matched_emp_id, region, expected_checkin, expected_checkout))
+            INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, expected_checkin, expected_checkout, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?)
+        """, (today_date, name, company, contact, vehicle_no, purpose, manager_text, matched_emp_id, region, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
         new_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -1404,12 +1412,11 @@ def handle_group_checkin():
                 has_pending = True
                 
             cursor.execute("""
-                INSERT INTO visitor_log 
-                (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, group_id, expected_checkin, expected_checkout)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?)
+                INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, group_id, expected_checkin, expected_checkout, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?, ?)
             """, (today_date, v['name'], v['company'], v['contact'], v.get('vehicle_no', '없음'), 
                   v['purpose'], v['manager_text'], matched_emp_id, region, group_id,
-                  (v.get('expected_checkin') or '').strip(), (v.get('expected_checkout') or '').strip()))
+                  (v.get('expected_checkin') or '').strip(), (v.get('expected_checkout') or '').strip(), get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
             
             row_id = cursor.lastrowid
             member_ids.append(row_id)
@@ -1484,9 +1491,9 @@ def preregister_visitor():
     try:
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region)
-            VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '사전예약', ?)
-        """, (visit_date, name, contact, company, vehicle_no, purpose, created_by, region))
+            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '사전예약', ?, ?)
+        """, (visit_date, name, contact, company, vehicle_no, purpose, created_by, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "사전 예약이 완료되었습니다."})
@@ -1871,13 +1878,12 @@ def scan_pass_action(conn, p, entry_only=False):
     new_status = '입실완료' if auto else '입실대기'
     checkin_time = now_str if auto else ''
     cur = conn.execute("""
-        INSERT INTO visitor_log
-            (visit_date, name, company, contact, vehicle_no, purpose, manager_text,
+        INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text,
              checkin_time, checkout_time, status, created_by, region, group_id,
-             expected_checkin, expected_checkout, token, pass_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'NONE', '', '', '', ?)
+             expected_checkin, expected_checkout, token, pass_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'NONE', '', '', '', ?, ?)
     """, (today, p['name'], p['company'], p['contact'], p['vehicle_no'], p['purpose'],
-          p['manager_text'], checkin_time, new_status, p['created_by'], p['region'], p['id']))
+          p['manager_text'], checkin_time, new_status, p['created_by'], p['region'], p['id'], get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
     conn.commit()
     revisit = (status == '퇴실완료')
     if auto:
@@ -2491,7 +2497,7 @@ def admin_logs():
     conn = get_db_connection()
     query = """
         SELECT v.id, v.visit_date, v.name, v.contact, v.company, v.purpose, v.checkin_time, v.checkout_time, v.status,
-               e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout, v.pass_id,
+               e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout, v.pass_id, v.created_at,
                (SELECT COUNT(*) FROM visitor_log v2
                   WHERE IFNULL(v2.region, '') = IFNULL(v.region, '')
                     AND substr(v2.visit_date, 1, 7) = substr(v.visit_date, 1, 7)
@@ -2668,7 +2674,9 @@ def admin_backup_now():
     except Exception as e:
         return jsonify({"success": False, "message": f"백업 실패: {str(e)}"}), 500
 
+# 주소 두 가지를 모두 받는다 — 손으로 URL 을 칠 때 순서를 헷갈리기 쉬워서다.
 @app.route('/api/admin/db-download', methods=['GET'])
+@app.route('/api/admin/download-db', methods=['GET'])
 def admin_db_download():
     """
     💾 [최고 관리자 전용] DB 파일(db.sqlite) 전체를 내려받는다.
