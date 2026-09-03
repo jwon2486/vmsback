@@ -246,6 +246,11 @@
   "srv.passreq.error": "신청 처리 중 오류가 발생했습니다.",
   "srv.passstatus.needBoth": "성명과 연락처를 모두 입력해 주세요.",
   "label.managerCode": "사내 방문 담당자 번호",
+  "label.manager": "사내 방문 담당자",
+  "ph.manager": "성명 또는 담당자번호 6자리 중 택1 입력",
+  "mgr.needTwo": "두 글자 이상 입력해 주세요.",
+  "mgr.none": "찾지 못했습니다. 성명을 다시 확인하시거나 번호로 입력해 주세요.",
+  "alert.pickManager": "담당자를 찾아 선택해 주세요.",
   "ph.managerCode": "담당자에게 받은 6자리 번호",
   "alert.needManager": "담당자 번호를 입력해 주세요."
 }

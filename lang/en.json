@@ -246,6 +246,11 @@
   "srv.passreq.error": "An error occurred while processing your application.",
   "srv.passstatus.needBoth": "Please enter both your name and phone number.",
   "label.managerCode": "Host employee code",
+  "label.manager": "Host at our company",
+  "ph.manager": "Enter either the name or the 6-digit number",
+  "mgr.needTwo": "Please enter at least 2 characters.",
+  "mgr.none": "Not found. Check the spelling, or enter the number instead.",
+  "alert.pickManager": "Please search and select your host.",
   "ph.managerCode": "6-digit code given to you by your host",
   "alert.needManager": "Please enter the host employee code."
 }

@@ -459,6 +459,76 @@ function removeCompanionField(id) {
     updateCompanionNumbers();
 }
 
+/* 🔢/🔎 담당자 지정 — 칸 하나로 번호와 이름을 모두 받는다.
+     숫자만 입력: 담당자 고유번호. 전사 유일이라 다른 센터 담당자도 지정된다.
+     글자 입력  : 이름으로 본다. 접속 거점 안에서만 찾고, 같은 거점에 동명이인이
+                  있을 때만 부서를 함께 보여주고 고르게 한다. 없으면 부서를 노출하지 않는다. */
+function managerIsCode(v) {
+    return /^\d+$/.test((v || '').trim());
+}
+
+let mgrSearchTimer = null;
+
+/** 입력이 멈추면 이름일 때만 조회한다. 매 글자마다 때리지 않도록 잠깐 기다린다. */
+function onManagerInput() {
+    const el = document.getElementById('manager_q');
+    const box = document.getElementById('mgrResult');
+    const raw = el ? el.value.trim() : '';
+    // 입력이 바뀌면 앞서 고른 담당자는 무효
+    const set = (id, v) => { const x = document.getElementById(id); if (x) x.value = v; };
+    set('manager_name', '');
+    set('manager_dept', '');
+
+    if (mgrSearchTimer) clearTimeout(mgrSearchTimer);
+    if (!box) return;
+    if (managerIsCode(raw) || raw.length < 2) { box.innerHTML = ''; return; }
+    mgrSearchTimer = setTimeout(searchManager, 400);
+}
+
+async function searchManager() {
+    const q = (document.getElementById('manager_q') || {}).value || '';
+    const box = document.getElementById('mgrResult');
+    if (!box) return;
+    if (managerIsCode(q) || q.trim().length < 2) { box.innerHTML = ''; return; }
+
+    box.innerHTML = `<p class="mgr-hint">${t('passmy.loading')}</p>`;
+    let list;
+    try {
+        const res = await fetch('/api/manager/search', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: q.trim() })
+        });
+        const d = await res.json();
+        if (!d.success) { box.innerHTML = `<p class="mgr-hint">${srvMsg(d, 'mgr.none')}</p>`; return; }
+        list = d.list || [];
+    } catch (e) {
+        box.innerHTML = `<p class="mgr-hint">${t('passmy.netError')}</p>`;
+        return;
+    }
+
+    if (!list.length) { box.innerHTML = `<p class="mgr-hint">${t('mgr.none')}</p>`; return; }
+
+    // 후보가 하나면 부서가 비어 온다 → 이름만 보여주고 바로 고른 상태로 둔다.
+    box.innerHTML = list.map((x, i) => `
+        <button type="button" class="mgr-pick" data-i="${i}"
+                onclick="pickManager(${i}, this)">${x.name}${x.dept ? ` <span class="mgr-dept">(${x.dept})</span>` : ''}</button>`).join('');
+    window.__mgrCandidates = list;
+    if (list.length === 1) {
+        const only = box.querySelector('.mgr-pick');
+        if (only) pickManager(0, only);
+    }
+}
+
+function pickManager(i, btn) {
+    const x = (window.__mgrCandidates || [])[i];
+    if (!x) return;
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    set('manager_name', x.name);
+    set('manager_dept', x.dept || '');
+    document.querySelectorAll('#mgrResult .mgr-pick').forEach(b => b.classList.remove('picked'));
+    if (btn) btn.classList.add('picked');
+}
+
 function showCheckinForm(passedName = '', passedContact = '') {
     markGuestView(showCheckinForm, passedName, passedContact);
     companionCount = 0; 
@@ -525,9 +595,15 @@ function showCheckinForm(passedName = '', passedContact = '') {
                          이름 매칭은 폐지: 외국인 방문객은 한글을 칠 수 없고, 동명이인이면 특정도 안 된다.
                          담당자명은 서버가 번호로 찾아 채운다. -->
                     <div class="input-group">
-                        <label>${t('label.managerCode')} <span class="req-star">*</span></label>
-                        <input type="text" id="manager_code" inputmode="numeric" maxlength="6"
-                               autocomplete="off" placeholder="${t('ph.managerCode')}">
+                        <label>${t('label.manager')} <span class="req-star">*</span></label>
+                        <!-- 번호든 이름이든 이 칸 하나로 받는다. 숫자만 넣으면 번호,
+                             글자를 넣으면 이름으로 보고 후보를 찾아 보여준다. -->
+                        <input type="text" id="manager_q" autocomplete="off"
+                               placeholder="${t('ph.manager')}" oninput="onManagerInput()">
+                        <div id="mgrResult" class="mgr-result"></div>
+                        <!-- 고른 담당자. 서버는 이름(+동명이인이면 부서)으로 다시 특정한다. -->
+                        <input type="hidden" id="manager_name">
+                        <input type="hidden" id="manager_dept">
                     </div>
 
                     <div class="input-group mb-20">
@@ -604,7 +680,7 @@ async function submitCheckin() {
     const nameEl = document.getElementById('name');
     const companyEl = document.getElementById('company');
     const vehicleNoEl = document.getElementById('vehicle_no');
-    const managerCodeEl = document.getElementById('manager_code');
+    const managerCodeEl = document.getElementById('manager_q');
     const purposeEl = document.getElementById('purpose');
 
     const guestRegionEl = document.getElementById('guestRegionSelect');
@@ -621,7 +697,11 @@ async function submitCheckin() {
     const contact = readPhone('contact');
     const vehicle_no = vehicleNoEl ? (vehicleNoEl.value.trim() || '없음') : '없음';
     // 숫자만 남긴다 (공백·하이픈을 넣어 전달받는 경우가 있다)
-    const manager_code = managerCodeEl ? managerCodeEl.value.replace(/\D/g, '') : '';
+    const managerRaw = managerCodeEl ? managerCodeEl.value.trim() : '';
+    const byCode = managerIsCode(managerRaw);
+    const manager_code = byCode ? managerRaw.replace(/\D/g, '') : '';
+    const manager_name = byCode ? '' : ((document.getElementById('manager_name') || {}).value || '');
+    const manager_dept = byCode ? '' : ((document.getElementById('manager_dept') || {}).value || '');
     const purpose = purposeEl.value;
 
     const expected_checkin = readTimeSelect('expectedCheckin');
@@ -629,11 +709,14 @@ async function submitCheckin() {
     
     if (!name || !company || !contact || !purpose) return alert(t('alert.needRequired'));
     // 담당자는 번호 또는 이름 중 하나면 된다 (외국인 방문객은 한글 이름 입력이 불가)
-    if (!manager_code) return alert(t('alert.needManager'));
+    if (!managerRaw) return alert(t('alert.needManager'));
+    if (!byCode && !manager_name) return alert(t('alert.pickManager'));
     if (!expected_checkin || !expected_checkout) return alert(t('alert.needTimes'));
 
     let visitorsArray = [{
-        name, company, contact, vehicle_no, manager_code, purpose, expected_checkin, expected_checkout
+        name, company, contact, vehicle_no,
+        manager_code, manager_name, manager_dept,      // 번호로 골랐으면 이름·부서가 빈 값
+        purpose, expected_checkin, expected_checkout
     }];
 
     const compBoxes = document.querySelectorAll('.companion-box');
@@ -652,6 +735,8 @@ async function submitCheckin() {
             contact: cContact,
             vehicle_no: cVehicle,
             manager_code: manager_code,
+            manager_name: manager_name,
+            manager_dept: manager_dept,
             purpose: purpose,
             expected_checkin: expected_checkin,
             expected_checkout: expected_checkout
@@ -1149,11 +1234,63 @@ function showPassRequestDone(payload, message) {
             ${t('passdone.note1')}<br>
             ${t('passdone.note2')}
         </p>
+        <p class="poll-live-hint">🔄 ${t('poll.hint')}</p>
+        <div id="passDoneResult"></div>
         <div class="action-buttons">
             <button onclick="showPassStatusForm()" class="btn-guest-main">${t('passdone.check')}</button>
             <button onclick="showMainPage()" class="btn-guest-sub">${t('btn.home')}</button>
         </div>
     `;
+
+    // 승인될 때까지 기다린다. 승인되면 이 화면에서 바로 QR 을 보여준다
+    // (예전에는 손님이 '신청 결과 조회'로 들어가 성명·연락처를 다시 입력해야 확인할 수 있었다)
+    startPassApprovalPolling(payload);
+}
+
+/* 🎫 출입권 승인 감시
+     신청 직후 화면을 열어둔 채 승인을 기다리는 동선이라, 승인되는 순간 QR 이 뜨는 게 자연스럽다.
+     - 조회와 같은 API(/api/pass/request/status)를 쓴다. 성명·연락처는 방금 낸 신청서 값을 그대로 쓴다.
+     - '활성' 이 되면 QR 카드로 갈아끼우고 감시를 멈춘다. '반려' 도 결과이므로 멈춘다.
+     - 타이머는 visitorPollTimer 를 공유한다 → 다른 화면으로 넘어갈 때
+       그 화면들이 부르는 stopVisitorPolling() 으로 자동 정리된다. */
+function startPassApprovalPolling(payload) {
+    stopVisitorPolling();
+    const name = (payload.name || '').trim();
+    const contact = (payload.contact || '').trim();
+    if (!name || !contact) return;
+
+    visitorPollTimer = setInterval(async () => {
+        let list;
+        try {
+            const res = await fetch('/api/pass/request/status', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, contact })
+            });
+            const d = await res.json();
+            if (!d || !d.success || !Array.isArray(d.list)) return;
+            list = d.list;
+        } catch (e) {
+            return;      // 통신이 잠깐 끊겨도 계속 기다린다
+        }
+
+        // 결과가 나온 건(활성/반려)만 관심 대상. 신청 상태면 계속 기다린다.
+        const done = list.filter(p => p.status === '활성' || p.status === '반려');
+        if (!done.length) return;
+
+        stopVisitorPolling();
+        const box = document.getElementById('passDoneResult');
+        if (!box) return;                       // 이미 다른 화면으로 넘어갔다
+        preparePassCards(done);
+        box.innerHTML = passCardsHtml(done);
+
+        // 결과가 나왔으니 '대기중' 안내와 자동 갱신 문구는 지운다
+        const waiting = document.querySelector('#app-card .visitor-info-box');
+        if (waiting) waiting.remove();
+        const hint = document.querySelector('#app-card .poll-live-hint');
+        if (hint) hint.remove();
+        const note = document.querySelector('#app-card .guest-pass-note');
+        if (note) note.remove();
+    }, 3000);   // 신청 직후 화면을 열어둔 채 기다리는 동선이라 짧게 잡는다
 }
 
 // ── 내 이용권 / 신청 결과 조회 ────────────────────────────────────
@@ -1204,6 +1341,54 @@ function saveMyPassImage(passId) {
     window.downloadPassCardPng(p, window.passWeekdayText(p.weekdays));
 }
 
+/* 🎫 출입권 카드 묶음 HTML.
+     조회 화면과 '신청 접수' 화면의 자동 갱신이 같은 모양을 써야 하므로 함수로 뺀다.
+     카드 구성은 경비실 QR 창(sec-qr-dialog)과 동일하게 맞춘다 —
+       머리말(종류·사업장) → QR → 이름 → 소속 → 유효기간·이용 요일·차량 번호.
+     승인된 건만 QR 을 표시한다 (서버도 활성 건에만 토큰을 내려준다). */
+function passCardsHtml(list) {
+    return list.map(p => {
+        const v = passStatusView(p.status);
+        const active = (p.status === '활성' && p.token);
+        const qr = active
+            ? `<img class="pass-my-qr" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="${t('qr.altPass')}">`
+            : '';
+        const saveBtn = active
+            ? `<div class="pass-my-actions">
+                   <button onclick="saveMyPassImage(${p.id})" class="btn-guest-sub pass-my-save">📥 ${t('passmy.saveImg')}</button>
+               </div>`
+            : '';
+        const memo = (p.status === '반려' && p.memo) ? `<p class="pass-my-memo">${p.memo}</p>` : '';
+        return `
+            <div class="pass-my-card">
+                <div class="pass-my-head">
+                    <span class="pass-my-type">${t('pass.kind')}</span>
+                    <span class="pass-my-region">${regionLabel(p.region)}</span>
+                </div>
+                ${qr}
+                <div class="pass-my-name">${p.name}</div>
+                <div class="pass-my-company">${p.company}</div>
+                <div class="pass-my-meta">
+                    <span>${t('passmy.validity')}</span><b>${p.valid_from} ~ ${p.valid_to}${p.period ? ` (${passPeriodLabel(p.period)})` : ''}</b>
+                    <span>${t('passmy.days')}</span><b>${window.passWeekdayText(p.weekdays)}</b>
+                    <span>${t('label.vehicle')}</span><b>${p.vehicle_no || t('passmy.noVehicle')}</b>
+                </div>
+                <p class="status-line"><b>${v.label}</b></p>
+                <p class="status-desc">${v.desc}</p>
+                ${memo}
+                ${saveBtn}
+            </div>`;
+    }).join('');
+}
+
+/* 저장 버튼을 눌렀을 때 곧바로 공유·저장되도록 카드 이미지를 미리 만들어 둔다.
+   (iOS 는 사용자 조작 직후에만 공유 시트를 허용한다) */
+function preparePassCards(list) {
+    myPassCache = list;
+    list.filter(p => p.status === '활성' && p.token)
+        .forEach(p => window.preparePassCardImage(p, window.passWeekdayText(p.weekdays)));
+}
+
 async function lookupMyPass() {
     const name = (document.getElementById('passStatusName') || {}).value.trim();
     const contact = readPhone('passStatusContact');
@@ -1227,46 +1412,8 @@ async function lookupMyPass() {
             box.innerHTML = `<div class="no-data-box"><span class="icon">🔍</span><p>${t('passmy.none')}</p></div>`;
             return;
         }
-        // 카드 구성은 경비실 QR 창(sec-qr-dialog)과 동일하게 맞춘다 —
-        //   머리말(종류·사업장) → QR → 이름 → 소속 → 유효기간·이용 요일·차량 번호.
-        //   승인된 건만 QR 을 표시한다 (서버도 활성 건에만 토큰을 내려준다).
-        myPassCache = d.list;
-        // 저장 버튼을 눌렀을 때 곧바로 공유·저장되도록 카드 이미지를 미리 만들어 둔다.
-        //   (iOS 는 사용자 조작 직후에만 공유 시트를 허용한다)
-        d.list.filter(p => p.status === '활성' && p.token)
-              .forEach(p => window.preparePassCardImage(p, window.passWeekdayText(p.weekdays)));
-        box.innerHTML = d.list.map(p => {
-            const v = passStatusView(p.status);
-            const active = (p.status === '활성' && p.token);
-            const qr = active
-                ? `<img class="pass-my-qr" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="${t('qr.altPass')}">`
-                : '';
-            const saveBtn = active
-                ? `<div class="pass-my-actions">
-                       <button onclick="saveMyPassImage(${p.id})" class="btn-guest-sub pass-my-save">📥 ${t('passmy.saveImg')}</button>
-                   </div>`
-                : '';
-            const memo = (p.status === '반려' && p.memo) ? `<p class="pass-my-memo">${p.memo}</p>` : '';
-            return `
-                <div class="pass-my-card">
-                    <div class="pass-my-head">
-                        <span class="pass-my-type">${t('pass.kind')}</span>
-                        <span class="pass-my-region">${regionLabel(p.region)}</span>
-                    </div>
-                    ${qr}
-                    <div class="pass-my-name">${p.name}</div>
-                    <div class="pass-my-company">${p.company}</div>
-                    <div class="pass-my-meta">
-                        <span>${t('passmy.validity')}</span><b>${p.valid_from} ~ ${p.valid_to}${p.period ? ` (${passPeriodLabel(p.period)})` : ''}</b>
-                        <span>${t('passmy.days')}</span><b>${window.passWeekdayText(p.weekdays)}</b>
-                        <span>${t('label.vehicle')}</span><b>${p.vehicle_no || t('passmy.noVehicle')}</b>
-                    </div>
-                    <p class="status-line"><b>${v.label}</b></p>
-                    <p class="status-desc">${v.desc}</p>
-                    ${memo}
-                    ${saveBtn}
-                </div>`;
-        }).join('');
+        preparePassCards(d.list);
+        box.innerHTML = passCardsHtml(d.list);
     } catch (e) {
         box.innerHTML = `<div class="no-data-box"><span class="icon">⚠️</span><p>${t('passmy.netError')}</p></div>`;
     }

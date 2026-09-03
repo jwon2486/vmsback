@@ -44,6 +44,7 @@ vms-db/
 migrate_db.py
 vms 개선안.txt
 피드백.txt
+db다운경로.txt
 
 # 리더기 중계 프로그램 — 빌드 산출물 / PC 별 설정
 scanner-agent/dist/

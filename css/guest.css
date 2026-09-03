@@ -409,8 +409,12 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .bg-gray { background: #64748b !important; }
 /* 승인·삭제를 한 줄에 좌우로 나란히. 기본 .sec-btn-approve-item 은 width:100% 라
    그대로 두면 각자 한 줄을 차지해 세로로 쌓인다 → 여기서만 auto 로 되돌린다. */
-.sec-queue-actions { display: flex; gap: 0.35rem; align-items: center; flex-wrap: nowrap; }
-.sec-queue-actions .sec-btn-approve-item { width: auto; flex: 1 1 0; white-space: nowrap; padding: 6px 8px; }
+/* 승인·삭제를 한 줄에 좌우로. td 자체에 flex 를 걸면 table-cell 동작을 잃어
+   표 테두리·열 정렬이 어긋난다 → 셀 안쪽 div 에만 flex 를 준다. */
+.sec-queue-actions { display: flex; gap: 0.35rem; align-items: stretch; flex-wrap: nowrap; }
+.sec-queue-actions .sec-btn-approve-item {
+    width: auto; flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 6px 8px; margin: 0;
+}
 /* 임직원 목록의 보조 액션(개별 신청·QR 전달). 규칙이 없어 배경 없이 흰 글씨로 나오던 것을 채운다. */
 .bg-emp-sub { background: #64748b !important; }
 
@@ -1201,6 +1205,13 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 .sec-pass-tag-line { margin-top: 2px; line-height: 1; }
 /* 신청이 접수된 시각 — 중복 신청을 가려낼 때 본다 */
 .sec-req-time { color: var(--text-muted); }
+/* 🙋 신청 주체 — 손님이 직접 올린 건과 직원이 대신 올린 건을 색으로 가른다 */
+.requester-tag {
+    display: inline-block; padding: 0 5px; margin-right: 3px; border-radius: 3px;
+    font-size: 0.66rem; font-weight: 800; vertical-align: middle;
+}
+.requester-visitor { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.requester-staff   { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 .sec-pass-tag-line .sec-pass-tag { margin-left: 0; }
 .sec-pass-tag {
     display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 4px;
@@ -1243,6 +1254,17 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     margin: 0.8rem 0 0; padding: 0.7rem 0.9rem; background: #f8fafc; border: 1px solid var(--border-color);
     border-radius: var(--radius-md); font-size: 0.92rem; color: var(--text-muted); line-height: 1.55;
 }
+
+/* 🔢/🔎 담당자 지정 — 번호 입력 / 이름 검색 두 방식 */
+.mgr-result { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.mgr-hint { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+.mgr-pick {
+    text-align: left; padding: 0.6rem 0.7rem; cursor: pointer;
+    border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    background: #fff; font-size: 1rem; font-weight: 700; color: var(--text-main);
+}
+.mgr-pick.picked { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+.mgr-dept { font-weight: 600; font-size: 0.85rem; color: var(--text-muted); }
 
 /* 방문 요일 선택 */
 .pass-req-weekdays { display: flex; gap: 5px; flex-wrap: wrap; }

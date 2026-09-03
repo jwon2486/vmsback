@@ -224,6 +224,14 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # 🙋 신청 주체 — 손님이 직접 올린 건('visitor')과 직원이 대신 올린 건(직원 사번)을 가른다.
+    #    담당자(created_by)와는 다른 값이다. (기존 행은 값이 없어 '구분 없음'으로 표시된다)
+    try:
+        cursor.execute("ALTER TABLE visitor_log ADD COLUMN requested_by TEXT DEFAULT ''")
+        print("🙋 [신청 주체] visitor_log.requested_by 컬럼 추가")
+    except sqlite3.OperationalError:
+        pass
+
     # 🕗 신청이 접수된 시각. 같은 사람이 그룹 신청에 포함된 줄 모르고 개별 신청을 또 올리면
     #    어느 쪽이 먼저·나중인지 화면에서 구분이 안 돼 중복 정리가 어렵다.
     #    (기존 행은 값이 없다 — 이 컬럼이 생기기 전에 접수된 건이라 소급해 채울 근거가 없다)
@@ -616,29 +624,103 @@ init_db()
 # 🛡️ 백엔드 블라인드 매칭 및 권한 검증
 # ====================================================================
 
-def resolve_manager_by_code(manager_code):
-    """담당자 고유번호(visit_code)로 방문 담당자를 특정한다.
-       방문객에게 직원 명부는 노출하지 않는다(블라인드).
+# 🙋 신청 주체 (visitor_log.requested_by)
+#   담당자(created_by)와 혼동하지 말 것 — 이쪽은 '누가 이 신청을 올렸나' 이다.
+#   손님 화면에서 손님이 직접 올린 건은 'visitor', 직원이 대신 올린 건은 그 직원의 사번.
+REQUESTED_BY_VISITOR = 'visitor'
 
-    이름 매칭은 쓰지 않는다:
-      - 외국인 방문객은 한글 이름을 입력할 수 없다.
-      - 동명이인이면 이름만으로는 특정이 되지 않아 매번 데스크 확인으로 빠졌다.
-    번호는 전사 유일하므로 거점을 따지지 않는다.
+
+def requested_by_staff():
+    """직원 전용 화면에서 올린 신청의 주체(로그인한 직원 사번).
+       세션이 없으면 손님으로 본다(레거시 경로 대비)."""
+    return ((session.get('user') or {}).get('id') or '').strip() or REQUESTED_BY_VISITOR
+
+
+def search_managers_by_name(name, region):
+    """이름으로 담당자 후보를 찾는다. 손님 화면의 '이름으로 찾기' 전용.
+
+    직원 명부가 통째로 노출되지 않도록 두 가지로 조인다:
+      1) 완전 일치만 — 부분 일치를 열면 '김' 한 글자로 수십 명이 나온다.
+      2) 접속 거점 소속만 — 손님은 정문 QR 로 거점이 확정된 상태다.
+         동명이인이라도 근무 센터가 다르면 한 명으로 좁혀진다.
+
+    사번·고유번호는 절대 내려보내지 않는다. 번호를 이름만으로 알아낼 수 있게 되면
+    '유출 시 재발급' 이라는 번호의 의미가 사라진다.
+    부서는 같은 거점에 동명이인이 실제로 있을 때만 담는다(구분에 필요한 최소한).
+
+    returns [{"name": ..., "dept": ...}]   (dept 는 후보가 2명 이상일 때만 채워진다)
+    """
+    nm = (name or '').strip()
+    rg = (region or '').strip()
+    if len(nm) < 2 or not rg:
+        return []
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT name, dept FROM employees WHERE name = ? AND region = ? ORDER BY dept",
+        (nm, rg)
+    ).fetchall()
+    conn.close()
+    if len(rows) == 1:
+        return [{"name": rows[0]['name'], "dept": ""}]
+    return [{"name": r['name'], "dept": r['dept'] or ''} for r in rows]
+
+
+def resolve_manager(manager_code='', manager_name='', manager_dept='', region=''):
+    """방문 담당자를 특정한다. 번호가 있으면 번호로, 없으면 이름으로 찾는다.
+
+    번호(visit_code): 전사 유일하므로 거점을 따지지 않는다. 다른 센터 담당자도 지정된다.
+    이름: 접속 거점 안에서만 찾는다(search_managers_by_name 과 같은 기준).
+          같은 거점에 동명이인이 있으면 부서까지 맞아야 확정한다.
 
     returns (emp_id, emp_name)
       - 특정 실패 시 ('guard_pending', '') → 경비실 데스크에서 확인한다.
     """
     code = (manager_code or '').strip()
-    if not code:
-        return 'guard_pending', ''
     conn = get_db_connection()
-    row = conn.execute(
-        "SELECT id, name FROM employees WHERE visit_code = ? AND visit_code != ''", (code,)
-    ).fetchone()
-    conn.close()
-    if row:
-        return row['id'], row['name']
-    return 'guard_pending', ''
+    try:
+        if code:
+            row = conn.execute(
+                "SELECT id, name FROM employees WHERE visit_code = ? AND visit_code != ''", (code,)
+            ).fetchone()
+            if row:
+                return row['id'], row['name']
+            return 'guard_pending', ''
+
+        nm = (manager_name or '').strip()
+        rg = (region or '').strip()
+        if not nm or not rg:
+            return 'guard_pending', ''
+        q = "SELECT id, name FROM employees WHERE name = ? AND region = ?"
+        params = [nm, rg]
+        dept = (manager_dept or '').strip()
+        if dept:
+            q += " AND dept = ?"
+            params.append(dept)
+        rows = conn.execute(q, params).fetchall()
+        if len(rows) == 1:                     # 유일하게 특정된 경우만 확정
+            return rows[0]['id'], rows[0]['name']
+        return 'guard_pending', ''
+    finally:
+        conn.close()
+
+
+def resolve_manager_by_code(manager_code):
+    """옛 호출부 호환용. 번호만으로 특정한다."""
+    return resolve_manager(manager_code=manager_code)
+
+
+@app.route('/api/manager/search', methods=['POST'])
+def manager_search():
+    """🔎 손님 화면: 이름으로 담당자 후보 조회.
+       거점은 세션(정문 QR)에서만 읽는다 — 클라이언트가 보낸 값은 신뢰하지 않는다."""
+    data = request.json or {}
+    region = (session.get('guest_region') or '').strip()
+    if region not in ALLOWED_REGIONS:
+        return jsonify({"success": False, "need_region": True,
+                        "message": "정문에 비치된 사업장 QR을 먼저 스캔해 주세요.",
+                        "message_key": "srv.pass.needSiteQr"}), 403
+    found = search_managers_by_name(data.get('name', ''), region)
+    return jsonify({"success": True, "list": found})
 
 def is_admin_authenticated():
     if 'user' not in session: return False
@@ -1041,9 +1123,9 @@ def group_preregister_visitor():
             expected_checkout = (v.get('expected_checkout') or '').strip()
 
             cursor.execute("""
-                INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, group_id, expected_checkin, expected_checkout, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '입실대기', ?, ?, ?, ?, ?)
-            """, (visit_date, name, contact, company, vehicle_no, purpose, manager_name, created_by, region, group_id, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+                INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, group_id, expected_checkin, expected_checkout, created_at, requested_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '입실대기', ?, ?, ?, ?, ?, ?)
+            """, (visit_date, name, contact, company, vehicle_no, purpose, manager_name, created_by, region, group_id, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), requested_by_staff()))
 
         conn.commit()
         conn.close()
@@ -1276,9 +1358,9 @@ def security_preregister():
         bind_id = emp_id_match if emp_id_match != 'guard_pending' else session['user'].get('id')
         
         conn.execute("""
-            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '사전예약', ?, ?)
-        """, (visit_date, name, contact, company, vehicle_no, purpose, manager_text, bind_id, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at, requested_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, '사전예약', ?, ?, ?)
+        """, (visit_date, name, contact, company, vehicle_no, purpose, manager_text, bind_id, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), requested_by_staff()))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "방문 예약이 정상적으로 등록되었습니다."})
@@ -1353,21 +1435,28 @@ def handle_integrated_checkin():
         purpose = data.get('purpose', '').strip()
         manager_text = data.get('manager_text', '').strip()
         manager_code = data.get('manager_code', '').strip()
+        # 담당자는 번호 또는 이름으로 지정한다. 이름은 접속 거점 안에서만 찾고,
+        # 같은 거점에 동명이인이 있을 때만 부서까지 받아 한 명으로 좁힌다.
+        manager_name_in = data.get('manager_name', '').strip()
+        manager_dept_in = data.get('manager_dept', '').strip()
         expected_checkin = (data.get('expected_checkin') or '').strip()
         expected_checkout = (data.get('expected_checkout') or '').strip()
         
         # 담당자는 고유번호로만 지정한다.
-        if not name or not company or not contact or not manager_code:
+        if not name or not company or not contact or not (manager_code or manager_name_in):
             conn.close()
             return jsonify({"success": False, "message": "필수 입력 항목이 누락되었습니다.", "message_key": "srv.checkin.missing"})
             
-        matched_emp_id, matched_name = resolve_manager_by_code(manager_code)
-        if matched_name: manager_text = matched_name
+        matched_emp_id, matched_name = resolve_manager(
+            manager_code=manager_code, manager_name=manager_name_in,
+            manager_dept=manager_dept_in, region=region)
+        # 특정 실패해도 손님이 적은 이름은 남긴다 → 경비실이 데스크에서 확인할 단서가 된다.
+        manager_text = matched_name or manager_name_in or manager_text
         
         cursor.execute("""
-            INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, expected_checkin, expected_checkout, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?)
-        """, (today_date, name, company, contact, vehicle_no, purpose, manager_text, matched_emp_id, region, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+            INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, expected_checkin, expected_checkout, created_at, requested_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?, ?)
+        """, (today_date, name, company, contact, vehicle_no, purpose, manager_text, matched_emp_id, region, expected_checkin, expected_checkout, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), REQUESTED_BY_VISITOR))
         new_id = cursor.lastrowid
         conn.commit()
         conn.close()
@@ -1406,17 +1495,25 @@ def handle_group_checkin():
         
         member_ids = []
         for i, v in enumerate(visitors):
-            matched_emp_id, matched_name = resolve_manager_by_code(v.get('manager_code', ''))
-            if matched_name: v['manager_text'] = matched_name
+            matched_emp_id, matched_name = resolve_manager(
+                manager_code=v.get('manager_code', ''),
+                manager_name=(v.get('manager_name') or '').strip(),
+                manager_dept=(v.get('manager_dept') or '').strip(),
+                region=region)
+            # 특정 실패해도 손님이 적은 이름은 남긴다 → 경비실이 데스크에서 확인할 단서가 된다.
+            #   클라이언트가 manager_text 를 안 보내는 경로도 있어 get 으로 읽는다.
+            v['manager_text'] = (matched_name
+                                 or (v.get('manager_name') or '').strip()
+                                 or (v.get('manager_text') or '').strip())
             if matched_emp_id == 'guard_pending':
                 has_pending = True
                 
             cursor.execute("""
-                INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, group_id, expected_checkin, expected_checkout, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?, ?)
+                INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, group_id, expected_checkin, expected_checkout, created_at, requested_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?, ?, ?)
             """, (today_date, v['name'], v['company'], v['contact'], v.get('vehicle_no', '없음'), 
                   v['purpose'], v['manager_text'], matched_emp_id, region, group_id,
-                  (v.get('expected_checkin') or '').strip(), (v.get('expected_checkout') or '').strip(), get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+                  (v.get('expected_checkin') or '').strip(), (v.get('expected_checkout') or '').strip(), get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), REQUESTED_BY_VISITOR))
             
             row_id = cursor.lastrowid
             member_ids.append(row_id)
@@ -1491,9 +1588,9 @@ def preregister_visitor():
     try:
         conn = get_db_connection()
         conn.execute("""
-            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '사전예약', ?, ?)
-        """, (visit_date, name, contact, company, vehicle_no, purpose, created_by, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+            INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose, manager_text, checkin_time, created_by, status, region, created_at, requested_by)
+            VALUES (?, ?, ?, ?, ?, ?, '', '', ?, '사전예약', ?, ?, ?)
+        """, (visit_date, name, contact, company, vehicle_no, purpose, created_by, region, get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), requested_by_staff()))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "사전 예약이 완료되었습니다."})
@@ -1880,10 +1977,10 @@ def scan_pass_action(conn, p, entry_only=False):
     cur = conn.execute("""
         INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text,
              checkin_time, checkout_time, status, created_by, region, group_id,
-             expected_checkin, expected_checkout, token, pass_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'NONE', '', '', '', ?, ?)
+             expected_checkin, expected_checkout, token, pass_id, created_at, requested_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'NONE', '', '', '', ?, ?, ?)
     """, (today, p['name'], p['company'], p['contact'], p['vehicle_no'], p['purpose'],
-          p['manager_text'], checkin_time, new_status, p['created_by'], p['region'], p['id'], get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+          p['manager_text'], checkin_time, new_status, p['created_by'], p['region'], p['id'], get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), REQUESTED_BY_VISITOR))
     conn.commit()
     revisit = (status == '퇴실완료')
     if auto:
@@ -2498,6 +2595,7 @@ def admin_logs():
     query = """
         SELECT v.id, v.visit_date, v.name, v.contact, v.company, v.purpose, v.checkin_time, v.checkout_time, v.status,
                e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout, v.pass_id, v.created_at,
+               v.requested_by, (SELECT name FROM employees WHERE id = v.requested_by) AS requested_by_name,
                (SELECT COUNT(*) FROM visitor_log v2
                   WHERE IFNULL(v2.region, '') = IFNULL(v.region, '')
                     AND substr(v2.visit_date, 1, 7) = substr(v.visit_date, 1, 7)

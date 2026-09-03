@@ -124,6 +124,34 @@ window.addEventListener("pageshow", (event) => {
 //  값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-') 반환. (경비실 표와 동일 규칙)
 /* 🕗 신청이 접수된 시각. 같은 사람이 두 번 올라온 경우 어느 쪽이 나중 것인지 가려내는 근거.
    이 컬럼이 생기기 전에 접수된 건은 값이 없어 '-' 로 표시된다. */
+/* 🙋 신청 주체 배지.
+     requested_by 가 'visitor' 면 손님이 직접 올린 건, 사번이면 그 직원이 대신 올린 건.
+     이 컬럼이 생기기 전 데이터는 값이 없어 배지를 붙이지 않는다(구분 불가). */
+function requesterBadge(requestedBy, requestedByName) {
+    const v = (requestedBy || '').trim();
+    if (!v) return '';
+    if (v === 'visitor') return '<span class="requester-tag requester-visitor">손님 신청</span>';
+    const who = requestedByName || v;
+    return `<span class="requester-tag requester-staff" title="${who}">임직원 신청</span>`;
+}
+
+/** 신청 주체 필터를 적용한 목록. 값이 없는 옛 데이터는 '전체' 에서만 보인다. */
+function adminFilterByRequester(list) {
+    const f = (document.getElementById('adminRequesterFilter') || {}).value || '';
+    if (!f) return list;
+    return list.filter(v => {
+        const mb = (v.requested_by || '').trim();
+        return f === 'visitor' ? mb === 'visitor' : (mb && mb !== 'visitor');
+    });
+}
+
+/** 신청 주체 배지 + 접수 시각을 한 줄로. 배지에 '신청' 이 이미 들어 있어 말이 겹치지 않게 한다. */
+function adminRequesterLine(v) {
+    const badge = requesterBadge(v.requested_by, v.requested_by_name);
+    const t = adminReqTime(v.created_at);
+    return badge ? (badge + ' ' + t) : ('신청 ' + t);
+}
+
 function adminReqTime(createdAt) {
     const v = (createdAt || '').trim();
     return v ? v.slice(5, 16) : '-';
@@ -293,15 +321,16 @@ function renderAdminLogTable() {
     const tbody = document.getElementById('adminLogBody');
     if (!tbody) return;
 
+    const shown = adminFilterByRequester(adminLogsAll);   // 🙋 신청 주체 필터
     const perPage = window.VISIT_LOG_PER_PAGE || 10;
-    const totalPages = Math.max(1, Math.ceil(adminLogsAll.length / perPage));
+    const totalPages = Math.max(1, Math.ceil(shown.length / perPage));
     if (adminLogPage > totalPages) adminLogPage = totalPages;
     const start = (adminLogPage - 1) * perPage;
-    const sorted = adminLogsAll.slice(start, start + perPage);
+    const sorted = shown.slice(start, start + perPage);
 
     {
         let html = '';
-        if (adminLogsAll.length === 0) {
+        if (shown.length === 0) {
             html = '<tr><td colspan="15" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
@@ -335,12 +364,12 @@ function renderAdminLogTable() {
                     <tr>
                         <td data-label="순번">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td data-label="방문일">${v.visit_date}</td>
-                        <td class="col-split-visitor" data-label="이름">${nameLink}${passTag}<div class="req-time-line">신청 ${adminReqTime(v.created_at)}</div></td>
+                        <td class="col-split-visitor" data-label="이름">${nameLink}${passTag}<div class="req-time-line">${adminRequesterLine(v)}</div></td>
                         <td class="col-split-visitor" data-label="연락처">${formatPhone(v.contact)}</td>
                         <td class="col-merged-visitor" data-label="방문객">
                             ${nameLink}${passTag}
                             <span class="manager-dept-info">${formatPhone(v.contact)}</span>
-                            <div class="req-time-line">신청 ${adminReqTime(v.created_at)}</div>
+                            <div class="req-time-line">${adminRequesterLine(v)}</div>
                         </td>
                         <td data-label="방문 횟수">${visitCountDisplay}</td>
                         <td data-label="소속">${v.company}</td>
@@ -375,7 +404,7 @@ function renderAdminLogTable() {
     }
 
     if (typeof window.renderLogPagination === 'function') {
-        window.renderLogPagination('adminLogPagination', adminLogsAll.length, adminLogPage, perPage, (p) => {
+        window.renderLogPagination('adminLogPagination', shown.length, adminLogPage, perPage, (p) => {
             adminLogPage = p;
             renderAdminLogTable();
         });

@@ -246,6 +246,11 @@
   "srv.passreq.error": "处理申请时发生错误。",
   "srv.passstatus.needBoth": "请输入姓名和联系电话。",
   "label.managerCode": "对接员工编号",
+  "label.manager": "公司内对接人",
+  "ph.manager": "请输入姓名或6位对接人编号（二选一）",
+  "mgr.needTwo": "请至少输入两个字。",
+  "mgr.none": "未找到。请核对姓名，或改用编号输入。",
+  "alert.pickManager": "请查找并选择对接人。",
   "ph.managerCode": "对接员工告知的6位数字编号",
   "alert.needManager": "请输入对接员工编号。"
 }

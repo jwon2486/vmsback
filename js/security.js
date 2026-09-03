@@ -779,6 +779,22 @@ function switchSecTab(tab) {
 /* 🕗 신청이 접수된 시각. 같은 사람이 두 번 올라온 경우 어느 쪽이 나중 것인지 가려내는 근거가 된다.
    오늘 접수분은 시각만, 지난 날짜는 날짜까지 보여 준다.
    이 컬럼이 생기기 전에 접수된 건은 값이 없어 '-' 로 표시된다. */
+/* 🙋 신청 주체 배지. requested_by 가 'visitor' 면 손님이 직접, 사번이면 그 직원이 대신 올린 건.
+   이 컬럼이 생기기 전 데이터는 값이 없어 배지를 붙이지 않는다. */
+function secRequesterBadge(requestedBy, requestedByName) {
+    const v = (requestedBy || '').trim();
+    if (!v) return '';
+    if (v === 'visitor') return '<span class="requester-tag requester-visitor">손님 신청</span>';
+    return `<span class="requester-tag requester-staff" title="${requestedByName || v}">임직원 신청</span>`;
+}
+
+/** 신청 주체 배지 + 접수 시각을 한 줄로. 배지에 '신청' 이 이미 들어 있어 말이 겹치지 않게 한다. */
+function secRequesterLine(v) {
+    const badge = secRequesterBadge(v.requested_by, v.requested_by_name);
+    const t = secReqTimeText(v.created_at);
+    return badge ? (badge + ' ' + t) : ('신청 ' + t);
+}
+
 function secReqTimeText(createdAt) {
     const v = (createdAt || '').trim();
     if (!v) return '-';
@@ -870,18 +886,20 @@ async function fetchSecurityQueue(isAuto = false) {
 
                 html += `
                     <tr class="sec-item-row ${bgClass}">
-                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span><br><span class="fs-8 sec-req-time">신청 ${secReqTimeText(v.created_at)}</span></td>
+                        <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span><br><span class="fs-8 sec-req-time">${secRequesterLine(v)}</span></td>
                         <td class="p-10">${v.vehicle_no || '-'}</td>
                         <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
                             <b>${managerName}</b><br>
                             ${managerDeptLine}
                         </td>
-                        <td class="p-10 sec-queue-actions">
-                            <button onclick="approveSecurityAction(${v.id}, '${actionTargetItem}')" class="sec-btn-approve-item ${btnColorClass}">
-                                ${actionTargetItem.replace('완료', '')} 승인
-                            </button>
-                            ${v.status === '입실대기' ? `<button onclick="deleteVisitRequest(${v.id})" class="sec-btn-approve-item bg-gray">삭제</button>` : ''}
+                        <td class="p-10">
+                            <div class="sec-queue-actions">
+                                <button onclick="approveSecurityAction(${v.id}, '${actionTargetItem}')" class="sec-btn-approve-item ${btnColorClass}">
+                                    ${actionTargetItem.replace('완료', '')} 승인
+                                </button>
+                                ${v.status === '입실대기' ? `<button onclick="deleteVisitRequest(${v.id})" class="sec-btn-approve-item bg-gray">삭제</button>` : ''}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1017,7 +1035,7 @@ function renderSecurityLogTable() {
                     <tr class="border-bottom-eee">
                         <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
                         <td class="p-10">${v.visit_date}</td>
-                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}<div class="fs-8 sec-req-time">신청 ${secReqTimeText(v.created_at)}</div></td>
+                        <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}<div class="fs-8 sec-req-time">${secRequesterLine(v)}</div></td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10">${v.company}</td>

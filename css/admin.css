@@ -1047,6 +1047,13 @@ tr:hover td { background: #f8fafc; }
 .pass-tag-line { margin-top: 2px; line-height: 1; }
 /* 신청이 접수된 시각 — 중복 신청을 가려낼 때 본다 */
 .req-time-line { margin-top: 2px; font-size: 0.68rem; color: var(--muted); }
+/* 🙋 신청 주체 — 손님이 직접 올린 건과 직원이 대신 올린 건을 색으로 가른다 */
+.requester-tag {
+  display: inline-block; padding: 0 5px; margin-right: 3px; border-radius: 0.25rem;
+  font-size: 0.66rem; font-weight: 800; vertical-align: middle;
+}
+.requester-visitor { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.requester-staff   { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 .pass-tag {
   display: inline-block; padding: 1px 6px; border-radius: 0.25rem;
   background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe;
