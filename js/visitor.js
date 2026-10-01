@@ -469,62 +469,48 @@ function managerIsCode(v) {
 
 let mgrSearchTimer = null;
 
-/** 입력이 멈추면 이름일 때만 조회한다. 매 글자마다 때리지 않도록 잠깐 기다린다. */
+/* 입력이 멈추면 이름일 때만 조회한다.
+   같은 거점에 동명이인이 있을 때(2명 이상)만 선택지를 띄운다 —
+   1명이면 서버가 이름만으로 특정하므로 손님에게 아무것도 묻지 않는다. */
 function onManagerInput() {
-    const el = document.getElementById('manager_q');
+    const raw = ((document.getElementById('manager_q') || {}).value || '').trim();
     const box = document.getElementById('mgrResult');
-    const raw = el ? el.value.trim() : '';
-    // 입력이 바뀌면 앞서 고른 담당자는 무효
-    const set = (id, v) => { const x = document.getElementById(id); if (x) x.value = v; };
-    set('manager_name', '');
-    set('manager_dept', '');
-
+    const dept = document.getElementById('manager_dept');
+    if (dept) dept.value = '';          // 입력이 바뀌면 앞서 고른 부서는 무효
+    if (box) box.innerHTML = '';
     if (mgrSearchTimer) clearTimeout(mgrSearchTimer);
-    if (!box) return;
-    if (managerIsCode(raw) || raw.length < 2) { box.innerHTML = ''; return; }
-    mgrSearchTimer = setTimeout(searchManager, 400);
+    if (managerIsCode(raw) || raw.length < 2) return;
+    mgrSearchTimer = setTimeout(checkManagerDuplicate, 400);
 }
 
-async function searchManager() {
-    const q = (document.getElementById('manager_q') || {}).value || '';
+async function checkManagerDuplicate() {
+    const raw = ((document.getElementById('manager_q') || {}).value || '').trim();
     const box = document.getElementById('mgrResult');
-    if (!box) return;
-    if (managerIsCode(q) || q.trim().length < 2) { box.innerHTML = ''; return; }
-
-    box.innerHTML = `<p class="mgr-hint">${t('passmy.loading')}</p>`;
+    if (!box || managerIsCode(raw) || raw.length < 2) return;
     let list;
     try {
         const res = await fetch('/api/manager/search', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: q.trim() })
+            body: JSON.stringify({ name: raw })
         });
         const d = await res.json();
-        if (!d.success) { box.innerHTML = `<p class="mgr-hint">${srvMsg(d, 'mgr.none')}</p>`; return; }
+        if (!d.success) return;         // 조회가 안 되면 조용히 넘긴다 (서버가 제출 때 판정)
         list = d.list || [];
     } catch (e) {
-        box.innerHTML = `<p class="mgr-hint">${t('passmy.netError')}</p>`;
         return;
     }
+    if (list.length < 2) { box.innerHTML = ''; return; }   // 평소엔 아무것도 띄우지 않는다
 
-    if (!list.length) { box.innerHTML = `<p class="mgr-hint">${t('mgr.none')}</p>`; return; }
-
-    // 후보가 하나면 부서가 비어 온다 → 이름만 보여주고 바로 고른 상태로 둔다.
-    box.innerHTML = list.map((x, i) => `
-        <button type="button" class="mgr-pick" data-i="${i}"
-                onclick="pickManager(${i}, this)">${x.name}${x.dept ? ` <span class="mgr-dept">(${x.dept})</span>` : ''}</button>`).join('');
     window.__mgrCandidates = list;
-    if (list.length === 1) {
-        const only = box.querySelector('.mgr-pick');
-        if (only) pickManager(0, only);
-    }
+    box.innerHTML = `<p class="mgr-hint">${t('mgr.pickDup')}</p>` + list.map((x, i) => `
+        <button type="button" class="mgr-pick" onclick="pickManager(${i}, this)">${x.name} <span class="mgr-dept">(${x.dept})</span></button>`).join('');
 }
 
 function pickManager(i, btn) {
     const x = (window.__mgrCandidates || [])[i];
     if (!x) return;
-    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-    set('manager_name', x.name);
-    set('manager_dept', x.dept || '');
+    const dept = document.getElementById('manager_dept');
+    if (dept) dept.value = x.dept || '';
     document.querySelectorAll('#mgrResult .mgr-pick').forEach(b => b.classList.remove('picked'));
     if (btn) btn.classList.add('picked');
 }
@@ -568,6 +554,12 @@ function showCheckinForm(passedName = '', passedContact = '') {
         `;
     }
     
+    // 예정 시각 기본값: 지금(10분 올림)과 그 10분 뒤.
+    //   매번 오전/오후·시·분을 고르는 게 번거로워 기본값을 채워 둔다. 손님이 바꿀 수 있다.
+    //   한 번만 읽어 두 칸에 쓴다 — 두 번 읽으면 10분 경계에서 같은 값이 나올 수 있다.
+    const tIn = roundUpToTenKst();
+    const tOut = shiftTimeDef(tIn, 10);
+
     appCard.innerHTML = `
         <div class="dashboard-split-wrapper">
             <div class="dashboard-form-zone" id="guest-form-zone">
@@ -587,8 +579,8 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     </div>
 
                     <div class="input-row-group">
-                        <div class="input-group"><label>${t('label.expectIn')} <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', roundUpToTenKst())}</div>
-                        <div class="input-group"><label>${t('label.expectOut')} <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
+                        <div class="input-group"><label>${t('label.expectIn')} <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', tIn)}</div>
+                        <div class="input-group"><label>${t('label.expectOut')} <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout', tOut)}</div>
                     </div>
 
                     <!-- 🔢 담당자 지정은 고유번호로만 한다.
@@ -597,12 +589,12 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     <div class="input-group">
                         <label>${t('label.manager')} <span class="req-star">*</span></label>
                         <!-- 번호든 이름이든 이 칸 하나로 받는다. 숫자만 넣으면 번호,
-                             글자를 넣으면 이름으로 보고 후보를 찾아 보여준다. -->
+                             글자를 넣으면 이름으로 보고 서버가 접속 거점 안에서 찾는다.
+                             동명이인이거나 못 찾으면 경비실 데스크 확인으로 넘어간다. -->
                         <input type="text" id="manager_q" autocomplete="off"
                                placeholder="${t('ph.manager')}" oninput="onManagerInput()">
+                        <!-- 같은 거점에 동명이인이 있을 때만 채워진다. 평소엔 비어 있다. -->
                         <div id="mgrResult" class="mgr-result"></div>
-                        <!-- 고른 담당자. 서버는 이름(+동명이인이면 부서)으로 다시 특정한다. -->
-                        <input type="hidden" id="manager_name">
                         <input type="hidden" id="manager_dept">
                     </div>
 
@@ -700,7 +692,10 @@ async function submitCheckin() {
     const managerRaw = managerCodeEl ? managerCodeEl.value.trim() : '';
     const byCode = managerIsCode(managerRaw);
     const manager_code = byCode ? managerRaw.replace(/\D/g, '') : '';
-    const manager_name = byCode ? '' : ((document.getElementById('manager_name') || {}).value || '');
+    // 이름은 적은 그대로 보낸다. 특정은 서버가 한다(접속 거점 안에서 찾고,
+     // 동명이인이거나 못 찾으면 guard_pending → 경비실 데스크 확인).
+    const manager_name = byCode ? '' : managerRaw;
+    // 동명이인일 때만 값이 있다. 없으면 서버가 이름만으로 특정한다.
     const manager_dept = byCode ? '' : ((document.getElementById('manager_dept') || {}).value || '');
     const purpose = purposeEl.value;
 
@@ -710,7 +705,6 @@ async function submitCheckin() {
     if (!name || !company || !contact || !purpose) return alert(t('alert.needRequired'));
     // 담당자는 번호 또는 이름 중 하나면 된다 (외국인 방문객은 한글 이름 입력이 불가)
     if (!managerRaw) return alert(t('alert.needManager'));
-    if (!byCode && !manager_name) return alert(t('alert.pickManager'));
     if (!expected_checkin || !expected_checkout) return alert(t('alert.needTimes'));
 
     let visitorsArray = [{
@@ -1362,8 +1356,7 @@ function passCardsHtml(list) {
         return `
             <div class="pass-my-card">
                 <div class="pass-my-head">
-                    <span class="pass-my-type">${t('pass.kind')}</span>
-                    <span class="pass-my-region">${regionLabel(p.region)}</span>
+                    <span class="pass-my-title">${window.passCardTitle(p.region)}</span>
                 </div>
                 ${qr}
                 <div class="pass-my-name">${p.name}</div>

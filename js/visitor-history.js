@@ -176,6 +176,29 @@
     //    · QR 은 서버가 만든 PNG(/api/qr?format=png)를 그대로 얹는다.
     //    pass: {name, company, region, valid_from, valid_to, vehicle_no, token}
     //    weekdayText: 화면과 동일한 요일 표기('매일'·'평일'·'월·수·금' 등)를 넘긴다.
+    // 🏷️ 카드 제목 = 회사명 + 센터명 + 종류  (예: '에스엔시스 화성 테크센터 출입권')
+    //    거점마다 달라지는 건 '센터명' 한 조각뿐이므로, 그 값만 거점별로 둔다.
+    //    회사명·종류를 문구마다 반복해 넣지 않으므로, 둘 중 하나가 바뀌어도 한 곳만 고치면 된다.
+    //
+    //    · 키는 DB 저장값(pass.region)과 같아야 한다. 화면 표시용 번역명이 아니다.
+    //    · 목록에 없는 거점(신설 등)은 저장값을 그대로 센터명 자리에 넣어 형식을 유지한다.
+    //    · L(키, 한국어) 형태라 나중에 사전에 키만 추가하면 영어·중국어로도 나간다.
+    const PASS_CARD_CENTERS = {
+        '테크센터':      ['card.center.tech',       '화성 테크센터'],
+        '에코센터':      ['card.center.eco',        '부산 에코센터'],
+        '평택공장':      ['card.center.pyeongtaek', '평택공장'],
+        '거제 오션센터': ['card.center.geoje',      '거제 오션센터'],
+    };
+    //    저장 이미지·발급 직후 화면·관리자 QR 창·경비실 QR 창이 모두 이 함수를 쓴다.
+    //    (제목을 화면마다 따로 쓰면 한 곳만 고치고 나머지를 놓친다)
+    window.passCardTitle = function (region) {
+        const e = PASS_CARD_CENTERS[region];
+        const center = e ? L(e[0], e[1]) : (region || '');
+        // 거점을 못 받은 경우(빈 값) 공백이 겹치지 않게 비어 있는 조각은 뺀다
+        return [L('card.brand', '에스엔시스'), center, L('pass.kind', '출입권')]
+            .filter(Boolean).join(' ');
+    };
+
     function buildPassCardCanvas(pass, weekdayText, onReady, onError) {
         const KIND = L('pass.kind', '출입권');
         const FONT = '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
@@ -192,19 +215,19 @@
             g.strokeStyle = '#cbd5e1'; g.lineWidth = 3; g.strokeRect(12, 12, W - 24, H - 24);
 
             g.textAlign = 'center';
-            // 머리말 (종류 · 사업장)
-            g.fillStyle = '#64748b'; g.font = `bold 26px ${FONT}`;
-            g.fillText(`${KIND} · ${pass.region || ''}`, CX, 72);
+            // 머리말 (거점별 정식 명칭)
+            g.fillStyle = '#0f172a'; g.font = `bold 35px ${FONT}`;
+            g.fillText(window.passCardTitle(pass.region), CX, 72);
 
             // QR
             const qrSize = 380;
             g.drawImage(img, CX - qrSize / 2, 105, qrSize, qrSize);
 
             // 이름 · 소속
-            g.fillStyle = '#0f172a'; g.font = `bold 46px ${FONT}`;
-            g.fillText(pass.name || '', CX, 560);
-            g.fillStyle = '#475569'; g.font = `26px ${FONT}`;
-            g.fillText(pass.company || '', CX, 600);
+            g.fillStyle = '#0f172a'; g.font = `bold 40px ${FONT}`;
+            g.fillText(pass.name || '', CX, 555);
+            g.fillStyle = '#0f172a'; g.font = `bold 35px ${FONT}`;
+            g.fillText(pass.company || '', CX, 610);
 
             // 구분선
             g.strokeStyle = '#e2e8f0'; g.lineWidth = 2;

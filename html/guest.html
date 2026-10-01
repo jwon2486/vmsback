@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>회사 방문객 관리 시스템</title>
+
+    <!-- 📱 홈 화면 설치 / 안드로이드 앱(TWA) 정보.
+         절대 경로로 둔다 — /emp, /v/bs 등 어느 경로로 들어와도 같은 파일을 가리켜야 한다. -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1d4ed8">
+    <link rel="icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
     <link rel="stylesheet" href="../css/guest.css">
 </head>
 <body>
@@ -115,6 +123,8 @@
     <script src="../js/auth.js"></script>
     <script src="../js/visitor.js"></script>
     <script src="../js/emp.js"></script>
+    <!-- 🔔 경보음 관리자 — security.js 가 secAlarm.report() 를 부르므로 먼저 로드한다 -->
+    <script src="../js/sec-alarm.js"></script>
     <script src="../js/security.js"></script>
 </body>
 </html>

@@ -56,6 +56,17 @@ function roundUpToTenKst() {
     return { ap: ap, h: h12, m: m };
 }
 
+/* {ap,h,m} 을 분 단위로 민다. 자정·정오를 넘어가도 AM/PM 이 맞게 돌아간다.
+   분 컬럼이 10분 단위라 10의 배수로 밀어야 선택지에 실제로 존재하는 값이 된다. */
+function shiftTimeDef(def, minutes) {
+    if (!def) return def;
+    let h24 = (def.ap === 'PM' ? (def.h % 12) + 12 : def.h % 12);
+    let total = ((h24 * 60 + def.m + minutes) % 1440 + 1440) % 1440;
+    const h = Math.floor(total / 60), m = total % 60;
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    return { ap: h < 12 ? 'AM' : 'PM', h: h12, m: m };
+}
+
 // def(선택) = {ap,'AM'|'PM', h:1~12, m:0~50} 를 주면 그 값으로 기본 선택된 상태로 렌더.
 function timeSelectHtml(prefix, def) {
     const selAp = def ? def.ap : '';
@@ -107,6 +118,13 @@ function tpToggle(prefix) {
     document.querySelectorAll('.tp-panel.open').forEach(p => p.classList.remove('open'));
     if (willOpen) {
         panel.classList.add('open');
+        // 이미 고른 값이 목록 밖에 있으면 찾아 내려야 한다 → 열 때 보이는 위치로 올려준다.
+        //   (기본값이 채워져 있어도 화면에 안 보이면 처음부터 고르는 것과 다를 게 없다)
+        panel.querySelectorAll('.tp-col').forEach(col => {
+            const sel = col.querySelector('.tp-opt.sel');
+            if (sel) col.scrollTop = Math.max(0, sel.offsetTop - col.offsetTop - 4);
+        });
+
         // 스크롤 시 바닥 근처면 묶음 추가 (리스너는 컬럼당 1회만 등록)
         panel.querySelectorAll('.tp-col[data-base]').forEach(col => {
             if (!col.dataset.loopBound) {
@@ -364,7 +382,7 @@ function closeCompanionSheet() {
 //   - QR 이미지는 /qr/<코드>.png (qr/ 폴더에 업로드). 없으면 '준비중' 안내로 대체.
 // ====================================================================
 const REGION_QR_LIST = [
-    { code: 'dt', name: '테크센터', area: '동탄' },
+    { code: 'dt', name: '테크센터', area: '화성' },
     { code: 'bs', name: '에코센터', area: '부산' },
     { code: 'pt', name: '평택공장', area: '평택' },
     { code: 'gj', name: '거제 오션센터', area: '거제' },

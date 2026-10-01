@@ -163,6 +163,14 @@ function adminTimeOnly(val) {
     return parts.length > 1 ? parts[parts.length - 1] : val;
 }
 
+/* 🚗 출입 기록 표의 차량 번호.
+   미기재는 DB 에 '없음' 으로 들어온다. 표에 '없음' 이 줄줄이 찍히면
+   정작 확인해야 할 실제 번호가 묻히므로, 빈 칸과 똑같이 '-' 로 보여 준다. */
+function adminVehicle(val) {
+    const s = (val || '').trim();
+    return (!s || s === '없음') ? '-' : s;
+}
+
 // 상태값 → 모바일 카드 상태 배지 색상 클래스 (진행 단계별로 색을 달리해 한눈에 구분).
 function adminStatusClass(status) {
     const s = String(status || '');
@@ -205,7 +213,7 @@ async function loadAdminLogs() {
     
     const tbody = document.getElementById('adminLogBody');
     if(!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="15" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="text-center text-muted">기록 내역을 불러오는 중입니다...</td></tr>';
     
     try {
         const regionParam = adminRegionFilter ? `&region=${encodeURIComponent(adminRegionFilter)}` : '';
@@ -245,7 +253,7 @@ async function loadAdminLogs() {
         adminLogPage = 1;          // 조회 조건이 바뀌면 항상 1페이지부터
         renderAdminLogTable();
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="15" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13" class="text-center text-danger">네트워크 통신 에러가 발생했습니다.</td></tr>';
     }
 }
 
@@ -331,7 +339,7 @@ function renderAdminLogTable() {
     {
         let html = '';
         if (shown.length === 0) {
-            html = '<tr><td colspan="15" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
+            html = '<tr><td colspan="13" class="text-center text-muted">조회 범위 내 출입 데이터가 존재하지 않습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
@@ -375,9 +383,8 @@ function renderAdminLogTable() {
                         <td data-label="소속">${v.company}</td>
                         <td data-label="방문 목적"><span class="purpose-tag">${v.purpose}</span></td>
                         <td data-label="담당자">${managerDisplay}</td>
-                        <td class="col-split-time" data-label="입실 시간">${adminTimeOnly(v.checkin_time)}</td>
-                        <td class="col-split-time" data-label="퇴실 시간">${adminTimeOnly(v.checkout_time)}</td>
-                        <td class="col-merged-time" data-label="입·퇴실">
+                        <td data-label="차량 번호">${adminVehicle(v.vehicle_no)}</td>
+                        <td data-label="입·퇴실">
                             <span class="time-in">입 ${adminTimeOnly(v.checkin_time)}</span><br>
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
                         </td>
@@ -1072,7 +1079,7 @@ function showPassQr(passId) {
     if (!card || !modal) return;
 
     card.innerHTML = `
-        <div class="pass-card-title">출입권 · ${p.region}</div>
+        <div class="pass-card-title">${window.passCardTitle(p.region)}</div>
         <img class="pass-card-qr" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="출입 이용권 QR">
         <div class="pass-card-name">${p.name}</div>
         <div class="pass-card-company">${p.company}</div>

@@ -672,18 +672,6 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
    재실 중이 아닐 때는 JS 가 이 영역 자체를 렌더하지 않아 자연히 숨겨진다(빈 자리도 없음). */
 .sec-status-action { margin-top: 6px; }
 
-/* 🔒 경비실 전체 출입 기록: 입·퇴실 시간 컬럼을 통합/분리 전환
-   - 데스크톱(마우스) 가로: 입실·퇴실 분리 컬럼 표시, 통합 컬럼 숨김 (기존 배치 유지)
-   - 세로 화면 + 터치 기기(태블릿)는 가로여도: 분리 컬럼 2개를 숨기고
-     '입·퇴실' 통합 1컬럼(2줄)만 표시 → 폭 절약
-   'pointer: coarse' 를 함께 둔 이유: 가로 태블릿은 폭이 넓어 데스크톱으로 걸리는 바람에
-   세로일 때와 컬럼 구성이 달라졌다. 터치 기기는 방향과 무관하게 통합 컬럼으로 통일한다. */
-.sec-erp-layout .col-merged-time { display: none; }
-@media (orientation: portrait), (pointer: coarse) {
-    .sec-erp-layout .col-split-time { display: none; }
-    .sec-erp-layout .col-merged-time { display: table-cell; }
-}
-
 /* 🔒 승인 대기열(5컬럼)은 내용이 적어 좁은 화면에도 다 들어간다.
    - 태블릿/모바일에서 min-w-700(700px) 최소너비 제한을 풀어 컨테이너 폭에 맞춤 → 가로 스크롤 제거.
    - 전체 출입 기록 표(min-w-900, 11컬럼)는 대상이 아니라 그대로 가로 스크롤 유지. */
@@ -1256,6 +1244,9 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 }
 
 /* 🔢/🔎 담당자 지정 — 번호 입력 / 이름 검색 두 방식 */
+
+/* 담당자 동명이인 선택지 — 같은 거점에 같은 이름이 둘 이상일 때만 나타난다 */
+.mgr-result:empty { display: none; }
 .mgr-result { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .mgr-hint { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
 .mgr-pick {
@@ -1283,15 +1274,19 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     border-radius: var(--radius-md); background: #fff; text-align: center;
 }
 .pass-my-head { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 0.5rem; }
-.pass-my-type {
-    padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 800;
-    background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+/* 저장되는 카드 이미지·관리자/경비실 QR 창과 같은 한 줄 제목.
+   긴 거점명이 좁은 화면에서 잘리지 않게 줄바꿈을 허용한다. */
+.pass-my-title {
+    font-size: 1.04rem; font-weight: 800; color: var(--text-main);
+    line-height: 1.45; word-break: keep-all;
 }
-.pass-my-region { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; }
 .pass-my-qr { width: 180px; height: 180px; margin: 0.6rem auto; display: block; }
 /* 경비실 QR 창(sec-qr-dialog)과 같은 구성 — 이름·소속·상세정보 */
-.pass-my-name { font-size: 1.3rem; font-weight: 800; color: var(--text-main); }
-.pass-my-company { font-size: 1.05rem; color: #475569; margin-bottom: 0.7rem; }
+.pass-my-name { font-size: 1.18rem; font-weight: 800; color: var(--text-main); }
+.pass-my-company {
+    font-size: 1.04rem; font-weight: 800; color: var(--text-main);
+    margin-bottom: 0.7rem; line-height: 1.4; word-break: keep-all;
+}
 .pass-my-meta {
     display: grid; grid-template-columns: auto 1fr; gap: 5px 10px;
     font-size: 0.95rem; text-align: left; max-width: 17rem; margin: 0 auto 0.8rem;
@@ -1349,10 +1344,16 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     background: #fff; border-radius: var(--radius-md); padding: 1.4rem 1.2rem;
     width: min(92vw, 22rem); text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
 }
-.sec-qr-title { font-size: 0.78rem; font-weight: 800; color: var(--text-muted); letter-spacing: 1px; }
+.sec-qr-title {
+    font-size: 1.15rem; font-weight: 800; color: var(--text-main);
+    line-height: 1.4; word-break: keep-all;
+}
 .sec-qr-img { width: 200px; height: 200px; margin: 0.7rem auto; display: block; }
-.sec-qr-name { font-size: 1.3rem; font-weight: 800; color: var(--text-main); }
-.sec-qr-company { font-size: 0.88rem; color: #475569; margin-bottom: 0.8rem; }
+.sec-qr-name { font-size: 1.32rem; font-weight: 800; color: var(--text-main); }
+.sec-qr-company {
+    font-size: 1.15rem; font-weight: 800; color: var(--text-main);
+    margin-bottom: 0.8rem; line-height: 1.4; word-break: keep-all;
+}
 .sec-qr-meta {
     display: grid; grid-template-columns: auto 1fr; gap: 5px 10px;
     font-size: 0.8rem; text-align: left; max-width: 16rem; margin: 0 auto 1rem;
@@ -1755,6 +1756,45 @@ body:has(.container-security-wide) {
     font-family: var(--sec-mono); font-size: 0.68rem; color: var(--sec-txt-faint); letter-spacing: 0;
 }
 .container-security-wide .sec-console-foot-end { margin-left: auto; }
+
+/* 🔔 경보음 상태 — 울리는 중에는 빨갛게 깜빡여, 소리를 못 들어도 눈에 띄게 한다.
+   꺼짐·차단 상태도 같은 자리에 노출한다. 조용한 게 정상인지 고장인지 구분돼야 한다. */
+.container-security-wide .sec-alarm-bar {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.container-security-wide .sec-alarm-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--sec-txt-faint); flex: 0 0 auto;
+}
+.container-security-wide .sec-alarm-idle   .sec-alarm-dot { background: var(--sec-ok); }
+.container-security-wide .sec-alarm-off    .sec-alarm-dot { background: var(--sec-txt-faint); }
+.container-security-wide .sec-alarm-locked .sec-alarm-dot { background: var(--sec-warn); }
+.container-security-wide .sec-alarm-acked  .sec-alarm-dot { background: var(--sec-warn); }
+.container-security-wide .sec-alarm-ring   .sec-alarm-dot {
+    background: var(--sec-crit); animation: secAlarmBlink 0.7s steps(1, end) infinite;
+}
+.container-security-wide .sec-alarm-ring .sec-alarm-text {
+    color: var(--sec-crit); font-weight: 700;
+}
+.container-security-wide .sec-alarm-off .sec-alarm-text,
+.container-security-wide .sec-alarm-locked .sec-alarm-text { color: var(--sec-warn); }
+@keyframes secAlarmBlink { 50% { opacity: 0.15; } }
+
+.container-security-wide .sec-alarm-btn {
+    padding: 1px 7px; border: 1px solid var(--sec-line); border-radius: 4px;
+    background: var(--sec-panel); color: var(--sec-txt); cursor: pointer;
+    font-family: inherit; font-size: inherit; line-height: 1.6;
+}
+.container-security-wide .sec-alarm-btn:hover { background: var(--sec-panel-alt); }
+.container-security-wide .sec-alarm-ring .sec-alarm-btn:first-of-type {
+    border-color: var(--sec-crit); color: var(--sec-crit); font-weight: 700;
+}
+.container-security-wide .sec-alarm-btn-sub { color: var(--sec-txt-faint); }
+
+/* 푸시 상태 — 화면 경보음과 역할이 달라 구분자로 나눠 표시한다.
+   (소리는 이 화면이 떠 있을 때, 푸시는 닫아 뒀을 때) */
+.container-security-wide .sec-alarm-sep { color: var(--sec-line); }
+.container-security-wide .sec-alarm-push-ok   { color: var(--sec-ok); }
+.container-security-wide .sec-alarm-push-warn { color: var(--sec-warn); font-weight: 700; }
 
 /* 요약 통계: 떠 있는 카드 → 선으로 나눈 계기판 한 줄 */
 /* 아래 .sec-trend-strip 과 위아래로 맞물려 하나의 계기판 덩어리가 된다.

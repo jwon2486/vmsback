@@ -479,8 +479,10 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: #f8fafc; }
 
 /* 통합 컬럼(입·퇴실 / 방문객): 기본은 숨김(가로 화면은 분리 컬럼 사용). 태블릿 세로에서만 표시. */
-.col-merged-time { display: none; }
 .col-merged-visitor { display: none; }
+/* 입·퇴실 통합 셀 — 입실은 초록, 퇴실은 빨강으로 한 칸 안에서 구분한다. */
+#adminLogBody .time-in  { color: #16a34a; font-weight: 700; }
+#adminLogBody .time-out { color: #dc2626; font-weight: 700; }
 /* 📱 모바일 카드 전용 헤더 셀: 기본(데스크톱·태블릿)은 숨김. ≤768px 카드형에서만 표시. */
 .col-card-head { display: none; }
 
@@ -784,8 +786,7 @@ tr:hover td { background: #f8fafc; }
   #adminLogBody tr td[data-label="연락처"],
   #adminLogBody tr td[data-label="방문 횟수"],
   #adminLogBody tr td[data-label="상태"],
-  #adminLogBody tr td.col-merged-visitor,
-  #adminLogBody tr td.col-merged-time { display: none !important; }
+  #adminLogBody tr td.col-merged-visitor { display: none !important; }
 
   /* 공통: 라벨(::before) 제거 후 아이콘으로 대체, 값은 한 줄씩 */
   #adminLogBody tr td {
@@ -954,17 +955,11 @@ tr:hover td { background: #f8fafc; }
   #tabContentVisitor #adminLogBody td { display: table-cell !important; width: auto !important; }
   #tabContentVisitor #adminLogBody td.col-card-head { display: none !important; }
 
-  /* 통합/분리 토글(입·퇴실 + 방문객): 셀 display 복원보다 뒤 + #id 스코프로 우선순위 확보 */
-  #tabContentVisitor .col-split-time { display: none; }
-  #tabContentVisitor .col-merged-time { display: table-cell; }
+  /* 통합/분리 토글(방문객): 셀 display 복원보다 뒤 + #id 스코프로 우선순위 확보 */
   #tabContentVisitor .col-split-visitor { display: none; }
   #tabContentVisitor .col-merged-visitor { display: table-cell; }
-  #tabContentVisitor #adminLogBody td.col-split-time,
   #tabContentVisitor #adminLogBody td.col-split-visitor { display: none !important; }
-  #tabContentVisitor #adminLogBody td.col-merged-time,
   #tabContentVisitor #adminLogBody td.col-merged-visitor { display: table-cell !important; }
-  #tabContentVisitor .col-merged-time .time-in { color: #16a34a; font-weight: 700; }
-  #tabContentVisitor .col-merged-time .time-out { color: #dc2626; font-weight: 700; }
 }
 
 
@@ -1013,10 +1008,16 @@ tr:hover td { background: #f8fafc; }
 /* QR 출입증 카드 (화면 표시용 — 인쇄는 printPassQr 가 별도 창에 자체 스타일로 출력) */
 .pass-qr-window { width: min(92vw, 24rem); }
 .pass-qr-card { text-align: center; }
-.pass-card-title { font-size: 0.78rem; color: var(--muted); font-weight: 700; letter-spacing: 1px; }
+.pass-card-title {
+  font-size: 1.15rem; color: var(--text); font-weight: 800;
+  line-height: 1.4; word-break: keep-all;
+}
 .pass-card-qr { width: 12.5rem; height: 12.5rem; margin: 0.75rem auto; display: block; }
-.pass-card-name { font-size: 1.4rem; font-weight: 800; color: var(--text); }
-.pass-card-company { font-size: 0.9rem; color: #475569; margin-bottom: 0.75rem; }
+.pass-card-name { font-size: 1.32rem; font-weight: 800; color: var(--text); }
+.pass-card-company {
+  font-size: 1.15rem; font-weight: 800; color: var(--text);
+  margin-bottom: 0.75rem; line-height: 1.4; word-break: keep-all;
+}
 .pass-card-meta {
   display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem;
   font-size: 0.8rem; text-align: left; max-width: 17.5rem; margin: 0 auto;

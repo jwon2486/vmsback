@@ -58,7 +58,7 @@
   "region.fixed": "{region} 방문으로 등록됩니다.",
   "region.pick": "현재 방문하신 사업장을 선택해주세요",
   "region.pick.ph": "-- 방문하신 사업장을 선택하세요 --",
-  "region.tech": "동탄 (테크센터)",
+  "region.tech": "화성 (테크센터)",
   "region.eco": "부산 (에코센터)",
   "region.pyeongtaek": "평택공장",
   "region.geoje": "거제 오션센터",
@@ -248,9 +248,12 @@
   "label.managerCode": "사내 방문 담당자 번호",
   "label.manager": "사내 방문 담당자",
   "ph.manager": "성명 또는 담당자번호 6자리 중 택1 입력",
-  "mgr.needTwo": "두 글자 이상 입력해 주세요.",
-  "mgr.none": "찾지 못했습니다. 성명을 다시 확인하시거나 번호로 입력해 주세요.",
-  "alert.pickManager": "담당자를 찾아 선택해 주세요.",
+  "mgr.pickDup": "같은 이름이 여러 명입니다. 해당 담당자를 골라 주세요.",
   "ph.managerCode": "담당자에게 받은 6자리 번호",
-  "alert.needManager": "담당자 번호를 입력해 주세요."
+  "alert.needManager": "담당자 번호를 입력해 주세요.",
+  "card.brand": "에스엔시스",
+  "card.center.tech": "화성 테크센터",
+  "card.center.eco": "부산 에코센터",
+  "card.center.pyeongtaek": "평택공장",
+  "card.center.geoje": "거제 오션센터"
 }

@@ -72,13 +72,14 @@ def get_or_create_token(conn, log_id):
 
 # ====================================================================
 # 🗺️ 거점(REGION) 매핑 및 화이트리스트
-#  - URL 코드는 '지명' 기준(동탄/부산/평택/거제)으로 고정한다.
+#  - URL 코드는 '지명' 기준(화성/부산/평택/거제)으로 고정한다.
+#    ※ 'dt' 는 동탄 시절에 정한 코드다. 정문 실물 QR 이 이 값을 가리키므로 바꾸지 않는다.
 #    → 사내 거점명(우변)이 바뀌어도 정문에 인쇄해 둔 QR은 재발급 불필요.
 #  - 손님은 거점별 QR(/v/<코드>)로 진입하며, region 값은 서버 세션에만 저장되어
 #    주소창·페이지 소스 어디에도 노출되지 않는다.
 # ====================================================================
 REGION_MAP = {
-    'dt': '테크센터',        # 동탄
+    'dt': '테크센터',        # 화성 (코드 dt 는 동탄 시절 표기 — 실물 QR 호환 위해 유지)
     'bs': '에코센터',        # 부산
     'pt': '평택공장',        # 평택
     'gj': '거제 오션센터',   # 거제 (구 '거제 조선소' → 사명 변경, init_db 에서 기존 데이터 일괄 갱신)
@@ -621,6 +622,350 @@ restore_db_from_github()
 init_db()
 
 # ====================================================================
+# 🔔 웹 푸시 알림 (경비실)
+#   브라우저를 닫아 두어도 알림이 가야 한다. 화면이 떠 있어야만 울리는
+#   화면 경보음(js/sec-alarm.js)으로는 'PC 로 다른 업무 중'인 상황을 못 덮는다.
+#
+#   ⚠️ HTTPS 에서만 동작한다(localhost 는 예외). 사내망 HTTP 로 접속하면
+#      브라우저가 서비스워커 등록 자체를 막는다.
+# ====================================================================
+# 푸시 서비스(FCM 등)에 알려 주는 '발신 서버 연락처'. 규격상 mailto: 또는 https: 만 허용된다.
+#   - 메일을 보내는 기능이 아니다. 헤더에 적히는 문자열일 뿐이라 메일함이 없어도 된다.
+#     (이 시스템에는 메일 발송 기능이 없으므로 서비스 주소를 쓴다)
+#   - VAPID 키와 달리 바꿔도 기존 구독은 끊기지 않는다.
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "https://snsys-vms.onrender.com")
+_VAPID_FILE = os.path.join(BASE_DIR, ".vapid_keys.json")
+
+def _load_vapid():
+    """
+    VAPID 키쌍을 구한다.
+      1순위: 환경변수 (운영/Render)
+      2순위: .vapid_keys.json (로컬에서 첫 실행 때 자동 생성, git 제외)
+    키가 바뀌면 기존 구독이 전부 무효가 되므로 '있으면 재사용'이 중요하다.
+    """
+    pub = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+    priv = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+    if pub and priv:
+        return pub, priv
+    try:
+        with open(_VAPID_FILE, encoding='utf-8') as f:
+            d = json.load(f)
+        if d.get('public') and d.get('private'):
+            return d['public'], d['private']
+    except Exception:
+        pass
+    # 없으면 새로 만들어 파일에 남긴다
+    try:
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        key = ec.generate_private_key(ec.SECP256R1())
+        b64u = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+        pub = b64u(key.public_key().public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint))
+        priv = b64u(key.private_numbers().private_value.to_bytes(32, 'big'))
+        with open(_VAPID_FILE, 'w', encoding='utf-8') as f:
+            json.dump({"public": pub, "private": priv}, f)
+        print("🔑 [푸시] VAPID 키를 새로 생성했습니다 (.vapid_keys.json)")
+        return pub, priv
+    except Exception as e:
+        print(f"❌ [푸시] VAPID 키 준비 실패 → 푸시 비활성: {e}")
+        return '', ''
+
+VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY = _load_vapid()
+
+try:
+    from pywebpush import webpush, WebPushException
+    PUSH_READY = bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+except ImportError:
+    PUSH_READY = False
+    print("⚠️ [푸시] pywebpush 미설치 → 푸시 비활성 (pip install pywebpush)")
+
+
+def init_push_table():
+    """구독 정보 보관함. 브라우저 1개 = 1행(endpoint 가 고유키)."""
+    conn = get_db_connection()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS push_subscription (
+            endpoint   TEXT PRIMARY KEY,
+            p256dh     TEXT NOT NULL,
+            auth       TEXT NOT NULL,
+            emp_id     TEXT,
+            region     TEXT,
+            level      INTEGER,
+            created_at TEXT,
+            last_ok    TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_push_table()
+
+
+def _send_one_push(row, payload):
+    """
+    한 구독에 보낸다. 실패 시 (False, 삭제해야 하는가) 를 돌려준다.
+    404/410 은 '사용자가 구독을 지웠다'는 뜻이라 행을 지워야 한다.
+    안 지우면 죽은 구독이 쌓여 매번 실패 요청을 보내게 된다.
+    """
+    try:
+        webpush(
+            subscription_info={
+                "endpoint": row['endpoint'],
+                "keys": {"p256dh": row['p256dh'], "auth": row['auth']},
+            },
+            data=json.dumps(payload, ensure_ascii=False),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": VAPID_SUBJECT},
+            ttl=300,            # 5분 — 지난 알림을 뒤늦게 띄워도 의미가 없다
+            headers={"Urgency": "high"},   # 안드로이드 Doze 를 뚫고 즉시 전달
+        )
+        return True, False
+    except WebPushException as e:
+        code = getattr(getattr(e, 'response', None), 'status_code', None)
+        # 404/410 : 사용자가 구독을 지웠다
+        # 403     : VAPID 키 불일치 — 서버 키가 바뀐 뒤 만들어진 구독이 아니다.
+        #           지우지 않으면 쓸모없는 행이 남아 매번 실패 요청을 보낸다.
+        #           (지워도 손님 화면 재접속 시 클라이언트가 새 키로 자동 재구독한다)
+        if code == 403:
+            print("⚠️ [푸시] VAPID 키 불일치 → 구독 폐기. "
+                  "운영 환경에 VAPID_PUBLIC_KEY/PRIVATE_KEY 가 고정돼 있는지 확인하세요.")
+        return False, code in (404, 410, 403)
+    except Exception:
+        return False, False
+
+
+def send_push(payload, region=None, level=4):
+    """
+    조건에 맞는 구독 전부에 보낸다.
+      region : 해당 거점 구독만 (None 이면 전 거점)
+      level  : 기본 4 = 경비실
+    """
+    if not PUSH_READY:
+        return 0
+    conn = get_db_connection()
+    q = "SELECT * FROM push_subscription WHERE 1=1"
+    p = []
+    if level is not None:
+        q += " AND level = ?"; p.append(level)
+    if region:
+        q += " AND region = ?"; p.append(region)
+    rows = conn.execute(q, p).fetchall()
+
+    sent, dead = 0, []
+    for r in rows:
+        ok, should_delete = _send_one_push(r, payload)
+        if ok:
+            sent += 1
+        elif should_delete:
+            dead.append(r['endpoint'])
+    if dead:
+        conn.executemany("DELETE FROM push_subscription WHERE endpoint = ?", [(e,) for e in dead])
+        print(f"🧹 [푸시] 만료된 구독 {len(dead)}건 정리")
+    if sent:
+        conn.execute("UPDATE push_subscription SET last_ok = ? WHERE level = ?",
+                     (get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), level))
+    conn.commit()
+    conn.close()
+    return sent
+
+
+# ── 알림 감시 워커 ────────────────────────────────────────────────
+#  변경이 일어나는 모든 지점에 알림 코드를 심지 않는다. 이유:
+#   · 입실 요청 경로가 여러 개라(QR 스캔·현장 등록·사전예약 승인…) 한 곳만 빠뜨려도 조용히 누락된다.
+#   · '퇴실 지연'은 애초에 누가 뭘 바꿔서 생기는 게 아니라 시간이 지나면 생긴다. 심을 지점이 없다.
+#  → 화면 경보음과 똑같이 '건수가 늘었는가'만 주기적으로 본다. 판단 지점이 한 곳이다.
+PUSH_WATCH_SEC = int(os.environ.get("PUSH_WATCH_SEC", "10"))
+_push_last = {}          # {(region, key): 직전 건수}
+_push_thread_started = False
+_push_thread_lock = threading.Lock()
+
+def _count_alerts(conn, region, today_str, now_kst):
+    """경비실 화면이 세는 것과 같은 기준으로 센다."""
+    pending = conn.execute(
+        "SELECT COUNT(*) c FROM visitor_log "
+        " WHERE region = ? AND status IN ('입실대기','퇴실대기') AND visit_date = ?",
+        (region, today_str)).fetchone()['c']
+
+    pass_pending = conn.execute(
+        "SELECT COUNT(*) c FROM visitor_pass WHERE status = '신청' AND region = ?",
+        (region,)).fetchone()['c']
+
+    # 퇴실 지연: 예정 퇴실시간이 지난 재실자 (예정시간 없으면 판정 불가 → 제외)
+    overdue = 0
+    for r in conn.execute(
+            "SELECT visit_date, expected_checkout FROM visitor_log "
+            " WHERE region = ? AND status = '입실완료' AND visit_date = ?",
+            (region, today_str)):
+        exp = (r['expected_checkout'] or '').strip()
+        if not exp:
+            continue
+        dt = _to_expected_dt(r['visit_date'], exp)
+        if dt is not None and now_kst > dt:
+            overdue += 1
+
+    return {'queue': pending, 'overdue': overdue, 'pass': pass_pending}
+
+
+PUSH_LABELS = {'queue': '승인 대기', 'overdue': '퇴실 지연', 'pass': '출입권 신청'}
+
+def _push_watch_tick():
+    now_kst = get_current_kst_time()
+    today_str = now_kst.strftime('%Y-%m-%d')
+    conn = get_db_connection()
+    try:
+        # 구독이 있는 거점만 센다 (아무도 안 보는 거점까지 매번 집계할 이유가 없다)
+        regions = [r['region'] for r in conn.execute(
+            "SELECT DISTINCT region FROM push_subscription WHERE region IS NOT NULL AND region != ''")]
+        for region in regions:
+            counts = _count_alerts(conn, region, today_str, now_kst)
+            grew = []
+            for key, n in counts.items():
+                prev = _push_last.get((region, key))
+                _push_last[(region, key)] = n
+                if prev is None:        # 첫 집계는 기준만 잡는다 (서버 재시작 때 쌓인 건으로 울리지 않게)
+                    continue
+                if n > prev:
+                    grew.append(f"{PUSH_LABELS[key]} {n}건")
+            if grew:
+                send_push({
+                    "title": "출입관리 알림",
+                    "body": " · ".join(grew),
+                    "tag": "sec-alert",
+                    "region": region,
+                }, region=region, level=4)
+                print(f"🔔 [푸시] {region} → {' · '.join(grew)}")
+    finally:
+        conn.close()
+
+
+def _push_watcher():
+    while True:
+        time.sleep(PUSH_WATCH_SEC)
+        try:
+            _push_watch_tick()
+        except Exception as e:
+            print(f"❌ [푸시] 감시 중 오류: {e}")
+
+
+def start_push_thread():
+    global _push_thread_started
+    if not PUSH_READY:
+        return
+    with _push_thread_lock:
+        if not _push_thread_started:
+            threading.Thread(target=_push_watcher, daemon=True).start()
+            _push_thread_started = True
+            print(f"🚀 [푸시] 알림 감시 워커 시동 ({PUSH_WATCH_SEC}초 주기)")
+
+
+# ── 구독 API ──────────────────────────────────────────────────────
+@app.route('/api/push/key', methods=['GET'])
+def push_key():
+    """브라우저가 구독할 때 쓰는 공개키. 비활성이면 enabled=False 로 알려 준다."""
+    return jsonify({"enabled": PUSH_READY, "key": VAPID_PUBLIC_KEY if PUSH_READY else ""})
+
+
+@app.route('/api/push/subscribe', methods=['POST'])
+def push_subscribe():
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+    if not PUSH_READY:
+        return jsonify({"success": False, "message": "서버에서 푸시가 비활성 상태입니다."}), 400
+
+    sub = (request.json or {}).get('subscription') or {}
+    endpoint = (sub.get('endpoint') or '').strip()
+    keys = sub.get('keys') or {}
+    if not endpoint or not keys.get('p256dh') or not keys.get('auth'):
+        return jsonify({"success": False, "message": "구독 정보가 올바르지 않습니다."}), 400
+
+    u = session['user']
+    conn = get_db_connection()
+    # 같은 브라우저가 다시 구독하면 사용자·거점만 갱신한다 (endpoint 가 고유키)
+    conn.execute("""
+        INSERT INTO push_subscription (endpoint, p256dh, auth, emp_id, region, level, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+            p256dh = excluded.p256dh, auth = excluded.auth,
+            emp_id = excluded.emp_id, region = excluded.region, level = excluded.level
+    """, (endpoint, keys['p256dh'], keys['auth'], u.get('id'), u.get('region'),
+          int(u.get('level', 1)), get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S')))
+    conn.commit()
+    conn.close()
+    start_push_thread()      # 첫 구독이 들어온 시점에 감시 시작
+    return jsonify({"success": True})
+
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+def push_unsubscribe():
+    endpoint = ((request.json or {}).get('endpoint') or '').strip()
+    if endpoint:
+        conn = get_db_connection()
+        conn.execute("DELETE FROM push_subscription WHERE endpoint = ?", (endpoint,))
+        conn.commit()
+        conn.close()
+    return jsonify({"success": True})
+
+
+@app.route('/api/push/test', methods=['POST'])
+def push_test():
+    """'테스트 알림' 버튼 — 구독이 실제로 살아 있는지 현장에서 확인하는 용도."""
+    if 'user' not in session:
+        return jsonify({"success": False}), 401
+    u = session['user']
+    sent = send_push({"title": "출입관리 알림 (테스트)",
+                      "body": "알림이 정상 수신되고 있습니다.",
+                      "tag": "sec-test"},
+                     region=u.get('region'), level=int(u.get('level', 1)))
+    return jsonify({"success": True, "sent": sent})
+
+
+@app.route('/manifest.json')
+def web_manifest():
+    """PWA 설치 정보. 안드로이드 TWA 빌드(Bubblewrap)도 이 파일을 읽어 앱을 만든다."""
+    resp = send_from_directory(BASE_DIR, 'manifest.json')
+    resp.headers['Content-Type'] = 'application/manifest+json; charset=utf-8'
+    return resp
+
+
+@app.route('/icons/<path:filename>')
+def serve_icons(filename): return send_from_directory(os.path.join(BASE_DIR, 'icons'), filename)
+
+
+@app.route('/.well-known/assetlinks.json')
+def asset_links():
+    """
+    🤖 안드로이드 앱(TWA) ↔ 이 사이트가 같은 주인임을 증명하는 파일.
+      - 이게 없거나 지문이 틀리면 앱 안에 주소창이 그대로 보인다(앱처럼 안 보임).
+      - ANDROID_PACKAGE / ANDROID_FINGERPRINT 는 앱 서명키를 만든 뒤 환경변수로 넣는다.
+        (키 지문은 비밀값이 아니라 공개되는 값이다)
+    """
+    pkg = os.environ.get("ANDROID_PACKAGE", "").strip()
+    fp = os.environ.get("ANDROID_FINGERPRINT", "").strip()
+    if not pkg or not fp:
+        return jsonify([])      # 아직 앱이 없음 → 빈 목록(유효한 응답)
+    return jsonify([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": pkg,
+            "sha256_cert_fingerprints": [f.strip() for f in fp.split(',') if f.strip()],
+        },
+    }])
+
+
+@app.route('/sw.js')
+def service_worker():
+    """
+    서비스워커는 '최상위 경로'에서 받아야 사이트 전체를 범위로 잡는다.
+    /js/sw.js 로 두면 /js/ 아래만 담당해 푸시를 받지 못한다.
+    """
+    resp = send_from_directory(BASE_DIR, 'sw.js')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+# ====================================================================
 # 🛡️ 백엔드 블라인드 매칭 및 권한 검증
 # ====================================================================
 
@@ -636,19 +981,19 @@ def requested_by_staff():
     return ((session.get('user') or {}).get('id') or '').strip() or REQUESTED_BY_VISITOR
 
 
-def search_managers_by_name(name, region):
-    """이름으로 담당자 후보를 찾는다. 손님 화면의 '이름으로 찾기' 전용.
+def count_managers_by_name(name, region):
+    """이름이 접속 거점 안에서 몇 명인지, 동명이인이면 누구인지 알려준다.
 
-    직원 명부가 통째로 노출되지 않도록 두 가지로 조인다:
+    화면은 이 결과가 2명 이상일 때만 선택지를 띄운다. 1명이면 서버가 이름만으로
+    유일하게 특정하므로 손님에게 아무것도 묻지 않는다(부서도 노출하지 않는다).
+
+    명부가 통째로 새지 않도록 조인다:
       1) 완전 일치만 — 부분 일치를 열면 '김' 한 글자로 수십 명이 나온다.
       2) 접속 거점 소속만 — 손님은 정문 QR 로 거점이 확정된 상태다.
-         동명이인이라도 근무 센터가 다르면 한 명으로 좁혀진다.
-
-    사번·고유번호는 절대 내려보내지 않는다. 번호를 이름만으로 알아낼 수 있게 되면
+    사번·고유번호는 내려보내지 않는다. 이름만으로 번호를 알아낼 수 있으면
     '유출 시 재발급' 이라는 번호의 의미가 사라진다.
-    부서는 같은 거점에 동명이인이 실제로 있을 때만 담는다(구분에 필요한 최소한).
 
-    returns [{"name": ..., "dept": ...}]   (dept 는 후보가 2명 이상일 때만 채워진다)
+    returns [{"name": ..., "dept": ...}]   (1명이면 dept 를 비워 부서를 감춘다)
     """
     nm = (name or '').strip()
     rg = (region or '').strip()
@@ -665,11 +1010,24 @@ def search_managers_by_name(name, region):
     return [{"name": r['name'], "dept": r['dept'] or ''} for r in rows]
 
 
+@app.route('/api/manager/search', methods=['POST'])
+def manager_search():
+    """🔎 손님 화면: 적은 이름이 이 거점에 몇 명인지 확인한다.
+       거점은 세션(정문 QR)에서만 읽는다 — 클라이언트가 보낸 값은 신뢰하지 않는다."""
+    data = request.json or {}
+    region = (session.get('guest_region') or '').strip()
+    if region not in ALLOWED_REGIONS:
+        return jsonify({"success": False, "need_region": True,
+                        "message": "정문에 비치된 사업장 QR을 먼저 스캔해 주세요.",
+                        "message_key": "srv.pass.needSiteQr"}), 403
+    return jsonify({"success": True, "list": count_managers_by_name(data.get('name', ''), region)})
+
+
 def resolve_manager(manager_code='', manager_name='', manager_dept='', region=''):
     """방문 담당자를 특정한다. 번호가 있으면 번호로, 없으면 이름으로 찾는다.
 
     번호(visit_code): 전사 유일하므로 거점을 따지지 않는다. 다른 센터 담당자도 지정된다.
-    이름: 접속 거점 안에서만 찾는다(search_managers_by_name 과 같은 기준).
+    이름: 접속 거점 안에서만 찾는다(count_managers_by_name 과 같은 기준).
           같은 거점에 동명이인이 있으면 부서까지 맞아야 확정한다.
 
     returns (emp_id, emp_name)
@@ -709,18 +1067,6 @@ def resolve_manager_by_code(manager_code):
     return resolve_manager(manager_code=manager_code)
 
 
-@app.route('/api/manager/search', methods=['POST'])
-def manager_search():
-    """🔎 손님 화면: 이름으로 담당자 후보 조회.
-       거점은 세션(정문 QR)에서만 읽는다 — 클라이언트가 보낸 값은 신뢰하지 않는다."""
-    data = request.json or {}
-    region = (session.get('guest_region') or '').strip()
-    if region not in ALLOWED_REGIONS:
-        return jsonify({"success": False, "need_region": True,
-                        "message": "정문에 비치된 사업장 QR을 먼저 스캔해 주세요.",
-                        "message_key": "srv.pass.needSiteQr"}), 403
-    found = search_managers_by_name(data.get('name', ''), region)
-    return jsonify({"success": True, "list": found})
 
 def is_admin_authenticated():
     if 'user' not in session: return False
@@ -797,6 +1143,11 @@ def serve_logo(filename): return send_from_directory(os.path.join(BASE_DIR, 'log
 #    js/i18n.js 가 선택된 언어 + 폴백(ko)만 받아간다.
 @app.route('/lang/<path:filename>')
 def serve_lang(filename): return send_from_directory(os.path.join(BASE_DIR, 'lang'), filename)
+
+# 🔔 경비실 경보음. audio/ 에 파일을 넣으면 그 소리로 울리고, 없으면 JS 가 합성음으로 대체한다.
+#    (음원 교체 시 서버 수정 없이 파일만 바꾸면 된다)
+@app.route('/audio/<path:filename>')
+def serve_audio(filename): return send_from_directory(os.path.join(BASE_DIR, 'audio'), filename)
 
 @app.route('/')
 @app.route('/emp')
@@ -2593,7 +2944,7 @@ def admin_logs():
     
     conn = get_db_connection()
     query = """
-        SELECT v.id, v.visit_date, v.name, v.contact, v.company, v.purpose, v.checkin_time, v.checkout_time, v.status,
+        SELECT v.id, v.visit_date, v.name, v.contact, v.company, v.vehicle_no, v.purpose, v.checkin_time, v.checkout_time, v.status,
                e.name AS emp_name, e.dept AS emp_dept, v.region, v.expected_checkin, v.expected_checkout, v.pass_id, v.created_at,
                v.requested_by, (SELECT name FROM employees WHERE id = v.requested_by) AS requested_by_name,
                (SELECT COUNT(*) FROM visitor_log v2
@@ -3405,6 +3756,7 @@ if __name__ == '__main__':
         expire_stale_reservations()  # 시작 시 밀린 만료 즉시 정리 (자정에 서버가 꺼져 있던 경우 대비)
         threading.Thread(target=_midnight_expiry_scheduler, daemon=True).start()
         start_backup_thread()        # Render(GITHUB_TOKEN 설정 시)에서만 GitHub 백업 워커 기동
+        start_push_thread()          # 🔔 경비실 푸시 감시 (구독이 들어오면 자동으로도 켜진다)
 
         # 🛑 종료 직전 자동 백업: Render 는 재배포/재시작 전에 SIGTERM 을 먼저 보낸다.
         #   그 순간 최신 DB 를 한 번 더 백업 → '커밋 깜빡'으로 인한 유실을 원천 제거.

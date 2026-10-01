@@ -105,6 +105,9 @@ function showIntegratedEmpDashboard() {
         `;
     }
 
+    // 예정 시각 기본값: 지금(10분 올림)과 그 10분 뒤. 손님 화면과 같은 규칙.
+    const empTIn = roundUpToTenKst();
+
     appCard.innerHTML = `
         <div class="mobile-tabs">
             <button class="mobile-tab-btn active" id="tab-btn-form" onclick="switchMobileTab('form')">📋 예약 하기</button>
@@ -130,8 +133,8 @@ function showIntegratedEmpDashboard() {
                     </div>
                     
                     <div class="input-row-group">
-                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', roundUpToTenKst())}</div>
-                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout')}</div>
+                        <div class="input-group"><label>방문 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckin', empTIn)}</div>
+                        <div class="input-group"><label>퇴실 예정시간 <span class="req-star">*</span></label>${timeSelectHtml('expectedCheckout', shiftTimeDef(empTIn, 10))}</div>
                     </div>
                     
                     <div class="input-row-group">

@@ -58,7 +58,7 @@
   "region.fixed": "You are registering a visit to {region}.",
   "region.pick": "Please select the site you are visiting",
   "region.pick.ph": "-- Select the site you are visiting --",
-  "region.tech": "Dongtan (Tech Center)",
+  "region.tech": "Hwaseong (Tech Center)",
   "region.eco": "Busan (Eco Center)",
   "region.pyeongtaek": "Pyeongtaek Plant",
   "region.geoje": "Geoje Ocean Center",
@@ -248,9 +248,12 @@
   "label.managerCode": "Host employee code",
   "label.manager": "Host at our company",
   "ph.manager": "Enter either the name or the 6-digit number",
-  "mgr.needTwo": "Please enter at least 2 characters.",
-  "mgr.none": "Not found. Check the spelling, or enter the number instead.",
-  "alert.pickManager": "Please search and select your host.",
+  "mgr.pickDup": "Several hosts share this name. Please pick the right one.",
   "ph.managerCode": "6-digit code given to you by your host",
-  "alert.needManager": "Please enter the host employee code."
+  "alert.needManager": "Please enter the host employee code.",
+  "card.brand": "S&SYS",
+  "card.center.tech": "Hwaseong (Tech Center)",
+  "card.center.eco": "Busan (Eco Center)",
+  "card.center.pyeongtaek": "Pyeongtaek Plant",
+  "card.center.geoje": "Geoje Ocean Center"
 }

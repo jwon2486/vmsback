@@ -17,6 +17,14 @@ function secTimeOnly(val) {
     return parts.length > 1 ? parts[parts.length - 1] : val;
 }
 
+/* 🚗 출입 기록 표의 차량 번호.
+   미기재는 DB 에 '없음' 으로 들어온다. 표에 '없음' 이 줄줄이 찍히면
+   정작 확인해야 할 실제 번호가 묻히므로, 빈 칸과 똑같이 '-' 로 보여 준다. */
+function secVehicle(val) {
+    const s = (val || '').trim();
+    return (!s || s === '없음') ? '-' : s;
+}
+
 // 🏷️ 경비실 화면 한정: 시스템 명칭(S&SYS VMS / 부제)을 상단 유틸리티 바 중앙에 넣는다.
 //    원래 자리인 .app-header 는 CSS 로 숨긴다 — 표가 많은 화면이라 세로 공간을 아낀다.
 //    renderEmpNavbar() 가 nav 를 다시 그린 뒤에 호출되므로 여기서 붙여도 지워지지 않는다.
@@ -306,14 +314,13 @@ function showSecurityDashboard() {
                                 <th class="p-10">소속</th>
                                 <th class="p-10 col-lo">방문 목적</th>
                                 <th class="p-10">담당자</th>
-                                <th class="p-10 col-split-time">입실 시간</th>
-                                <th class="p-10 col-split-time">퇴실 시간</th>
-                                <th class="p-10 col-merged-time">입·퇴실</th>
+                                <th class="p-10 col-lo">차량 번호</th>
+                                <th class="p-10">입·퇴실</th>
                                 <th class="p-10">상태</th>
                             </tr>
                         </thead>
                         <tbody id="secAllLogsBody">
-                            <tr><td colspan="12" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
+                            <tr><td colspan="11" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -508,6 +515,8 @@ function showSecurityDashboard() {
                 <span>${SEC_REFRESH_LABEL}</span>
                 <span id="secFootSync">마지막 동기화 --:--:--</span>
                 <span>조회 거점 ${empRegion}</span>
+                <!-- 🔔 경보음 상태 — 소리가 꺼져 있거나 차단된 것을 모르고 지나치지 않도록 항상 노출한다 -->
+                <span id="secAlarmHost" class="sec-alarm-bar"></span>
                 <span class="sec-console-foot-end">${emp.id || emp.name || '-'}</span>
             </div>
         </section>
@@ -521,6 +530,7 @@ function showSecurityDashboard() {
     loadSecRegionStatus();  // 🗺️ 우측 패널 거점별 현황 (오늘 · 전 사업장)
     initSecScan();
     secStartConsoleClock();   // 🖥️ 상단 시계 + '동기화 N초 전' 카운터 기동
+    secAlarm.render();        // 🔔 경보음 상태 표시줄
 
     if (securityRefreshTimer) clearInterval(securityRefreshTimer);
     securityRefreshTimer = setInterval(() => {
@@ -528,6 +538,7 @@ function showSecurityDashboard() {
         loadSecurityAllLogs(true);
         loadSecurityOverdue(true);
         loadSecRegionStatus();
+        loadSecPassData();      // 🔔 출입권 신청도 주기 확인 — 빠져 있으면 경보음이 울릴 수 없다
     }, SEC_REFRESH_MS);
 }
 
@@ -834,6 +845,7 @@ async function fetchSecurityQueue(isAuto = false) {
         }
         const pendingStatEl = document.getElementById('secStatPending');
         if (pendingStatEl) pendingStatEl.textContent = totalPending;
+        secAlarm.report('queue', totalPending);      // 🔔 늘어나면 경보음
 
         secQueueCache = data.list;
         secRenderQueueSide(data.list);   // 🚨 우측 패널 대기 큐도 같은 데이터로 갱신
@@ -956,7 +968,7 @@ async function loadSecurityAllLogs(isAuto = false) {
     if (!tbody || !startDateEl || !endDateEl) return;
 
     if (!isAuto) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
     }
 
     try {
@@ -1012,7 +1024,7 @@ function renderSecurityLogTable() {
     {
         let html = '';
         if (secLogsAll.length === 0) {
-            html = '<tr><td colspan="12" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
+            html = '<tr><td colspan="11" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
@@ -1041,9 +1053,8 @@ function renderSecurityLogTable() {
                         <td class="p-10">${v.company}</td>
                         <td class="p-10 col-lo"><span class="sec-purpose-badge">${v.purpose}</span></td>
                         <td class="p-10">${managerDisplay}</td>
-                        <td class="p-10 text-green fw-600 col-split-time">${secTimeOnly(v.checkin_time)}</td>
-                        <td class="p-10 text-red fw-600 col-split-time">${secTimeOnly(v.checkout_time)}</td>
-                        <td class="p-10 col-merged-time">
+                        <td class="p-10 col-lo">${secVehicle(v.vehicle_no)}</td>
+                        <td class="p-10">
                             <span class="text-green fw-600">입 ${secTimeOnly(v.checkin_time)}</span><br>
                             <span class="text-red fw-600">퇴 ${secTimeOnly(v.checkout_time)}</span>
                         </td>
@@ -1098,6 +1109,7 @@ async function loadSecurityOverdue(isAuto = false) {
         // 상단 요약 통계 '퇴실 지연' 카드 갱신
         const overdueStatEl = document.getElementById('secStatOverdue');
         if (overdueStatEl) overdueStatEl.textContent = list.length;
+        secAlarm.report('overdue', list.length);     // 🔔
 
         if (list.length === 0) {
             tbody.innerHTML = '<tr><td colspan="9" class="no-data-box">현재 퇴실 예정시간을 초과한 재실자가 없습니다.</td></tr>';
@@ -1480,6 +1492,8 @@ async function loadSecPassToday() {
             badge.classList.toggle('sec-nav-badge-warn', pending > 0);
             badge.classList.toggle('display-none', pending === 0 && list.length === 0);
         }
+        secAlarm.report('pass', data.pending || 0);  // 🔔
+
         const summary = document.getElementById('secPassTodaySummary');
         if (summary) {
             summary.textContent = `오늘 ${list.length}건 · 오늘 사용 가능 ${data.active_total}장`;
@@ -1562,7 +1576,6 @@ async function setSecPassStatus(passId, status) {
 function showSecPassQr(passId) {
     const p = secPassCache.find(x => x.id === passId);
     if (!p) return;
-    const kind = '출입권';
 
     document.getElementById('secPassQrOverlay')?.remove();
     const ov = document.createElement('div');
@@ -1570,7 +1583,7 @@ function showSecPassQr(passId) {
     ov.className = 'sec-qr-overlay';
     ov.innerHTML = `
         <div class="sec-qr-dialog">
-            <div class="sec-qr-title">${kind} · ${p.region}</div>
+            <div class="sec-qr-title">${window.passCardTitle(p.region)}</div>
             <img class="sec-qr-img" src="/api/qr?token=${encodeURIComponent(p.token)}" alt="이용권 QR">
             <div class="sec-qr-name">${p.name}</div>
             <div class="sec-qr-company">${p.company}</div>

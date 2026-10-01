@@ -58,7 +58,7 @@
   "region.fixed": "将登记为访问 {region}。",
   "region.pick": "请选择您来访的地点",
   "region.pick.ph": "-- 请选择来访地点 --",
-  "region.tech": "东滩（Tech Center）",
+  "region.tech": "华城（Tech Center）",
   "region.eco": "釜山（Eco Center）",
   "region.pyeongtaek": "平泽（Pyeongtaek Plant）",
   "region.geoje": "巨济（Ocean Center）",
@@ -248,9 +248,12 @@
   "label.managerCode": "对接员工编号",
   "label.manager": "公司内对接人",
   "ph.manager": "请输入姓名或6位对接人编号（二选一）",
-  "mgr.needTwo": "请至少输入两个字。",
-  "mgr.none": "未找到。请核对姓名，或改用编号输入。",
-  "alert.pickManager": "请查找并选择对接人。",
+  "mgr.pickDup": "有多位同名对接人，请选择正确的一位。",
   "ph.managerCode": "对接员工告知的6位数字编号",
-  "alert.needManager": "请输入对接员工编号。"
+  "alert.needManager": "请输入对接员工编号。",
+  "card.brand": "S&SYS",
+  "card.center.tech": "华城（Tech Center）",
+  "card.center.eco": "釜山（Eco Center）",
+  "card.center.pyeongtaek": "平泽（Pyeongtaek Plant）",
+  "card.center.geoje": "巨济（Ocean Center）"
 }

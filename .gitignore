@@ -19,6 +19,8 @@ scanner-agent/agent_config.json
 
 # 세션 키 등 비밀값
 .secret_key
+# 🔔 웹푸시 VAPID 키 — 첫 실행 때 자동 생성된다. 운영(Render)은 환경변수로 주입.
+.vapid_keys.json
 
 # 파이썬 캐시
 __pycache__/
