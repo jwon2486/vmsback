@@ -369,7 +369,7 @@ function passFormHtml(p) {
         <div class="emp-modal-actions">
             <button type="button" class="emp-btn-ghost"
                     onclick="${p ? 'switchPassTab(\'list\')' : 'empCloseModal()'}">${p ? '뒤로' : '취소'}</button>
-            <button type="button" class="emp-btn-primary" onclick="submitPassRequest()">${p ? '수정 저장' : '신청 접수'}</button>
+            <button type="button" class="emp-btn-primary" onclick="empSubmitPassRequest()">${p ? '수정 저장' : '신청 접수'}</button>
         </div>`;
 }
 
@@ -427,7 +427,9 @@ async function deleteMyPass(id, name) {
     renderMyPassList();
 }
 
-async function submitPassRequest() {
+// 이름에 emp 접두어 필수 — 같은 페이지에 손님용 submitPassRequest(visitor.js)가 있어,
+// 이름이 같으면 나중에 로드된 이 함수가 덮어써 손님 신청서가 빈 값으로 검사된다.
+async function empSubmitPassRequest() {
     const get = (id) => (document.getElementById(id) || {}).value || '';
     const payload = {
         name: get('prName').trim(),

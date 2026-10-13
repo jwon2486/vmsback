@@ -166,6 +166,15 @@ body.emp-page .app-header { display: none; }
     width: 100%; padding: 0.7rem 0.9rem; border: 1px solid #cbd5e1; border-radius: var(--radius-md); 
     font-size: 1.05rem; font-weight: 500; outline: none; background: #f8fafc; transition: all 0.2s ease;
 }
+/* 📅 iOS 사파리는 날짜칸을 자체 모양으로 그린다 — 고유 최소폭·높이·가운데 정렬이 붙어
+   지정한 칸 폭을 넘쳐 옆 칸(담당자 등) 아래로 파고든다. 일반 입력칸처럼 그리게 되돌린다.
+   (화면마다 따로 막지 않고 날짜칸 전체에 건다 — 손님 신청서·수정 화면·임직원 창 공통) */
+input[type="date"] {
+    -webkit-appearance: none; appearance: none;
+    min-width: 0; max-width: 100%; box-sizing: border-box;
+    display: block; line-height: 1.25;
+}
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 1.25em; }
 .input-group input:focus, .input-group select:focus { border-color: var(--primary); background: #ffffff; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08); }
 
 .input-row-group { display: flex; flex-direction: row; gap: 1rem; width: 100%; }
