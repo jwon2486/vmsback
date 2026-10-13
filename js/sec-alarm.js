@@ -25,7 +25,8 @@
     // 음원 후보 — 앞에서부터 재생해 보고 되는 것을 쓴다.
     const ALARM_SOURCES = ['/audio/sec-alert.mp3', '/audio/sec-alert.wav'];
 
-    const REPEAT_MS = 3000;     // 반복 간격. 확인할 때까지 계속 울린다.
+    const REPEAT_MS = 3000;     // 반복 간격
+    const MAX_RING_MS = 60000;  // 한 번 발령에 최대 60초. 자리를 비웠을 때 무한정 울리지 않게 한다.
     const LS_ENABLED = 'sec_alarm_enabled';
     const LS_VOLUME  = 'sec_alarm_volume';
 
@@ -38,12 +39,14 @@
 
     const counts = {};          // 마지막으로 보고받은 건수
     let repeatTimer = null;
+    let maxRingTimer = null;
     let ringing = false;
     let reasons = [];           // 이번에 울린 이유(여러 개가 동시에 생길 수 있다)
     let audioEl = null;
     let audioCtx = null;
     let unlocked = false;       // 브라우저 자동재생 차단이 풀렸는가
     let acked = false;          // '정지'를 눌러 수동으로 끈 상태
+    let timedOut = false;       // 60초가 지나 스스로 멈춘 상태
 
     /* ── 설정 ───────────────────────────────────────────────────────── */
 
@@ -170,6 +173,7 @@
         acked = false;
         playOnce();
         repeatTimer = setInterval(playOnce, REPEAT_MS);
+        maxRingTimer = setTimeout(function () { timedOut = true; stop(); }, MAX_RING_MS);
         renderBar();
     }
 
@@ -177,6 +181,7 @@
         ringing = false;
         reasons = [];
         if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+        if (maxRingTimer) { clearTimeout(maxRingTimer); maxRingTimer = null; }
         if (audioEl) { try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {} }
         renderBar();
     }
@@ -193,6 +198,14 @@
      * @param {string} key   WATCH_LABELS 의 키
      * @param {number} value 현재 건수
      */
+    /* 멈춤 규칙 — '전부 0 이 될 때까지' 울리면 안 된다.
+       출입권 신청처럼 며칠 묵히는 건이 하나라도 남아 있으면,
+       정작 급한 입실 승인을 다 처리해도 소리가 끊기지 않는다. 그러면 경비가 소리를 꺼버린다.
+         ① 건수가 줄면 멈춘다  — 사람이 처리 중이라는 신호다. 더 울릴 이유가 없다.
+         ② 60초가 지나면 멈춘다 — 아무도 없을 때 무한정 울리는 것을 막는다.
+                                  (남은 건수는 상태 바에 계속 표시되므로 사라지는 게 아니다)
+         ③ 전부 0 이면 멈춘다
+       셋 중 무엇으로 멈췄든, 새 건이 들어오면 다시 울린다. */
     function report(key, value) {
         const n = Number(value) || 0;
         const prev = counts[key];
@@ -202,12 +215,14 @@
         if (prev === undefined) { renderBar(); return; }
 
         if (n > prev) {
-            // 늘어났다 → 새 일거리. 수동 정지 상태였어도 다시 울린다.
+            // 늘어났다 → 새 일거리. 수동 정지·시간 종료 상태였어도 다시 울린다.
             acked = false;
+            timedOut = false;
             start(pendingReasons());
+        } else if (n < prev) {
+            stop();                       // ① 처리 중
         } else if (totalPending() === 0) {
-            // 전부 처리됨 → 자동으로 멈춘다
-            stop();
+            stop();                       // ③ 남은 일 없음
         } else {
             renderBar();
         }
@@ -372,10 +387,13 @@
         const on = isEnabled();
         const total = totalPending();
 
+        // 조용한 이유를 구분해 보여준다 — '정상인데 조용한 것'과 '꺼져서 조용한 것'은 다르다.
         let state, cls;
         if (!on)            { state = '알림음 꺼짐';  cls = 'off'; }
         else if (ringing)   { state = pendingReasons().join(' · '); cls = 'ring'; }
-        else if (acked && total > 0) { state = `정지됨 · 대기 ${total}건`; cls = 'acked'; }
+        else if (acked && total > 0)     { state = `정지됨 · 대기 ${total}건`; cls = 'acked'; }
+        else if (timedOut && total > 0)  { state = `대기 ${total}건 (알림음 종료)`; cls = 'acked'; }
+        else if (total > 0) { state = `대기 ${total}건`; cls = 'acked'; }
         else if (!unlocked) { state = '화면을 한 번 누르면 소리가 켜집니다'; cls = 'locked'; }
         else                { state = '알림음 대기 중'; cls = 'idle'; }
 

@@ -47,12 +47,36 @@ let visitorPollTimer = null;
 // 상태 화면에 1회 표시할 인라인 안내(예: 퇴실 요청 접수). alert 대체용.
 let guestFlash = '';
 
+/* ✅ 저장 완료 같은 1회성 알림.
+   화면에 계속 남아 있으면 방금 한 일인지 아까 한 일인지 구분이 안 된다 → 잠깐 보여 주고 지운다.
+   innerHTML 로 화면을 다시 그린 '뒤에' 호출해야 요소를 찾을 수 있다. */
+const GUEST_FLASH_MS = 2000;
+function startGuestFlashTimer() {
+    const el = document.querySelector('.guest-flash');
+    if (!el) return;
+    setTimeout(() => {
+        el.classList.add('is-fading');
+        // 사라지는 동안 아래 내용이 덜컥 올라오지 않도록 애니메이션이 끝난 뒤 제거한다
+        setTimeout(() => el.remove(), 300);
+    }, GUEST_FLASH_MS);
+}
+
 function stopVisitorPolling() {
     if (visitorPollTimer) { clearInterval(visitorPollTimer); visitorPollTimer = null; }
 }
 
 function isWaitingStatus(status) {
     return status === '입실대기' || status === '퇴실대기';
+}
+
+// 내 방문 QR + 이미지 저장 버튼. 저장은 PNG 첨부로 내려받는다 (갤러리·메신저 호환).
+function guestQrBox(token, name) {
+    const tk = encodeURIComponent(token);
+    const fileName = encodeURIComponent(`QR_${name || ''}`);
+    return `<div class="guest-qr-box">
+               <img src="/api/qr?token=${tk}" alt="${t('qr.altMine')}" class="guest-qr-img">
+               <a class="guest-qr-save" href="/api/qr?token=${tk}&format=png&download=1&filename=${fileName}">${t('qr.saveBtn')}</a>
+           </div>`;
 }
 
 // fetchFn: async () => 방문객객체|null,  onResolved: (방문객객체) => void
@@ -127,10 +151,7 @@ async function showScanStatus(token, fromPoll = false) {
         : '';
     // 직원이 대신 등록해 주고 링크만 받은 손님도 여기서 자기 QR 을 보고 저장할 수 있어야 한다.
     const qrHtml = v.token
-        ? `<div class="guest-qr-box">
-               <img src="/api/qr?token=${encodeURIComponent(v.token)}" alt="${t('qr.altMine')}" class="guest-qr-img">
-               <p class="guest-qr-hint">${t('qr.saveHint')}</p>
-           </div>`
+        ? guestQrBox(v.token, v.name)
         : '';
     const groupBtn = (v.group_size && v.group_size >= 2)
         ? `<div class="action-buttons"><button onclick="showGroupQr(${v.id})" class="btn-guest-sub">👥 ${t('qr.groupBtn')}</button></div>`
@@ -153,6 +174,8 @@ async function showScanStatus(token, fromPoll = false) {
         ${checkoutBtn}
         <div class="action-buttons visitor-btn-margin"><button onclick="goGuestHome()" class="btn-guest-sub">${t('btn.home')}</button></div>
     `;
+
+    startGuestFlashTimer();
 
     // 입실완료 상태면 스캔 즉시 퇴실 요청 (확인 팝업 생략, 최초 스캔 시에만 · 폴링 갱신 시에는 X)
     if (sv.canCheckout && !fromPoll) {
@@ -329,10 +352,7 @@ async function showPrecheckStatus(id, fromPoll = false) {
         ? `<div class="action-buttons"><button onclick="submitCheckout(${v.id})" class="btn-guest-main">${t('checkout.now')}</button></div>`
         : '';
     const qrHtml = v.token
-        ? `<div class="guest-qr-box">
-               <img src="/api/qr?token=${encodeURIComponent(v.token)}" alt="${t('qr.altMine')}" class="guest-qr-img">
-               <p class="guest-qr-hint">${t('qr.saveHint')}</p>
-           </div>`
+        ? guestQrBox(v.token, v.name)
         : '';
     const waitingHint = isWaitingStatus(v.status)
         ? `<p class="poll-live-hint">🔄 ${t('poll.hint')}</p>`
@@ -342,8 +362,47 @@ async function showPrecheckStatus(id, fromPoll = false) {
         : '';
     const flashHtml = guestFlash ? `<div class="guest-flash">✅ ${guestFlash}</div>` : '';
     guestFlash = '';   // 1회 표시 후 소비
+
+    // 수정 화면이 쓸 기준값. 상태 화면을 그릴 때마다 최신으로 잡아 둔다.
+    visitManageToken = v.token || null;
+    visitManageBaseId = v.id;
+
+    /* 🙋 수정 모드
+       QR 아래에 수정 폼을 이어 붙이면 화면이 길어지고 '지금 뭘 하는 중인지'가 흐려진다.
+       → 수정 중에는 QR·상태 박스를 감추고 수정 영역만 보여 준다. 끝나면 원래 화면으로 돌아온다.
+       (수정 중 자동 갱신이 돌면 입력하던 값이 날아가므로 폴링도 멈춘다) */
+    if (visitManageOpen && v.token) {
+        stopVisitorPolling();
+        appCard.innerHTML = `
+            <h2 class="guest-title-bold-style">${t('visit.manageOpen')}</h2>
+            ${flashHtml}
+            <div id="visitManageBox"></div>
+            <div class="action-buttons visitor-btn-margin">
+                <button onclick="closeVisitManage()" class="btn-guest-main">${t('visit.manageClose')}</button>
+            </div>`;
+        startGuestFlashTimer();
+        renderVisitManage(v.token, v.id);
+        return;
+    }
+
+    /* 제목 줄을 좌·중·우 3칸으로 나눈다.
+       가운데는 제목(항상 화면 중앙), 오른쪽은 '신청 정보 수정'.
+       양 옆 칸을 같은 폭(1fr)으로 두어야 오른쪽에 버튼이 있어도 제목이 가운데에 선다. */
+    const canManage = v.token && (v.status === '사전예약' || v.status === '입실대기');
+    const manageBtn = canManage
+        ? `<button onclick="openVisitManage()" class="btn-status-edit">${t('visit.manageOpen')}</button>`
+        : '';
+    // 신청 취소는 수정 화면에 들어가지 않아도 바로 할 수 있게 [뒤로] 옆에 반반으로 둔다.
+    const cancelBtn = canManage
+        ? `<button onclick="cancelMyVisit('${v.token}', ${v.id})" class="btn-guest-cancel">${t('visit.cancelBtn')}</button>`
+        : '';
+
     appCard.innerHTML = `
-        <h2 class="guest-title-bold-style">${t('status.title')}</h2>
+        <div class="status-head">
+            <span class="status-head-side"></span>
+            <h2 class="guest-title-bold-style status-head-title">${t('status.title')}</h2>
+            <span class="status-head-side status-head-right">${manageBtn}</span>
+        </div>
         ${flashHtml}
         <div class="visitor-info-box">
             <p class="greet">${t('greet.person', {name: `<strong>${v.name}</strong>`})}</p>
@@ -356,13 +415,29 @@ async function showPrecheckStatus(id, fromPoll = false) {
         ${qrHtml}
         ${groupBtn}
         ${checkoutBtn}
-        <div class="action-buttons visitor-btn-margin"><button onclick="showNameVerifyForm()" class="btn-guest-sub">${t('btn.prev')}</button></div>
+        <div class="action-buttons visitor-btn-margin"><button onclick="showNameVerifyForm()" class="btn-guest-sub">${t('btn.prev')}</button>${cancelBtn}</div>
     `;
+
+    startGuestFlashTimer();
 
     // 대기 상태면 자동 갱신 시작
     if (isWaitingStatus(v.status)) {
         startVisitorPolling(() => fetchStatusById(id), () => showPrecheckStatus(id, true));
     }
+}
+
+function openVisitManage() {
+    visitManageOpen = true;
+    showPrecheckStatus(visitManageBaseId);
+}
+
+async function closeVisitManage() {
+    const saved = await saveScheduleIfChanged();
+    if (!saved) return;              // 저장 실패 → 입력값을 고칠 수 있게 수정 화면에 머문다
+    if (saved === 'changed') guestFlash = t('visit.saved');
+    visitManageOpen = false;
+    visitPersonEditId = null;
+    showPrecheckStatus(visitManageBaseId);
 }
 
 async function submitConfirmPrecheck(id, force = false) {
@@ -586,6 +661,12 @@ function showCheckinForm(passedName = '', passedContact = '') {
                     <!-- 🔢 담당자 지정은 고유번호로만 한다.
                          이름 매칭은 폐지: 외국인 방문객은 한글을 칠 수 없고, 동명이인이면 특정도 안 된다.
                          담당자명은 서버가 번호로 찾아 채운다. -->
+                    <!-- 방문일자 + 담당자를 한 줄로. 기본은 오늘, 지난 날짜는 고를 수 없다. -->
+                    <div class="input-row-group">
+                    <div class="input-group visit-date-group">
+                        <label>${t('visit.date')} <span class="req-star">*</span></label>
+                        <input type="date" id="visit_date" value="${passReqTodayStr()}" min="${passReqTodayStr()}">
+                    </div>
                     <div class="input-group">
                         <label>${t('label.manager')} <span class="req-star">*</span></label>
                         <!-- 번호든 이름이든 이 칸 하나로 받는다. 숫자만 넣으면 번호,
@@ -596,6 +677,7 @@ function showCheckinForm(passedName = '', passedContact = '') {
                         <!-- 같은 거점에 동명이인이 있을 때만 채워진다. 평소엔 비어 있다. -->
                         <div id="mgrResult" class="mgr-result"></div>
                         <input type="hidden" id="manager_dept">
+                    </div>
                     </div>
 
                     <div class="input-group mb-20">
@@ -701,8 +783,9 @@ async function submitCheckin() {
 
     const expected_checkin = readTimeSelect('expectedCheckin');
     const expected_checkout = readTimeSelect('expectedCheckout');
+    const visit_date = (document.getElementById('visit_date') || {}).value || '';
     
-    if (!name || !company || !contact || !purpose) return alert(t('alert.needRequired'));
+    if (!name || !company || !contact || !purpose || !visit_date) return alert(t('alert.needRequired'));
     // 담당자는 번호 또는 이름 중 하나면 된다 (외국인 방문객은 한글 이름 입력이 불가)
     if (!managerRaw) return alert(t('alert.needManager'));
     if (!expected_checkin || !expected_checkout) return alert(t('alert.needTimes'));
@@ -741,7 +824,7 @@ async function submitCheckin() {
         const res = await fetch('/api/group-checkin', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ visitors: visitorsArray, region: finalRegion }) 
+            body: JSON.stringify({ visitors: visitorsArray, region: finalRegion, visit_date: visit_date }) 
         });
         const result = await res.json();
         if (result.success) {
@@ -804,10 +887,7 @@ function showCheckoutPage(visitor) {
     const appCard = document.getElementById('app-card');
     if (!appCard) return;
     const qrHtml = visitor.token
-        ? `<div class="guest-qr-box">
-               <img src="/api/qr?token=${encodeURIComponent(visitor.token)}" alt="${t('qr.altMine')}" class="guest-qr-img">
-               <p class="guest-qr-hint">${t('qr.saveHint')}</p>
-           </div>`
+        ? guestQrBox(visitor.token, visitor.name)
         : '';
     const groupBtn = (visitor.group_size && visitor.group_size >= 2)
         ? `<div class="action-buttons"><button onclick="showGroupQr(${visitor.id})" class="btn-guest-sub">👥 ${t('qr.groupBtn')}</button></div>`
@@ -957,10 +1037,7 @@ async function searchVisitor() {
             ? `<div class="action-buttons"><button onclick="submitCheckout(${v.id})" class="btn-guest-main">${t('checkout.now')}</button></div>`
             : '';
         const qrHtml = v.token
-            ? `<div class="guest-qr-box">
-                   <img src="/api/qr?token=${encodeURIComponent(v.token)}" alt="${t('qr.altMine')}" class="guest-qr-img">
-                   <p class="guest-qr-hint">${t('qr.saveHint')}</p>
-               </div>`
+            ? guestQrBox(v.token, v.name)
             : '';
 
         const groupBtn = (v.group_size && v.group_size >= 2)
@@ -982,6 +1059,242 @@ async function searchVisitor() {
     } catch (e) {
         resultDiv.innerHTML = `<div class="no-data-box"><span class="icon">⚠️</span><p>${t('search.error')}</p></div>`;
     }
+}
+
+/* ====================================================================
+   🙋 신청 취소 · 일행 추가/삭제 (손님 화면)
+
+   본인 확인은 화면이 이미 들고 있는 QR 토큰으로 한다.
+   손님에게 이름·전화번호를 다시 받지 않는다 — 번거롭기만 하고 보호 수단도 못 된다.
+   같은 일행끼리는 서로 대신 취소해 줄 수 있다(현장에서 한 사람이 전원을 관리한다).
+
+   '취소 가능한가'는 서버가 판단해 can_cancel 로 내려 준다.
+   화면이 상태 문자열을 또 해석하면 규칙이 두 곳으로 갈라진다.
+   ==================================================================== */
+let visitManageToken = null;
+let visitManageBaseId = null;   // 수정 후 상태 화면을 다시 그릴 때 쓴다
+let visitPersonEditId = null;   // null = 추가 모드, 숫자 = 그 사람 정보를 고치는 중
+let visitManageOpen = false;    // true 면 상태 화면 대신 수정 화면을 보여 준다
+let visitGroupCache = null;     // 모드 전환 때 서버를 다시 부르지 않기 위한 보관
+
+async function renderVisitManage(token, baseId, cached) {
+    visitManageToken = token;
+    if (baseId) visitManageBaseId = baseId;
+    const box = document.getElementById('visitManageBox');
+    if (!box) return;
+
+    let d = cached || null;
+    if (!d) {
+        try {
+            d = await (await fetch(`/api/visit/group?token=${encodeURIComponent(token)}`)).json();
+        } catch (e) {}
+    }
+    if (!d || !d.success) { box.innerHTML = ''; return; }
+
+    /* 각 행의 버튼 — 수정 중인 사람만 [취소][저장] 로 바뀐다.
+       임직원 화면과 같은 방식이다. 입력칸은 아래 '일행 추가' 폼을 그대로 재사용한다. */
+    const esc = (v) => String(v == null ? '' : v).replace(/'/g, '').replace(/"/g, '');
+    const rows = d.list.map(m => `
+        <div class="vm-row-visitor">
+            <div class="vm-who-visitor">
+                <span class="vm-corp-visitor">${t('visit.companyShort')}: ${m.company || '-'}</span>
+                <span class="vm-name-line-visitor"><b>${m.name}</b>${m.is_me ? `<span class="vm-me-visitor">${t('visit.me')}</span>` : ''}</span>
+                <span class="vm-sub-visitor">${formatPhone(m.contact) || '-'}</span>
+            </div>
+            ${m.can_cancel
+                ? `<span class="vm-row-btns-visitor">
+                       ${m.id === visitPersonEditId
+                           ? `<button class="vm-cancel-visitor" onclick="cancelPersonEdit()">${t('visit.cancelEdit')}</button>
+                              <button class="vm-save" onclick="savePerson()">${t('visit.savePerson')}</button>`
+                           : `<button class="vm-edit-btn" onclick="editPerson(${m.id})">${t('visit.editBtn')}</button>`}
+                       <button class="vm-del-visitor" onclick="cancelVisit(${m.id}, ${m.is_me ? 'true' : 'false'}, '${esc(m.name)}')">${m.is_me ? t('visit.cancelBtn') : t('visit.removeBtn')}</button>
+                   </span>`
+                : `<span class="vm-locked-visitor">${m.status}</span>`}
+        </div>`).join('');
+
+    // 수정 모드 전환 때 서버를 다시 부르지 않도록 보관해 둔다
+    visitGroupCache = d;
+
+    // 일정 변경 — 날짜를 옮기면 일행 전원이 함께 옮겨간다(서버가 그렇게 처리한다).
+    const editForm = d.can_add ? `
+        <div class="vm-edit">
+            <label class="vm-add-label">${t('visit.editTitle')}</label>
+            <div class="vm-edit-row">
+                <input type="date" id="vmDate" value="${d.visit_date || ''}">
+            </div>
+            <div class="vm-edit-row vm-edit-times">
+                <input type="time" id="vmIn" value="${d.expected_checkin || ''}">
+                <span class="vm-tilde">~</span>
+                <input type="time" id="vmOut" value="${d.expected_checkout || ''}">
+            </div>
+            <p class="vm-note-visitor">${t('visit.groupNote')}</p>
+        </div>` : '';
+
+    const addForm = d.can_add ? `
+        <div class="vm-add">
+            <label class="vm-add-label" id="vmFormLabel">${t('visit.addTitle')}</label>
+            <div class="vm-field-row vm-row-name-visitor">
+                <input type="text" id="vmName" placeholder="${t('label.name')}" maxlength="20">
+                ${phoneInputHtml('vmPhone', '')}
+            </div>
+            <div class="vm-field-row">
+                <input type="text" id="vmCompany" placeholder="${t('ph.companySame')}" maxlength="30">
+                <input type="text" id="vmVehicle" placeholder="${t('label.vehicle')}" maxlength="20">
+            </div>
+            <button class="btn-guest-sub vm-add-btn" id="vmAddBtn" onclick="addCompanion()">${t('visit.addBtn')}</button>
+        </div>` : `<p class="vm-note-visitor">${t('visit.cannotEdit')}</p>`;
+
+    // 캐시로 다시 그릴 때(행 수정·취소 전환)는 아직 저장 안 한 일정 입력값을 살린다
+    const keep = cached ? ['vmDate', 'vmIn', 'vmOut'].map(id => {
+        const el = document.getElementById(id);
+        return el ? [id, el.value] : null;
+    }).filter(Boolean) : [];
+
+    box.innerHTML = `
+        <div class="vm-panel-visitor">
+            <p class="vm-title-visitor">${t('visit.manage')}</p>
+            ${rows}
+            ${editForm}
+            ${addForm}
+        </div>`;
+    keep.forEach(([id, v]) => { const el = document.getElementById(id); if (el) el.value = v; });
+
+    // 수정 모드면 아래 폼을 그 사람 값으로 채우고, '추가' 버튼은 숨긴다(저장은 행에서 한다).
+    const editing = visitPersonEditId && d.list.find(x => x.id === visitPersonEditId);
+    const label = document.getElementById('vmFormLabel');
+    const addBtn = document.getElementById('vmAddBtn');
+    if (editing) {
+        fillPersonForm(editing);
+        if (label) label.textContent = t('visit.editPerson');
+        if (addBtn) addBtn.style.display = 'none';
+    } else {
+        if (label) label.textContent = t('visit.addTitle');
+        if (addBtn) addBtn.style.display = '';
+    }
+}
+
+/* ── 방문자 한 명 정보 고치기 ────────────────────────────────────
+   잘못 적은 이름·연락처를 손님이 직접 바로잡을 수 있게 한다.
+   입력칸은 '일행 추가' 폼을 그대로 쓴다 — 칸 구성이 갈라지지 않게. */
+function fillPersonForm(p) {
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('vmName', p ? p.name : '');
+    set('vmCompany', p ? p.company : '');
+    set('vmVehicle', (p && p.vehicle_no !== '없음') ? p.vehicle_no : '');
+    const digits = ((p && p.contact) || '').replace(/\D/g, '');
+    set('vmPhone_p1', digits.slice(0, 3));
+    set('vmPhone_p2', digits.slice(3, 7));
+    set('vmPhone_p3', digits.slice(7, 11));
+}
+
+function editPerson(personId) {
+    visitPersonEditId = personId;
+    renderVisitManage(visitManageToken, null, visitGroupCache);
+}
+
+function cancelPersonEdit() {
+    visitPersonEditId = null;
+    fillPersonForm(null);
+    renderVisitManage(visitManageToken, null, visitGroupCache);
+}
+
+async function savePerson() {
+    const get = (id) => (document.getElementById(id) || {}).value || '';
+    if (!(await saveScheduleIfChanged())) return;
+    let d = null;
+    try {
+        d = await (await fetch('/api/visit/person', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                token: visitManageToken,
+                person_id: visitPersonEditId,
+                name: get('vmName').trim(),
+                contact: readPhone('vmPhone'),
+                company: get('vmCompany').trim(),
+                vehicle_no: get('vmVehicle').trim(),
+            }),
+        })).json();
+    } catch (e) {}
+    if (!d || !d.success) { alert(srvMsg(d, 'search.error')); return; }
+    visitPersonEditId = null;
+    // 저장이 끝났으면 수정 화면에 머무를 이유가 없다 → QR 이 보이는 상태 화면으로 돌아간다
+    visitManageOpen = false;
+    guestFlash = srvMsg(d, 'visit.saved');
+    showPrecheckStatus(visitManageBaseId);
+}
+
+// 상태 화면에서 바로 본인 신청 취소 — 수정 화면과 같은 처리(cancelVisit)를 쓴다.
+function cancelMyVisit(token, id) {
+    visitManageToken = token;
+    cancelVisit(id, true, '');
+}
+
+async function cancelVisit(targetId, isMe, name) {
+    const msg = isMe ? t('visit.confirmSelf') : t('visit.confirmOther', {name: name});
+    if (!confirm(msg)) return;
+
+    let d = null;
+    try {
+        d = await (await fetch('/api/visit/cancel', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: visitManageToken, target_id: targetId}),
+        })).json();
+    } catch (e) {}
+    if (!d || !d.success) { alert(srvMsg(d, 'search.error')); return; }
+
+    // 본인 건을 취소하면 더 볼 화면이 없다 → 처음으로 돌아간다.
+    if (d.self_cancelled) {
+        localStorage.removeItem('my_visitor_id');
+        guestFlash = t('visit.cancelDone');
+        showMainPage();
+        return;
+    }
+    renderVisitManage(visitManageToken);   // 일행만 빠졌으면 목록만 다시 그린다
+}
+
+/* 일정 변경은 별도 버튼 없이 [저장]·[완료] 때 함께 저장한다.
+   처음 값과 같으면 서버를 부르지 않는다.
+   반환: 'same' 변경 없음 / 'changed' 저장함 / false 실패(알림 표시됨) */
+async function saveScheduleIfChanged() {
+    const g = visitGroupCache;
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value : null; };
+    const date = val('vmDate');
+    if (!g || date === null) return 'same';
+    const cur = { visit_date: date, expected_checkin: val('vmIn') || '', expected_checkout: val('vmOut') || '' };
+    if (cur.visit_date === (g.visit_date || '')
+        && cur.expected_checkin === (g.expected_checkin || '')
+        && cur.expected_checkout === (g.expected_checkout || '')) return 'same';
+
+    let d = null;
+    try {
+        d = await (await fetch('/api/visit/update', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(Object.assign({ token: visitManageToken }, cur)),
+        })).json();
+    } catch (e) {}
+    if (!d || !d.success) { alert(srvMsg(d, 'search.error')); return false; }
+    Object.assign(g, cur);   // 이후 비교 기준을 저장된 값으로
+    return 'changed';
+}
+
+async function addCompanion() {
+    const get = (id) => (document.getElementById(id) || {}).value || '';
+    const payload = {
+        token: visitManageToken,
+        name: get('vmName').trim(),
+        contact: readPhone('vmPhone'),
+        company: get('vmCompany').trim(),
+        vehicle_no: get('vmVehicle').trim(),
+    };
+    let d = null;
+    try {
+        d = await (await fetch('/api/visit/companion', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        })).json();
+    } catch (e) {}
+    if (!d || !d.success) { alert(srvMsg(d, 'search.error')); return; }
+    renderVisitManage(visitManageToken);
 }
 
 // 👥 일행(그룹) 전체 QR 보기: 방문 건 id 로 같은 그룹 전원의 QR을 조회해 표시

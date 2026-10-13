@@ -777,6 +777,7 @@ def send_push(payload, region=None, level=4):
 #  → 화면 경보음과 똑같이 '건수가 늘었는가'만 주기적으로 본다. 판단 지점이 한 곳이다.
 PUSH_WATCH_SEC = int(os.environ.get("PUSH_WATCH_SEC", "10"))
 _push_last = {}          # {(region, key): 직전 건수}
+_push_shown = {}         # {region: 알림을 띄워 둔 상태인가} — 해제 신호를 중복 발송하지 않으려고 쓴다
 _push_thread_started = False
 _push_thread_lock = threading.Lock()
 
@@ -835,6 +836,14 @@ def _push_watch_tick():
                     "region": region,
                 }, region=region, level=4)
                 print(f"🔔 [푸시] {region} → {' · '.join(grew)}")
+            elif sum(counts.values()) == 0 and _push_shown.get(region):
+                # 처리가 모두 끝났다 → 떠 있는 알림을 거둔다.
+                # 남겨 두면 경비가 이미 끝난 건을 보고 다시 확인하러 간다.
+                send_push({"clear": True, "tag": "sec-alert"}, region=region, level=4)
+                print(f"🔕 [푸시] {region} → 처리 완료, 알림 해제")
+
+            # 알림을 띄워 둔 상태인지 기억한다 (해제 신호를 한 번만 보내기 위해)
+            _push_shown[region] = bool(grew) or (sum(counts.values()) > 0 and _push_shown.get(region, False))
     finally:
         conn.close()
 
@@ -1836,6 +1845,19 @@ def handle_group_checkin():
     if not visitors:
         return jsonify({"success": False, "message": "방문객 정보가 없습니다.", "message_key": "srv.group.noVisitors"})
 
+    # 방문일자: 손님이 고른 날. 안 보내면 오늘(구 화면 호환). 지난 날짜는 거부.
+    #   미래 날짜도 상태는 '입실대기' 그대로 둔다 — 경비 대기열이 visit_date = 오늘로 조회하므로
+    #   그날이 되면 대기열에 올라온다(일정 변경 /api/visit/update 와 같은 방식).
+    visit_date = today_date
+    if data.get('visit_date'):
+        visit_date = _valid_date(data.get('visit_date'))
+        if not visit_date:
+            return jsonify({"success": False, "message": "날짜 형식이 올바르지 않습니다.",
+                            "message_key": "srv.visit.badDate"}), 400
+        if visit_date < today_date:
+            return jsonify({"success": False, "message": "지난 날짜로는 변경할 수 없습니다.",
+                            "message_key": "srv.visit.pastDate"}), 400
+
     group_id = f"GRP_{uuid.uuid4().hex[:8].upper()}"
     new_id = None
     has_pending = False
@@ -1862,7 +1884,7 @@ def handle_group_checkin():
             cursor.execute("""
                 INSERT INTO visitor_log (visit_date, name, company, contact, vehicle_no, purpose, manager_text, created_by, region, status, checkin_time, group_id, expected_checkin, expected_checkout, created_at, requested_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '입실대기', '', ?, ?, ?, ?, ?)
-            """, (today_date, v['name'], v['company'], v['contact'], v.get('vehicle_no', '없음'), 
+            """, (visit_date, v['name'], v['company'], v['contact'], v.get('vehicle_no', '없음'), 
                   v['purpose'], v['manager_text'], matched_emp_id, region, group_id,
                   (v.get('expected_checkin') or '').strip(), (v.get('expected_checkout') or '').strip(), get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), REQUESTED_BY_VISITOR))
             
@@ -2012,6 +2034,312 @@ def search_active_visitors():
         result.append(d)
     conn.close()
     return jsonify(result)
+
+# ====================================================================
+# 🙋 손님이 직접 고치는 신청 (취소 · 일행 추가/삭제)
+#
+#   본인 확인은 '화면이 이미 들고 있는 QR 토큰'으로 한다.
+#     - 손님은 로그인이 없다. 이름·전화번호를 다시 받으면 번거롭기만 하고,
+#       그 값들은 어차피 추측 가능해서 보호 수단이 되지도 못한다.
+#     - 토큰은 무작위라 추측이 안 되고, 자기 건을 조회한 사람만 가진다.
+#       → 화면에서는 '확인창' 하나만 띄우면 된다.
+#
+#   한 사람의 토큰으로 '같은 그룹·같은 날' 전원을 다룰 수 있다.
+#     현장에서는 한 사람이 휴대폰을 들고 일행 전체를 등록·관리한다.
+#     일행끼리 서로 대신 취소해 줄 수 있어야 그 흐름과 맞는다.
+#
+#   고칠 수 있는 상태는 사전예약·입실대기뿐이다.
+#     이미 입실한 건을 지우면 실제 출입 사실이 기록에서 사라진다.
+# ====================================================================
+GUEST_EDITABLE_STATUS = ('사전예약', '입실대기')
+
+
+def _guest_scope(conn, token):
+    """토큰 → (기준 방문 건, 다룰 수 있는 행 목록). 토큰이 틀리면 (None, [])."""
+    token = (token or '').strip()
+    if not token:
+        return None, []
+    base = conn.execute("SELECT * FROM visitor_log WHERE token = ?", (token,)).fetchone()
+    if not base:
+        return None, []
+    base = dict(base)
+    gid = (base.get('group_id') or '').strip()
+    if not gid or gid == 'NONE':
+        return base, [base]          # 단독 방문 → 본인 건만
+    rows = conn.execute(
+        "SELECT * FROM visitor_log WHERE group_id = ? AND visit_date = ? ORDER BY id ASC",
+        (gid, base['visit_date'])).fetchall()
+    return base, [dict(r) for r in rows]
+
+
+def _scope_for_request(conn, data):
+    """
+    손님(토큰)과 임직원(로그인) 양쪽을 같은 규칙으로 받는다.
+      - 토큰이 오면 손님: 그 토큰의 그룹이 범위.
+      - 토큰이 없고 로그인 상태면 임직원: target_id 가 가리키는 건의 그룹이 범위.
+          · 최고관리자(3)·경비실(4)은 소유자 무관.
+          · 그 외는 본인이 등록한 건(created_by)만.
+    돌려주는 값: (base, rows, err) — err 가 있으면 그대로 응답한다.
+    """
+    token = (data.get('token') or '').strip()
+    if token:
+        base, rows = _guest_scope(conn, token)
+        if not base:
+            return None, [], (jsonify({"success": False, "message": "방문 정보를 찾을 수 없습니다.",
+                                       "message_key": "srv.visit.notFound"}), 404)
+        return base, rows, None
+
+    if 'user' not in session:
+        return None, [], (jsonify({"success": False, "message": "권한이 없습니다."}), 401)
+
+    target_id = data.get('target_id')
+    if not target_id:
+        return None, [], (jsonify({"success": False, "message": "대상이 지정되지 않았습니다."}), 400)
+    base = conn.execute("SELECT * FROM visitor_log WHERE id = ?", (target_id,)).fetchone()
+    if not base:
+        return None, [], (jsonify({"success": False, "message": "방문 정보를 찾을 수 없습니다.",
+                                   "message_key": "srv.visit.notFound"}), 404)
+    base = dict(base)
+
+    u = session['user']
+    if int(u.get('level', 1)) not in (3, 4) and base.get('created_by') != u.get('id'):
+        return None, [], (jsonify({"success": False,
+                                   "message": "본인이 등록한 예약만 수정할 수 있습니다."}), 403)
+
+    gid = (base.get('group_id') or '').strip()
+    if not gid or gid == 'NONE':
+        return base, [base], None
+    rows = conn.execute(
+        "SELECT * FROM visitor_log WHERE group_id = ? AND visit_date = ? ORDER BY id ASC",
+        (gid, base['visit_date'])).fetchall()
+    return base, [dict(r) for r in rows], None
+
+
+@app.route('/api/visit/group', methods=['GET'])
+def guest_visit_group():
+    """내 신청 + 일행 현황. 각 행마다 '지금 취소할 수 있는지'를 서버가 판단해 내려 준다.
+       (화면이 상태 문자열을 또 해석하면 규칙이 두 곳으로 갈라진다)"""
+    conn = get_db_connection()
+    base, rows, err = _scope_for_request(conn, {
+        "token": request.args.get('token'),
+        "target_id": request.args.get('target_id', type=int),
+    })
+    if err:
+        conn.close()
+        return err
+    out = [{
+        "id": r['id'], "name": r['name'], "company": r['company'],
+        "contact": r['contact'], "vehicle_no": r['vehicle_no'], "status": r['status'],
+        "is_me": r['id'] == base['id'],
+        "can_cancel": r['status'] in GUEST_EDITABLE_STATUS,
+    } for r in rows]
+    # 일행을 더 넣을 수 있는지도 같은 기준으로 판단한다
+    can_add = base['status'] in GUEST_EDITABLE_STATUS
+    conn.close()
+    return jsonify({"success": True, "list": out, "can_add": can_add,
+                    "visit_date": base['visit_date'], "region": base['region'],
+                    "expected_checkin": base['expected_checkin'] or '',
+                    "expected_checkout": base['expected_checkout'] or '',
+                    "base_id": base['id']})
+
+
+@app.route('/api/visit/cancel', methods=['POST'])
+def guest_visit_cancel():
+    """신청 취소 / 일행 삭제. 둘은 같은 동작이라 한 곳에서 처리한다."""
+    data = request.json or {}
+    conn = get_db_connection()
+    base, rows, err = _scope_for_request(conn, data)
+    if err:
+        conn.close()
+        return err
+
+    target_id = data.get('target_id') or base['id']
+    target = next((r for r in rows if r['id'] == target_id), None)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "같은 일행의 신청만 취소할 수 있습니다.",
+                        "message_key": "srv.visit.notInGroup"}), 403
+    if target['status'] not in GUEST_EDITABLE_STATUS:
+        conn.close()
+        return jsonify({"success": False, "message": "이미 입실 처리된 건은 취소할 수 없습니다.",
+                        "message_key": "srv.visit.cannotCancel"}), 400
+
+    conn.execute("DELETE FROM visitor_log WHERE id = ?", (target_id,))
+    conn.commit()
+    conn.close()
+    print(f"🗑️ [손님취소] {target['name']}({target['company']}) - {target['region']} - {target['status']}")
+    return jsonify({"success": True, "message": "신청이 취소되었습니다.",
+                    "message_key": "srv.visit.cancelled",
+                    "self_cancelled": target_id == base['id']})
+
+
+@app.route('/api/visit/companion', methods=['POST'])
+def guest_add_companion():
+    """일행 추가. 방문일·거점·담당자·예정시간은 기준 건을 그대로 따라간다.
+       상태도 기준 건과 맞춘다 — 이미 입실 요청을 넣은 그룹이면 새 일행도 대기열에 올라야 한다."""
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    contact = re.sub(r'\D', '', data.get('contact') or '')
+    company = (data.get('company') or '').strip()
+    vehicle_no = (data.get('vehicle_no') or '').strip() or '없음'
+    if not name or not contact:
+        return jsonify({"success": False, "message": "이름·연락처·소속을 모두 입력해 주세요.",
+                        "message_key": "srv.visit.needFields"}), 400
+
+    conn = get_db_connection()
+    base, rows, err = _scope_for_request(conn, data)
+    if err:
+        conn.close()
+        return err
+    # 소속을 비워 두면 대표자(기준 건)와 같은 회사로 본다 — 첫 신청 화면의 일행 규칙과 같다.
+    #   여기서 채워야 임직원 수정 창·손님 수정 화면 어느 쪽에서 추가해도 똑같이 적용된다.
+    company = company or (base.get('company') or '').strip()
+    if not company:
+        conn.close()
+        return jsonify({"success": False, "message": "이름·연락처·소속을 모두 입력해 주세요.",
+                        "message_key": "srv.visit.needFields"}), 400
+    if base['status'] not in GUEST_EDITABLE_STATUS:
+        conn.close()
+        return jsonify({"success": False, "message": "이미 입실 처리된 건에는 일행을 추가할 수 없습니다.",
+                        "message_key": "srv.visit.cannotAdd"}), 400
+
+    gid = (base.get('group_id') or '').strip()
+    if not gid or gid == 'NONE':
+        # 혼자 온 손님이 처음 일행을 넣는 경우 → 이 시점에 그룹을 만들어 본인도 함께 묶는다
+        gid = f"GRP_{uuid.uuid4().hex[:8].upper()}"
+        conn.execute("UPDATE visitor_log SET group_id = ? WHERE id = ?", (gid, base['id']))
+
+    conn.execute("""
+        INSERT INTO visitor_log (visit_date, name, contact, company, vehicle_no, purpose,
+                                 manager_text, created_by, region, status, group_id,
+                                 expected_checkin, expected_checkout, created_at, requested_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (base['visit_date'], name, contact, company, vehicle_no, base['purpose'],
+          base['manager_text'], base['created_by'], base['region'], base['status'], gid,
+          base['expected_checkin'], base['expected_checkout'],
+          get_current_kst_time().strftime('%Y-%m-%d %H:%M:%S'), REQUESTED_BY_VISITOR))
+    conn.commit()
+    conn.close()
+    print(f"➕ [손님일행추가] {name}({company}) - {base['region']} - {base['status']}")
+    return jsonify({"success": True, "message": "일행이 추가되었습니다.",
+                    "message_key": "srv.visit.companionAdded"})
+
+
+@app.route('/api/visit/update', methods=['POST'])
+def visit_update():
+    """
+    방문일자 · 예정 입·퇴실 시간 수정.
+
+    날짜는 그룹 전원을 함께 옮긴다.
+      일행 중 한 명만 다른 날로 가면 그룹이 쪼개져 대기열·일괄처리가 모두 어긋난다.
+
+    상태는 건드리지 않는다.
+      경비 대기열은 'visit_date = 오늘' 로 조회하므로, 날짜를 옮긴 입실대기 건은
+      오늘 목록에서 빠졌다가 그 방문일이 되면 다시 올라온다.
+      즉 이미 넣은 입실 신청이 방문 당일까지 그대로 유지된다
+      (되돌려 버리면 그날 QR 을 다시 찍거나 직원이 입실 요청을 다시 눌러야 한다).
+    """
+    data = request.json or {}
+    conn = get_db_connection()
+    base, rows, err = _scope_for_request(conn, data)
+    if err:
+        conn.close()
+        return err
+
+    if base['status'] not in GUEST_EDITABLE_STATUS:
+        conn.close()
+        return jsonify({"success": False, "message": "이미 입실 처리된 건은 수정할 수 없습니다.",
+                        "message_key": "srv.visit.cannotEdit"}), 400
+
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    new_date = _valid_date(data.get('visit_date')) if data.get('visit_date') else None
+    if data.get('visit_date') and not new_date:
+        conn.close()
+        return jsonify({"success": False, "message": "날짜 형식이 올바르지 않습니다.",
+                        "message_key": "srv.visit.badDate"}), 400
+    if new_date and new_date < today:
+        conn.close()
+        return jsonify({"success": False, "message": "지난 날짜로는 변경할 수 없습니다.",
+                        "message_key": "srv.visit.pastDate"}), 400
+
+    t_in = (data.get('expected_checkin') or '').strip()
+    t_out = (data.get('expected_checkout') or '').strip()
+    for v in (t_in, t_out):
+        if v and not re.match(r'^\d{2}:\d{2}$', v):
+            conn.close()
+            return jsonify({"success": False, "message": "시간 형식이 올바르지 않습니다.",
+                            "message_key": "srv.visit.badTime"}), 400
+
+    ids = [r['id'] for r in rows if r['status'] in GUEST_EDITABLE_STATUS]
+    if not ids:
+        conn.close()
+        return jsonify({"success": False, "message": "수정할 수 있는 건이 없습니다.",
+                        "message_key": "srv.visit.cannotEdit"}), 400
+
+    sets, params = [], []
+    if new_date:
+        sets.append("visit_date = ?"); params.append(new_date)
+    if t_in:
+        sets.append("expected_checkin = ?"); params.append(t_in)
+    if t_out:
+        sets.append("expected_checkout = ?"); params.append(t_out)
+    if not sets:
+        conn.close()
+        return jsonify({"success": False, "message": "변경할 내용이 없습니다."}), 400
+
+    q = f"UPDATE visitor_log SET {', '.join(sets)} WHERE id IN ({','.join('?' * len(ids))})"
+    conn.execute(q, params + ids)
+    conn.commit()
+    conn.close()
+    print(f"✏️ [방문수정] {base['name']} 외 {len(ids)-1}명 - "
+          f"날짜 {new_date or '유지'} / 입실 {t_in or '유지'} / 퇴실 {t_out or '유지'}")
+    return jsonify({"success": True, "message": "방문 정보가 수정되었습니다.",
+                    "message_key": "srv.visit.updated", "changed": len(ids)})
+
+
+@app.route('/api/visit/person', methods=['POST'])
+def visit_person_update():
+    """
+    방문자 한 명의 인적사항(이름·연락처·소속·차량) 수정.
+
+    날짜·시간은 그룹 전체가 함께 움직여야 하지만(/api/visit/update),
+    인적사항은 사람마다 다르므로 지정한 한 행만 고친다.
+    """
+    data = request.json or {}
+    conn = get_db_connection()
+    base, rows, err = _scope_for_request(conn, data)
+    if err:
+        conn.close()
+        return err
+
+    target_id = data.get('person_id') or base['id']
+    target = next((r for r in rows if r['id'] == target_id), None)
+    if not target:
+        conn.close()
+        return jsonify({"success": False, "message": "같은 일행의 정보만 수정할 수 있습니다.",
+                        "message_key": "srv.visit.notInGroup"}), 403
+    if target['status'] not in GUEST_EDITABLE_STATUS:
+        conn.close()
+        return jsonify({"success": False, "message": "이미 입실 처리된 건은 수정할 수 없습니다.",
+                        "message_key": "srv.visit.cannotEdit"}), 400
+
+    name = (data.get('name') or '').strip()
+    contact = re.sub(r'\D', '', data.get('contact') or '')
+    company = (data.get('company') or '').strip()
+    if not name or not contact or not company:
+        conn.close()
+        return jsonify({"success": False, "message": "이름·연락처·소속을 모두 입력해 주세요.",
+                        "message_key": "srv.visit.needFields"}), 400
+
+    conn.execute("""
+        UPDATE visitor_log SET name = ?, contact = ?, company = ?, vehicle_no = ?
+         WHERE id = ?
+    """, (name, contact, company, (data.get('vehicle_no') or '').strip() or '없음', target_id))
+    conn.commit()
+    conn.close()
+    print(f"✏️ [방문자수정] {target['name']} → {name}({company})")
+    return jsonify({"success": True, "message": "방문자 정보가 수정되었습니다.",
+                    "message_key": "srv.visit.personUpdated"})
 
 # ====================================================================
 # 🔳 QR 토큰 기반 방문객 자기 확인 (리더기 없이 링크 접속으로 테스트)
@@ -2736,12 +3064,18 @@ def pass_request():
                             "message": "이미 접수된 발급 신청이 있습니다. 승인 결과를 기다려 주세요.",
                         "message_key": "srv.passreq.dup"}), 409
 
+        # 손님이 직접 내면 담당자가 비어 있다(승인 화면에서 지정).
+        # 임직원이 대신 내면 그 직원이 곧 담당자다 → 승인자가 누구에게 물어볼지 바로 안다.
+        u = session.get('user') or {}
+        manager_text = (u.get('name') or '') if u else ''
+        created_by = (u.get('id') or '') if u else ''
+
         cur = conn.execute("""
             INSERT INTO visitor_pass
                 (name, contact, company, vehicle_no, purpose, manager_text, created_by, region,
                  valid_from, valid_to, weekdays, auto_approve, status, token, memo, requested_at)
-            VALUES (?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, 0, '신청', ?, ?, ?)
-        """, (name, contact, company, vehicle_no, purpose, region,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '신청', ?, ?, ?)
+        """, (name, contact, company, vehicle_no, purpose, manager_text, created_by, region,
               valid_from, valid_to, _normalize_weekdays(data.get('weekdays')),
               uuid.uuid4().hex, memo, now_str))
         conn.commit()
@@ -2754,6 +3088,111 @@ def pass_request():
         conn.close()
         print(f"[PASS][REQUEST][ERROR] {e}")
         return jsonify({"success": False, "message": "신청 처리 중 오류가 발생했습니다.", "message_key": "srv.passreq.error"}), 500
+
+
+# ── 🧑‍💼 임직원이 자기가 낸 출입권 신청을 관리한다 ──────────────────
+#   /api/pass/* 의 수정·삭제는 _pass_guard 로 최고관리자·경비실만 쓸 수 있다.
+#   일반 직원도 '자기가 낸 신청'은 승인 전까지 고치고 지울 수 있어야 해서 따로 둔다.
+#   범위를 created_by = 본인, 상태 = 신청 으로 좁혀, 남의 건이나 이미 발급된 건은 건드리지 못한다.
+
+def _my_pass_guard(conn, pass_id):
+    """본인이 낸 '신청' 상태 건인지 확인. 통과하면 (row, None)."""
+    if 'user' not in session:
+        return None, (jsonify({"success": False, "message": "인증 정보가 없습니다."}), 401)
+    me = (session['user'].get('id') or '')
+    row = conn.execute("SELECT * FROM visitor_pass WHERE id = ?", (pass_id,)).fetchone()
+    if not row:
+        return None, (jsonify({"success": False, "message": "신청 내역을 찾을 수 없습니다."}), 404)
+    if (row['created_by'] or '') != me:
+        return None, (jsonify({"success": False, "message": "본인이 신청한 건만 수정할 수 있습니다."}), 403)
+    if row['status'] != '신청':
+        return None, (jsonify({"success": False,
+                               "message": "이미 처리된 신청은 수정·삭제할 수 없습니다."}), 400)
+    return dict(row), None
+
+
+@app.route('/api/pass/mine', methods=['GET'])
+def my_pass_requests():
+    """내가 낸 출입권 신청 목록. 승인·반려 결과도 함께 보여 줘야 해서 상태로 거르지 않는다."""
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "인증 정보가 없습니다."}), 401
+    me = (session['user'].get('id') or '')
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT id, name, contact, company, vehicle_no, purpose, region,
+               valid_from, valid_to, status, memo, requested_at
+          FROM visitor_pass
+         WHERE created_by = ?
+         ORDER BY id DESC
+    """, (me,)).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d['can_edit'] = (d['status'] == '신청')   # 수정 가능 여부는 서버가 판단한다
+        out.append(d)
+    return jsonify({"success": True, "list": out})
+
+
+@app.route('/api/pass/mine/<int:pass_id>', methods=['PUT'])
+def my_pass_update(pass_id):
+    data = request.json or {}
+    conn = get_db_connection()
+    row, err = _my_pass_guard(conn, pass_id)
+    if err:
+        conn.close()
+        return err
+
+    name = (data.get('name') or '').strip()
+    contact = (data.get('contact') or '').strip()
+    company = (data.get('company') or '').strip()
+    purpose = (data.get('purpose') or '').strip()
+    if not name or not contact or not company or not purpose:
+        conn.close()
+        return jsonify({"success": False, "message": "성명·연락처·소속·이용 목적은 필수 입력입니다."}), 400
+
+    region = (data.get('region') or row['region']).strip()
+    if region not in ALLOWED_REGIONS:
+        conn.close()
+        return jsonify({"success": False, "message": "사업장 값이 올바르지 않습니다."}), 400
+
+    period = (data.get('period') or PASS_DEFAULT_PERIOD).strip()
+    if period not in PASS_PERIODS:
+        conn.close()
+        return jsonify({"success": False, "message": "이용 기간이 올바르지 않습니다."}), 400
+
+    today = get_current_kst_time().strftime('%Y-%m-%d')
+    valid_from = _valid_date(data.get('valid_from')) or row['valid_from']
+    if valid_from < today:
+        conn.close()
+        return jsonify({"success": False, "message": "이용 시작일은 오늘 이후로 선택해 주세요."}), 400
+    valid_to = pass_period_end(valid_from, period)
+
+    conn.execute("""
+        UPDATE visitor_pass
+           SET name = ?, contact = ?, company = ?, vehicle_no = ?, purpose = ?,
+               region = ?, valid_from = ?, valid_to = ?
+         WHERE id = ?
+    """, (name, contact, company, (data.get('vehicle_no') or '').strip() or '없음',
+          purpose, region, valid_from, valid_to, pass_id))
+    conn.commit()
+    conn.close()
+    print(f"✏️ [출입권신청수정] {name}({company}) - {region} - {valid_from}~{valid_to}")
+    return jsonify({"success": True, "message": "신청 내용이 수정되었습니다."})
+
+
+@app.route('/api/pass/mine/<int:pass_id>', methods=['DELETE'])
+def my_pass_delete(pass_id):
+    conn = get_db_connection()
+    row, err = _my_pass_guard(conn, pass_id)
+    if err:
+        conn.close()
+        return err
+    conn.execute("DELETE FROM visitor_pass WHERE id = ?", (pass_id,))
+    conn.commit()
+    conn.close()
+    print(f"🗑️ [출입권신청취소] {row['name']}({row['company']}) - {row['region']}")
+    return jsonify({"success": True, "message": "신청이 취소되었습니다."})
 
 
 @app.route('/api/pass/request/status', methods=['POST'])

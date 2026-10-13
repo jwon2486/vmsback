@@ -1,3 +1,8 @@
+/* css/guest.css — 손님 화면 + 세 화면이 함께 쓰는 공통 스타일.
+   임직원 전용은 emp.css, 경비실 전용은 security.css 로 분리돼 있다.
+   한 화면만 쓰는 규칙은 해당 파일로 옮겼고, 겹치거나 판단이 애매한 것은
+   안전하게 여기(공통)에 남겼다. 세 파일은 guest.html 이 이 순서로 모두 불러온다. */
+
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 /* 🔒 경비실 관제 테마 전용 고정폭 서체 (시각·수치 정렬용). 한글은 Pretendard 로 자연 폴백된다. */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -96,41 +101,31 @@ body {
     pointer-events: none;   /* 로고가 버튼 클릭을 가리지 않도록 */
 }
 .nav-brand-logo-img { height: 1.9rem; width: auto; object-fit: contain; display: block; }
-.nav-profile-info { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
-.nav-profile-info .avatar { font-size: 1.2rem; background: #f1f5f9; padding: 0.35rem; border-radius: 50%; flex-shrink: 0; }
-.nav-profile-info .user-text { font-size: 1rem; color: #334155; min-width: 0; display: flex; flex-flow: row wrap; align-items: center; justify-content: center; text-align: center; gap: 3px 7px; }
-.nav-profile-info .user-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
-.nav-profile-info .dept-tag { font-size: 0.82rem; color: var(--primary); font-weight: 600; background: #eff6ff; padding: 0.2rem 0.5rem; border-radius: 6px; margin-left: 0; white-space: nowrap; }
-.nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
 /* 💻 태블릿(≤900px): 줄바꿈 없이 한 줄 유지 + 콤팩트 */
 @media (max-width: 900px) {
-    #utility-nav { flex-wrap: nowrap; padding: 0.7rem 1rem; gap: 0.5rem; }
-    .nav-profile-info { min-width: 0; }
-    .nav-actions { flex-wrap: nowrap; gap: 0.35rem; flex-shrink: 0; }
-    .btn-nav-link { padding: 0.3rem 0.6rem; font-size: 0.86rem; white-space: nowrap; }
+#utility-nav { flex-wrap: nowrap; padding: 0.7rem 1rem; gap: 0.5rem; }
 }
 
-/* 📱 모바일(≤640px): 한 줄 유지하되 더 콤팩트. 부서 태그는 이름 아래(프로필 폭 절약). */
+
+/* 📱 모바일(≤640px)
+   버튼이 늘어 한 줄에 다 들어가지 않는다. 억지로 밀어 넣으면 마지막 버튼이 잘려 못 누른다.
+   → 평소에는 접어 두고 '메뉴'를 누르면 세로로 편다. 바는 한 줄 높이를 유지한다.
+   화면이 좁을수록 세로 공간이 아까우므로, 임직원 화면에서는 상단 로고 영역도 감춘다.
+   (손님 화면은 로고·언어 선택이 필요하므로 body.emp-page 로 범위를 제한한다) */
 @media (max-width: 640px) {
-    #utility-nav { padding: 0.55rem 0.65rem; gap: 0.35rem; }
-    .nav-profile-info { gap: 0.35rem; flex-shrink: 1; }
-    .nav-profile-info .avatar { font-size: 1rem; padding: 0.28rem; }
-    .nav-profile-info .user-text { font-size: 0.85rem; }
-    .nav-profile-info .dept-tag { margin-left: 0; font-size: 0.72rem; padding: 0.08rem 0.32rem; }
-    .nav-actions { gap: 0.28rem; }
-    .btn-nav-link { padding: 0.28rem 0.52rem; font-size: 0.76rem; }
+body.emp-page .app-header { display: none; }
+
+    #utility-nav { padding: 0.5rem 0.65rem; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    #utility-nav.nav-open .nav-caret { transform: rotate(180deg); }
+    #utility-nav.nav-open .nav-actions-more {
+        display: flex; flex-flow: row wrap; align-items: center; justify-content: flex-start;
+        flex: 1 1 100%; order: 1; gap: 0.3rem;
+        margin-top: 0.15rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);
+    }
+    #utility-nav.nav-open .nav-actions-more .btn-nav-link { padding: 0.38rem 0.6rem; font-size: 0.8rem; }
 }
 
-.btn-nav-link { padding: 0.35rem 0.85rem; font-size: 0.92rem; font-weight: 700; border-radius: 8px; background: transparent; border: none; cursor: pointer; }
-.btn-link-danger { background: #fef2f2; color: var(--danger); border: 1px solid #fee2e2; }
-.btn-link-danger:hover { background: var(--danger); color: white; }
-/* 관리자 버튼: 로그아웃 버튼과 동일 스타일(.btn-nav-link) + 밝은 연두색 */
-.btn-link-admin { background: #ecfccb; color: #4d7c0f; border: 1px solid #bef264; text-decoration: none; display: inline-flex; align-items: center; }
-.btn-link-admin:hover { background: #84cc16; color: #ffffff; }
-/* 전체기록 버튼: 다른 버튼처럼 테두리 + 옅은 배경 pill (슬레이트 톤) */
-.btn-all-logs { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.btn-all-logs:hover { background: #475569; color: #ffffff; }
 
 /* ==========================================
    3. 메인 카드 & 레이아웃 
@@ -144,16 +139,12 @@ body {
 .dashboard-form-zone { flex: 1; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .dashboard-list-zone { flex: 1; display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 .dashboard-divider-line { width: 1px; background: var(--border-color); }
-
-.list-header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .zone-title { font-size: 1.2rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.02em; }
 
 /* 🖥️ 데스크톱: '나의 예약' 리스트 존이 좁아 제목이 줄바꿈되므로,
    날짜 범위 박스(picker-box-full)를 살짝 좁히고 제목은 한 줄 고정. */
 @media (min-width: 991px) {
-    .list-header-row .zone-title { white-space: nowrap; }
-    .picker-box-full { gap: 0.25rem; flex: 0 0 auto; }
-    .picker-box-full input[type="date"] { padding: 0.5rem 0.5rem; font-size: 0.82rem; }
+.list-header-row .zone-title { white-space: nowrap; }
 
     /* 동반 입력창이 열리면 3단 레이아웃(container 85rem)이 되어 '나의 예약' 존이 더 좁아짐
        → 그 상태에서만 날짜 박스를 추가로 더 좁혀 제목이 빠듯하지 않게 한다. */
@@ -163,6 +154,7 @@ body {
     }
     .container-wide:has(.card-emp-wide #emp-companion-zone:not(.display-none)) .picker-box-full .range-tilde-text { font-size: 0.75rem; }
 }
+
 
 /* ==========================================
    4. 입력 폼 공통 스타일
@@ -178,34 +170,7 @@ body {
 
 .input-row-group { display: flex; flex-direction: row; gap: 1rem; width: 100%; }
 .input-row-group .input-group { flex: 1; margin-bottom: 0; }
-
-/* 방문 거점 선택 + 방문 일자: 모든 화면에서 같은 줄로 배치 */
-.region-date-group { display: flex; flex-direction: row; gap: 1rem; width: 100%; }
 .region-date-group > .input-group { flex: 1; min-width: 0; margin-bottom: 0; }
-@media (max-width: 640px) {
-    .region-date-group { gap: 0.5rem; }
-}
-
-/* 🔢 임직원 화면: 내 담당자 번호 (방문객에게 알려 주는 값) */
-.my-visit-code {
-    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-    padding: 0.6rem 0.9rem; margin-bottom: 0.9rem;
-    background: #eef6ff; border: 1px solid #bcdcff; border-radius: var(--radius-md);
-}
-.my-visit-code .mvc-label { font-size: 0.88rem; font-weight: 700; color: #1d4ed8; }
-.my-visit-code .mvc-value {
-    font-size: 1.25rem; font-weight: 800; color: #1d4ed8;
-    letter-spacing: 0.12em; font-variant-numeric: tabular-nums;
-}
-.my-visit-code .mvc-btn {
-    margin-left: auto; padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer;
-    border: 1px solid var(--primary); background: var(--primary); color: #fff;
-    font-family: inherit; font-size: 0.82rem; font-weight: 700;
-}
-.my-visit-code .mvc-btn-sub {
-    margin-left: 0; background: #fff; color: var(--primary);
-}
-.my-visit-code .mvc-btn:hover { opacity: 0.88; }
 
 .purpose-button-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; width: 100%; margin-top: 0.5rem; }
 .btn-choice {
@@ -242,42 +207,17 @@ body {
     padding: 0.6rem;
     border-radius: var(--radius-md);
 }
-.emp-comp-scroll-box { padding-right: 5px; }
 #my-schedule-list.schedule-list-scroll-box { flex: 1; overflow-y: auto; max-height: none; }
-
-/* ==========================================
-   6. 리스트 내부 아이템 디자인
-   ========================================== */
-.result-item, .result-item-schedule { 
-    background: #ffffff; border: 1px solid var(--border-color); border-radius: 10px; 
-    padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.01); 
-}
 .result-item { cursor: pointer; }
-.result-item-schedule { flex-wrap: wrap; gap: 0.75rem; }
-.schedule-item-card-padding { padding: 0.7rem 0.75rem; }
 
 .item-info { display: flex; flex-direction: column; gap: 0.25rem; text-align: left; min-width: 160px; flex: 1 1 50%; }
 .item-info strong { font-size: 1rem; color: var(--text-main); font-weight: 700; word-break: break-all; }
-.item-info span, .item-info .corp-sub-text { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
-.item-sub-desc { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; margin-top: 2px; }
-.item-sub-time { font-size: 0.75rem; color: var(--primary); font-weight: 600; margin-top: 2px; }
-/* 나의 예약: 입/퇴실 '실제 | 예정' 인라인 표기 */
-.item-sub-time .time-checkin, .item-sub-time .time-checkout { color: var(--text-main); font-weight: 700; line-height: 1.6; }
-.item-sub-time .time-expected-inline { color: var(--text-muted); font-weight: 500; }
-.item-sub-time .time-pending { color: #f59e0b; font-weight: 700; }
-
-.item-action-zone { display: flex; justify-content: flex-end; align-items: center; flex: 0 0 auto; gap: 6px; }
+/* 나의 예약 카드는 세로 여유가 남는다(카드 469x185 에 글자는 12~13px).
+   읽는 거리가 먼 항목이 아니므로 본문 글자를 한 단계씩 키운다. */
+.item-info span, .item-info .corp-sub-text { font-size: 0.92rem; color: var(--text-muted); font-weight: 500; }
 .item-action-text { font-size: 0.9rem; font-weight: 700; color: var(--primary); }
 
 .btn-list-action { padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 6px; color: white; border: none; cursor: pointer; }
-.status-badge { font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 6px; }
-.badge-done { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
-.badge-waiting { background:#fef3c7; color:#ea580c; border:1px solid #fde68a; }
-
-/* 그룹/사전예약 리스트용 */
-.group-schedule-card { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
-.group-schedule-header { padding: 10px 15px; background: #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; gap: 10px; }
-.group-action-wrapper { display: flex; align-items: center; gap: 4px; }
 .btn-cancel-outline { padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 6px; background: #ffffff; color: #ef4444; border: 1px solid #fca5a5; cursor: pointer; }
 .btn-cancel-outline:hover { background: #fef2f2; border-color: #ef4444; }
 .group-member-item { border: none; border-bottom: 1px solid #e2e8f0; border-radius: 0; }
@@ -313,6 +253,8 @@ button:active, .btn-guest-main:active, .btn-guest-sub:active, .btn-emp-main:acti
 .btn-guest-main:hover { background: var(--primary-hover); }
 .btn-guest-sub { flex: 1; flex-direction: column; padding: 1.25rem 0.85rem; background: #f1f5f9; color: #475569; border: 1px solid var(--border-color); }
 .btn-guest-sub:hover { background: #e2e8f0; color: var(--text-main); }
+.btn-guest-cancel { flex: 1; flex-direction: column; padding: 1.25rem 0.85rem; background: #fff; color: #b91c1c; border: 1px solid #fca5a5; }
+.btn-guest-cancel:hover { background: #fef2f2; }
 .btn-emp-main { width: 100%; padding: 0.85rem 1rem; background: #10b981; color: #ffffff; }
 .btn-emp-main:hover { background: #059669; }
 
@@ -328,7 +270,6 @@ button.btn-add-comp-outline, button.btn-add-comp-outline-solid {
     font-size: 0.9rem;
     margin-bottom: 10px;
 }
-button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 
 /* ==========================================
    8. 관리자/보안실 테이블 및 유틸리티
@@ -377,12 +318,6 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
 .modern-table th { background: #f8fafc; padding: 0.85rem 1rem; color: #475569; font-weight: 700; border-bottom: 2px solid var(--border-color); }
 .modern-table td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-color); color: #334155; }
-
-.sec-table-container { max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; }
-.sec-table-container.h-500 { max-height: 500px; }
-.sec-table-head { position: sticky; top: 0; z-index: 1; }
-.sec-btn-approve, .sec-btn-approve-item { color:white; padding: 6px 10px; border-radius: 6px; font-weight:bold; width: 100%; font-size: 0.85rem; }
-.sec-group-row { background-color: #f8fafc; border-top: 2px solid #cbd5e1; }
 .sec-item-grouped { background-color: #ffffff; }
 
 /* ==========================================
@@ -390,7 +325,6 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
    ========================================== */
 .display-none { display: none !important; }
 .display-flex { display: flex !important; }
-.display-block { display: block !important; }
 .hidden { display: none !important; }
 
 .mb-0 { margin-bottom: 0; }
@@ -402,28 +336,11 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 
 .bg-blue { background: #2563eb !important; }
 .bg-orange { background: #f59e0b !important; }
-.bg-green { background: #10b981 !important; }
 .bg-green-dark { background: #059669 !important; }
 .bg-orange-dark { background: #d97706 !important; }
-/* 중복 신청 삭제 — 승인 버튼과 색으로 확실히 구분한다 */
-.bg-gray { background: #64748b !important; }
-/* 승인·삭제를 한 줄에 좌우로 나란히. 기본 .sec-btn-approve-item 은 width:100% 라
-   그대로 두면 각자 한 줄을 차지해 세로로 쌓인다 → 여기서만 auto 로 되돌린다. */
-/* 승인·삭제를 한 줄에 좌우로. td 자체에 flex 를 걸면 table-cell 동작을 잃어
-   표 테두리·열 정렬이 어긋난다 → 셀 안쪽 div 에만 flex 를 준다. */
-.sec-queue-actions { display: flex; gap: 0.35rem; align-items: stretch; flex-wrap: nowrap; }
-.sec-queue-actions .sec-btn-approve-item {
-    width: auto; flex: 1 1 0; min-width: 0; white-space: nowrap; padding: 6px 8px; margin: 0;
-}
-/* 임직원 목록의 보조 액션(개별 신청·QR 전달). 규칙이 없어 배경 없이 흰 글씨로 나오던 것을 채운다. */
-.bg-emp-sub { background: #64748b !important; }
-
-.fw-bold { font-weight: bold; }
 .fw-600 { font-weight: 600; }
 .fs-8 { font-size: 0.8rem; }
-.fs-10 { font-size: 1rem; }
 .text-left { text-align: left; }
-.w-100 { width: 100%; }
 
 .companion-box-style { background: #ffffff; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #cbd5e1; position: relative; }
 /* 동반 입력: 좌우 배치 유지하되 전화(3박스)가 잘리지 않게 —
@@ -432,9 +349,6 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .companion-box-style .input-group:has(.phone-group) { flex: 2; }
 .companion-box-style .phone-box { min-width: 2.6rem; }
 .btn-comp-delete { position: absolute; top: 12px; right: 12px; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; font-weight: bold; color: #ef4444; }
-
-/* 동반 일행 입력 헤더: 제목(좌) / 전체 삭제(우) 배치 */
-.comp-zone-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 /* 전체 삭제 버튼: 개별 삭제(.btn-comp-delete)와 동일 디자인 (헤더용이라 absolute 제외) */
 .btn-comp-clear { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; font-weight: bold; color: #ef4444; cursor: pointer; }
 .comp-title-blue { color: #2563eb; margin-top: 0; margin-bottom: 10px; }
@@ -473,10 +387,6 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 }
 .records-topbar-title { font-weight: 800; color: var(--text-main); font-size: 1rem; }
 .records-frame { flex: 1; width: 100%; border: none; min-height: 0; }
-
-/* 📍 거점 QR 안내: nav 버튼 + 팝업 */
-.btn-region-qr { background: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe; text-decoration: none; }
-.btn-region-qr:hover { background: var(--primary); color: #fff; }
 .region-qr-window { max-width: 900px; width: 92vw; max-height: 88vh; }
 .region-qr-body { padding: 1rem 1.25rem 1.25rem; overflow: auto; flex: 1; min-height: 0; }
 .region-qr-help { margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-muted); }
@@ -492,19 +402,9 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .region-qr-copy { padding: 0.4rem 0.8rem; border: 1px solid var(--primary); background: var(--primary); color: #fff; border-radius: 8px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
 .region-qr-copy:hover { background: var(--primary-hover); }
 
-/* 🔳 방문객 QR 전달 (직원 화면) — 카드 뼈대는 거점 QR 안내와 같은 스타일을 쓴다 */
-.emp-qr-status { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
-.emp-qr-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
-.emp-qr-save {
-    padding: 0.4rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px;
-    background: #fff; color: var(--text-muted); font-weight: 700; font-size: 0.82rem;
-    text-decoration: none; cursor: pointer;
-}
-.emp-qr-save:hover { border-color: var(--primary); color: var(--primary); }
-
 /* 📱 모바일: 거점 QR 팝업을 2열 + QR·폰트·여백 축소로 콤팩트하게 (긴 세로 스크롤 완화) */
 @media (max-width: 640px) {
-    .region-qr-window { width: 96vw; max-height: 90vh; }
+.region-qr-window { width: 96vw; max-height: 90vh; }
     .region-qr-body { padding: 0.75rem 0.8rem 1rem; }
     .region-qr-help { font-size: 0.8rem; margin-bottom: 0.6rem; }
     .region-qr-grid { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
@@ -513,9 +413,8 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     .region-qr-img, .region-qr-missing { max-width: 120px; }
     .region-qr-link { font-size: 0.75rem; }
     .region-qr-copy { padding: 0.32rem 0.4rem; font-size: 0.7rem; }
-    .emp-qr-save { padding: 0.32rem 0.4rem; font-size: 0.7rem; }
-    .emp-qr-status { font-size: 0.7rem; }
 }
+
 .warning-text { color: #d97706; font-weight: bold; }
 
 /* 💡 좌측 폼 내부로 들어간 개인정보 동의 영역 (모던 콜아웃 스타일 유지) */
@@ -537,26 +436,8 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     line-height: 1.5; 
     word-break: keep-all; 
 }
-.region-badge-warning { background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-
-.ind-panel { width: 100%; background: #f8fafc; border-top: 1px dashed #cbd5e1; padding: 8px 10px; margin-top: 8px; border-radius: 6px; }
-.ind-panel-title { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
-.ind-panel-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
-.ind-panel-name { font-size: 0.85rem; color: #334155; font-weight: bold; }
-.ind-panel-corp { color: #64748b; font-size: 0.8em; font-weight: normal; }
-.ind-panel-actions { display: flex; gap: 4px; align-items: center; }
-.btn-ind-action { padding: 2px 6px !important; font-size: 0.75rem !important; }
-.badge-ind-status { padding: 2px 6px; font-size: 0.7rem; }
-
-.pagination-nav-bar { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 15px; padding: 6px 0; width: 100%; }
-.btn-page { padding: 4px 10px; font-size: 0.85rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; color: #475569; cursor: pointer; font-weight: 700; }
-.btn-page:disabled { opacity: 0.5; cursor: not-allowed; }
-.page-indicator { font-size: 0.88rem; font-weight: 800; color: #334155; }
 
 .sec-header-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-.sec-reg-form { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin-bottom: 25px; }
-.sec-reg-actions { text-align: right; margin-top: 15px; }
-.btn-sec-action { padding: 8px 20px; border-radius: 4px; font-size: 0.9rem; margin-left: 8px; font-weight: bold; border: none; cursor: pointer; color: white;}
 
 /* --------------------------------------------------------------------
    🗂️ 보안실(경비실) ERP 사이드바 레이아웃 (admin 사이드바 디자인 참조)
@@ -570,51 +451,15 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
     box-shadow: var(--shadow-md); border: 1px solid var(--border-color); width: 100%; margin: 0 auto;
 }
 
-/* 🔒 경비실 상단 요약 통계 헤더 (다크 네이비 카드) */
-.sec-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
-/* 요약 카드는 해당 탭으로 이동하는 <button> 이다.
-   버튼 기본 스타일(테두리·가운데 정렬·폰트 상속 안 함)을 지워 기존 카드 모양을 그대로 유지한다. */
-.sec-stat-card {
-    background: #1e293b; border-radius: var(--radius-md); padding: 16px 18px;
-    display: flex; flex-direction: column; gap: 8px;
-    border-left: 4px solid #475569; box-shadow: var(--shadow-md);
-    border-top: none; border-right: none; border-bottom: none;
-    width: 100%; text-align: left; font-family: inherit;
-    cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.sec-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28); }
-.sec-stat-card:active { transform: translateY(0); }
-.sec-stat-card:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
-.sec-stat-card .sec-stat-label { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; }
-.sec-stat-card .sec-stat-value { font-size: 1.9rem; font-weight: 800; color: #fff; line-height: 1; }
-.sec-stat-card.stat-pending { border-left-color: #ef4444; }
-.sec-stat-card.stat-pending .sec-stat-value { color: #f87171; }
-.sec-stat-card.stat-onsite { border-left-color: #3b82f6; }
-.sec-stat-card.stat-onsite .sec-stat-value { color: #60a5fa; }
-.sec-stat-card.stat-overdue { border-left-color: #e11d48; }
-.sec-stat-card.stat-overdue .sec-stat-value { color: #fb7185; }
-
-/* 🔒 경비실 실시간 대기열 헤더 + 자동 새로고침 인디케이터 (security.css 에만 있던 정의를 이관) */
-.sec-live-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-.sec-live-title { color: #ef4444; font-size: 1.1rem; font-weight: 800; margin: 0; }
-.sec-live-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); }
-.sec-logs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-.sec-logs-title { font-size: 1.1rem; font-weight: 800; color: var(--text-main); margin: 0; }
-
 /* 작은 인라인 스피너 (로딩용 .spinner 를 대기열 인디케이터 크기로 축소) */
 .sec-spinner {
     width: 0.9rem !important; height: 0.9rem !important;
     border-width: 2px !important; margin: 0 !important;
     border-color: #fecaca; border-top-color: #ef4444 !important;
     display: inline-block; vertical-align: middle;
-}
-
-/* 🔒 경비실 퇴실 지연 탭 */
-.sec-nav-badge-warn { background: #f59e0b; }               /* 지연 배지는 주황색 */
+}               /* 지연 배지는 주황색 */
 .sec-nav-item.active .sec-nav-badge-warn { background: #fff; color: #d97706; }
-.sec-overdue-hint { font-size: 0.85rem; color: var(--text-muted); background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.5; }
-.sec-overdue-badge { display: inline-block; background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 800; font-size: 0.8rem; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-.sec-overdue-row td { background: #fffaf5; }               /* 지연 행 은은한 배경 강조 */
+.sec-overdue-hint { font-size: 0.85rem; color: var(--text-muted); background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.5; }               /* 지연 행 은은한 배경 강조 */
 
 /* 🔒 경비실 화면(.sec-erp-layout) 내 모든 테이블 셀 가운데 정렬
    - 대기열/전체기록/퇴실지연 3개 테이블 모두 적용
@@ -626,40 +471,25 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
    표는 최소 너비를 확보하고, 넘치면 .table-responsive 의 가로 스크롤로 처리한다. */
 .sec-erp-layout .modern-table th,
 .sec-erp-layout .modern-table td { white-space: nowrap; }
-.min-w-900 { min-width: 900px; }
 
-/* 🔒 경비실 표(.sec-table-container): 셀의 '좌우' 여백만 축소해 표 폭을 약 5% 줄인다.
-   좌우 기본값은 .modern-table 의 1rem(16px) → 14px. (사방 10px 인 .p-10 은 명시도에서 밀려 미적용)
+/* 🔒 경비실 표(.sec-table-container): 셀의 '좌우' 여백만 축소해 표 폭을 줄인다.
+   좌우 기본값은 .modern-table 의 1rem(16px) → 9px. (사방 10px 인 .p-10 은 명시도에서 밀려 미적용)
    상하(0.85rem)는 그대로 두어 행 높이·가독성은 유지한다.
-   컬럼 12개 기준 좌우 24군데 × 2px = 약 48px 감소. */
+   여백은 11컬럼 기준 22군데라 표 폭에서 차지하는 비중이 크다(14px 일 때 약 270px = 전체의 23%).
+   글자 크기는 건드리지 않는다 — 폭 문제는 여백과 줄바꿈으로 푼다. */
 .sec-table-container .modern-table th,
-.sec-table-container .modern-table td { padding-left: 14px; padding-right: 14px; }
+.sec-table-container .modern-table td { padding-left: 9px; padding-right: 9px; }
 
-/* 📄 출입 기록 표 페이지네이션 (10건 단위). 관리자 화면(admin.css)과 동일한 조작 방식. */
-.pagination-container {
-    display: flex; justify-content: center; align-items: center; gap: 6px;
-    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color);
+/* 📋 출입 기록 표: 긴 값 하나가 열 전체를 밀어내는 것을 막는다.
+   nowrap 이면 '김정훈(품질보증팀(검사))' 같은 값이 148px 를 고정으로 차지해
+   화면이 넓어도 가로 스크롤이 생긴다. 어절 단위로 접히게 두면 두 줄이 되는 대신 폭이 준다.
+   (날짜·시간처럼 중간에 끊기면 안 읽히는 값은 nowrap 을 유지한다) */
+.sec-table-container .modern-table td.col-wrap,
+.sec-table-container .modern-table th.col-wrap {
+    white-space: normal; word-break: keep-all; line-height: 1.4;
 }
-.pagination-container button {
-    min-width: 36px; height: 36px; padding: 0 8px;
-    border: 1px solid var(--border-color); background: #fff; border-radius: 8px;
-    cursor: pointer; font-weight: 700; color: #64748b; font-size: 0.85rem;
-    font-family: inherit; transition: all 0.15s ease;
-}
-.pagination-container button:hover:not(:disabled) { background: #f1f5f9; color: #334155; }
+.sec-table-container .modern-table td.col-date { white-space: nowrap; }
 .pagination-container button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-.pagination-container button:disabled { opacity: 0.45; cursor: default; }
-
-/* 🗺️ 거점(사업장) 필터 버튼 — 경비실 '출입 기록' 탭.
-   기록 조회는 관리자(3)·전체기록 열람(5)과 동일하게 전 사업장이 기본이며,
-   버튼으로 센터별로 좁혀 볼 수 있다. (승인 권한은 자기 센터로 별도 제한) */
-.region-filter-bar {
-    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
-    background: #f8fafc; border: 1px solid var(--border-color);
-    border-radius: var(--radius-md); padding: 0.7rem 1rem; margin-bottom: 12px;
-}
-.region-filter-bar .filter-label { font-weight: 700; font-size: 0.88rem; color: #475569; }
-.region-filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .region-filter-btn {
     padding: 0.4rem 0.85rem; border: 1px solid var(--border-color); border-radius: 999px;
     background: #fff; color: #475569; font-size: 0.85rem; font-weight: 700;
@@ -668,18 +498,15 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
 .region-filter-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
 .region-filter-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
-/* 🔒 '상태' 셀 안의 퇴실 처리 버튼: 상태값 아래 줄에 배치.
-   재실 중이 아닐 때는 JS 가 이 영역 자체를 렌더하지 않아 자연히 숨겨진다(빈 자리도 없음). */
-.sec-status-action { margin-top: 6px; }
-
 /* 🔒 승인 대기열(5컬럼)은 내용이 적어 좁은 화면에도 다 들어간다.
    - 태블릿/모바일에서 min-w-700(700px) 최소너비 제한을 풀어 컨테이너 폭에 맞춤 → 가로 스크롤 제거.
-   - 전체 출입 기록 표(min-w-900, 11컬럼)는 대상이 아니라 그대로 가로 스크롤 유지. */
+   - 전체 출입 기록 표(min-w-900, 9컬럼)는 대상이 아니라 그대로 가로 스크롤 유지. */
 @media (max-width: 900px) {
-    #secPanelQueue .modern-table { min-width: 0; }
+#secPanelQueue .modern-table { min-width: 0; }
     #secPanelQueue .modern-table th,
     #secPanelQueue .modern-table td { padding: 0.55rem 0.4rem; }
 }
+
 
 /* 🔒 경비실 화면 한정: 상단 로고 이미지만 숨김 (타이틀·부제 및 손님·임직원 화면은 유지)
    - container-security-wide 는 security.js 에서만 부여되므로 경비실에서만 적용된다. */
@@ -689,91 +516,30 @@ button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
    때문에 상단 여백이 과도해져 utility-nav 가 아래로 밀린다. 상단 정렬로 바꿔 위쪽에 붙인다.
    (경비실 화면에서만 적용 — 손님·임직원 화면은 기존 중앙정렬 유지) */
 body:has(.container-security-wide) { justify-content: flex-start; }
-
-.sec-erp-layout { display: flex; gap: 22px; align-items: stretch; min-height: 560px; }
-
-/* 좌측 사이드바 (admin 의 다크 네이비 톤 차용) */
-.sec-erp-sidebar {
-    flex: 0 0 220px; display: flex; flex-direction: column; gap: 18px;
-    background: #1e293b; border-radius: var(--radius-md); padding: 1.1rem 0.9rem;
-    color: #fff; box-shadow: var(--shadow-md);
-}
-.sec-erp-brand { display: flex; align-items: center; gap: 10px; padding: 0.2rem 0.4rem 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.12); }
 .sec-erp-brand-icon { font-size: 1.6rem; line-height: 1; }
-.sec-erp-brand-text { display: flex; flex-direction: column; line-height: 1.35; }
-.sec-erp-brand-text strong { font-size: 1rem; font-weight: 800; color: #fff; }
-.sec-erp-brand-text .sec-region-text { color: #93c5fd; font-size: 0.8rem; font-weight: 700; }
-
-.sec-erp-nav { display: flex; flex-direction: column; gap: 0.4rem; }
-.sec-nav-item {
-    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 0.8rem 0.9rem; border: none; border-radius: 0.6rem; background: transparent;
-    text-align: left; cursor: pointer; color: #cbd5e1; font-weight: 700; font-size: 0.92rem; transition: all 0.18s ease;
-}
 .sec-nav-item:hover:not(.active) { background: rgba(255,255,255,0.1); color: #fff; }
 .sec-nav-item.active { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(37,99,235,0.25); }
-
-/* 대기 건수 배지 */
-.sec-nav-badge {
-    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-    background: #ef4444; color: #fff; font-size: 0.72rem; font-weight: 800;
-    display: inline-flex; align-items: center; justify-content: center;
-}
 .sec-nav-item.active .sec-nav-badge { background: #fff; color: #ef4444; }
-
-.sec-erp-sidebar-action { margin-top: auto; }
-.sec-erp-sidebar-action .w-100 { width: 100%; }
-
-/* 우측 콘텐츠 및 탭 패널 */
-.sec-erp-content { flex: 1; min-width: 0; }
-.sec-tab-panel { display: none; }
 .sec-tab-panel.active { display: block; animation: fadeIn 0.25s ease-in-out; }
 
 /* 📱 태블릿/모바일: 사이드바를 상단 가로 탭으로 전환 */
-@media (max-width: 900px) {
-    .sec-erp-layout { flex-direction: column; gap: 16px; min-height: 0; }
-    .sec-erp-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0.8rem; }
-    .sec-erp-brand { flex: 1 1 100%; border-bottom: none; padding: 0 0.2rem 0.6rem; }
-    .sec-erp-nav { flex-direction: row; flex: 1 1 100%; gap: 6px; }
-    .sec-nav-item { flex: 1; justify-content: center; }
-    .sec-erp-sidebar-action { margin-top: 0; flex: 1 1 100%; }
-    .sec-erp-content { padding-left: 0; }
-    .sec-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
-    .sec-stat-card { padding: 12px 14px; }
-    .sec-stat-card .sec-stat-value { font-size: 1.5rem; }
-}
+
 
 /* 👆 가로 태블릿: 폭은 900px 을 넘지만 터치 기기이므로 사이드바를 모바일과 동일하게
    '상단 가로 탭'으로 전환한다. (폭만으로 판정하면 데스크톱으로 걸려 세로 사이드바가 남는다)
    통계 카드 열 수 등 폭에 따라 달라지는 부분은 넓은 화면에 맞춰 그대로 둔다. */
-@media (min-width: 901px) and (pointer: coarse) {
-    .sec-erp-layout { flex-direction: column; gap: 16px; min-height: 0; }
-    .sec-erp-sidebar { flex: none; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0.8rem; }
-    .sec-erp-brand { flex: 1 1 100%; border-bottom: none; padding: 0 0.2rem 0.6rem; }
-    .sec-erp-nav { flex-direction: row; flex: 1 1 100%; gap: 6px; }
-    .sec-nav-item { flex: 1; justify-content: center; }
-    .sec-erp-sidebar-action { margin-top: 0; flex: 1 1 100%; }
-    .sec-erp-content { padding-left: 0; }
-}
+
 
 /* 📱 태블릿 세로(약 10~11인치): 통계 카드 3개를 한 줄로 배치 + 여백 축소
    - 2열(위2·아래1)로 잘려 보이던 배치를 1행 3열로 통일하고, 내용 대비 과한 패딩을 줄인다.
    - 폭 641~900px + 세로 모드로 한정하여 스마트폰(2열)·태블릿 가로에는 영향 없음. */
 @media (min-width: 641px) and (max-width: 900px) and (orientation: portrait) {
-    .sec-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
-    .sec-stat-card { padding: 10px 12px; gap: 5px; }
-    .sec-stat-card .sec-stat-label { font-size: 0.8rem; }
-    .sec-stat-card .sec-stat-value { font-size: 1.4rem; }
-
-    /* 📋 임직원/손님 신청 화면: 좌우 분할 대신 모바일과 동일한 단일열+탭 레이아웃 적용.
+/* 📋 임직원/손님 신청 화면: 좌우 분할 대신 모바일과 동일한 단일열+탭 레이아웃 적용.
        (641~990px 사각지대에서 폼·목록이 좌우로 눌리고 탭이 어정쩡하게 노출되던 문제 해소) */
     .dashboard-split-wrapper { flex-direction: column; gap: 0; }
     .desktop-only-title { display: none; }
     #emp-divider-line, #guest-divider-line, #emp-divider-comp { display: none; }
-    .mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
-    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; }
     .mobile-tab-btn.active { background: #fff; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-    .mobile-tab-content { display: none; }
     .mobile-tab-content.active { display: flex; }
 
     /* 👥 동반 일행: 모바일과 동일한 바텀시트로 동작 (뷰포트 고정 방식이라 태블릿에도 그대로 재사용) */
@@ -793,10 +559,11 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     body.bs-active .bs-sheet { transform: translateY(0); }
 }
 
+
 /* 애니메이션 */
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes spin { to { transform: rotate(360deg); } }@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+
 .shimmer-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 0; }
 .spinner { width: 2rem; height: 2rem; border: 3.5px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 0.85rem; }
 
@@ -805,7 +572,7 @@ body:has(.container-security-wide) { justify-content: flex-start; }
    🖥️ 10. PC 데스크톱 다단 레이아웃
    ==================================================================== */
 @media (min-width: 991px) {
-    /* 데스크탑 최대 너비를 줄여서 시선의 분산을 막고 밀도감을 높임 */
+/* 데스크탑 최대 너비를 줄여서 시선의 분산을 막고 밀도감을 높임 */
     .container-wide { max-width: 70rem; transition: max-width 0.25s ease; } 
     /* 🔒 경비실 관제 화면은 표가 넓어 화면을 거의 꽉 채운다 (container-wide 를 덮어씀) */
     .container-security-wide { max-width: 95vw; }
@@ -868,17 +635,16 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 
     /* 모바일 전용 요소 숨김 */
     .mobile-tabs, .mobile-bs-close, .bs-overlay, .bs-handle, .mobile-only-btn { display: none !important; }
-    
-    #my-schedule-list { display: flex; flex-direction: column; gap: 0.85rem; }
     .normal-member-item { margin-bottom: 0; }
 }
+
 
 
 /* ====================================================================
    📱 11. 모바일 하이브리드 UI 레이아웃 최적화 (640px 이하)
    ==================================================================== */
 @media (max-width: 640px) {
-    body { padding: 0.9rem 0.6rem; justify-content: flex-start; }
+body { padding: 0.9rem 0.6rem; justify-content: flex-start; }
     .card, .card-wide, .card-emp-wide, .card-guest-wide, .card-security-wide { padding: 1.1rem 0.9rem; } 
     
     .app-header h1 { font-size: 1.35rem; } 
@@ -918,13 +684,9 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     
     .purpose-button-group { gap: 0.6rem !important; }
     .btn-choice { font-size: 1rem !important; padding: 0.8rem 0.35rem !important; }
-
-    .mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
-    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; }
     .mobile-tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
     
-    .desktop-only-title { display: none; } 
-    .mobile-tab-content { display: none; }
+    .desktop-only-title { display: none; }
     .mobile-tab-content.active { display: flex; }
     #emp-divider-line, #guest-divider-line, #emp-divider-comp { display: none; }
 
@@ -964,14 +726,137 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     body.bs-active { overflow: hidden; }
     body.bs-active .bs-overlay { opacity: 1; pointer-events: auto; }
     body.bs-active .bs-sheet { transform: translateY(0); }
-
-    /* 나의 예약 카드: 모바일에서도 데스크탑처럼 좌(정보)·우(버튼) 배치 유지, 버튼 영역은 내용 크기만큼만 */
-    .result-item-schedule { flex-direction: row; align-items: center; flex-wrap: nowrap; }
-    .item-action-zone { width: auto; justify-content: flex-end; margin-top: 0; flex: 0 0 auto; }
-    .group-schedule-header { flex-direction: column; align-items: flex-start; }
-    .group-action-wrapper { width: 100%; justify-content: flex-end; margin-top: 8px; }
 }
 /* 🔎 손님 방문 상태 조회 결과 박스 */
+/* 🙋 신청 취소 · 일행 추가/삭제 패널 (손님 화면)
+   방문 상태 아래에 붙는다. 취소는 되돌릴 수 없으므로 삭제 버튼만 붉은 계열로 구분한다. */
+.vm-panel-visitor,
+/* 🔎 손님 방문 상태 조회 결과 박스 */
+/* 🙋 신청 취소 · 일행 추가/삭제 패널 (손님 화면)
+   방문 상태 아래에 붙는다. 취소는 되돌릴 수 없으므로 삭제 버튼만 붉은 계열로 구분한다. */
+.vm-panel-emp {
+    margin-top: 1rem; padding: 0.9rem 1rem;
+    border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    background: #fff;
+}.vm-title-visitor,
+.vm-title-emp { margin: 0 0 0.6rem; font-size: 0.9rem; font-weight: 800; color: var(--text-main); }/* 한 행 = 왼쪽 '누구인지'(회사·이름·연락처) + 오른쪽 '무엇을 할지'(버튼).
+   두 덩어리 사이에 세로선을 둬서 어디까지가 정보이고 어디부터가 조작인지 바로 갈리게 한다. */
+.vm-row-visitor,
+/* 한 행 = 왼쪽 '누구인지'(회사·이름·연락처) + 오른쪽 '무엇을 할지'(버튼).
+   두 덩어리 사이에 세로선을 둬서 어디까지가 정보이고 어디부터가 조작인지 바로 갈리게 한다. */
+.vm-row-emp {
+    display: flex; align-items: stretch; justify-content: space-between; gap: 0.7rem;
+    padding: 0.55rem 0; border-top: 1px solid #eef2f7;
+}.vm-row-visitor:first-of-type,
+.vm-row-emp:first-of-type { border-top: none; }.vm-who-visitor,
+.vm-who-emp {
+    min-width: 0; flex: 1 1 auto; text-align: left; line-height: 1.5;
+    display: flex; flex-direction: column; justify-content: center;
+}.vm-who-visitor b,
+.vm-who-emp b { font-size: 0.95rem; color: var(--text-main); }/* 이름 + 배지는 한 줄. .vm-who-visitor 가 세로 flex 라, 묶지 않으면 각자 한 줄을 차지하고
+   배지 배경이 줄 전체로 늘어난다. */
+.vm-name-line-visitor,
+/* 이름 + 배지는 한 줄. .vm-who-emp 가 세로 flex 라, 묶지 않으면 각자 한 줄을 차지하고
+   배지 배경이 줄 전체로 늘어난다. */
+.vm-name-line-emp { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: wrap; }.vm-name-line-visitor b,
+.vm-name-line-emp b { min-width: 0; word-break: keep-all; }.vm-me-visitor,
+.vm-me-emp {
+    flex: 0 0 auto; align-self: center;
+    font-size: 0.7rem; font-weight: 700; color: var(--primary);
+    background: #eff6ff; border-radius: 999px; padding: 1px 7px;
+}.vm-sub-visitor,
+.vm-sub-emp { display: block; font-size: 0.8rem; color: var(--text-muted); word-break: keep-all; }/* 회사명은 사람 정보 위 머리글. 이름보다 작고 흐리게 두어 이름이 먼저 읽히게 한다. */
+.vm-corp-visitor,
+/* 회사명은 사람 정보 위 머리글. 이름보다 작고 흐리게 두어 이름이 먼저 읽히게 한다. */
+.vm-corp-emp {
+    display: block; font-size: 0.78rem; font-weight: 700; color: var(--text-muted);
+    margin-bottom: 1px; word-break: keep-all;
+}
+/* 데스크톱·태블릿에선 행 왼쪽 정보칸이 넉넉하다 → 회사·이름·연락처를 약 15% 키운다.
+   손님 '신청 정보 수정' + 임직원 '방문 예약 수정' 창 공통. (임직원 쪽은 수정 창 행에만 — 출입권 목록은 그대로)
+   폰(≤640px)은 버튼과 한 줄을 나눠 쓰므로 기존 크기를 유지한다. */
+@media (min-width: 641px) {
+    .vm-who-visitor b, .vm-row-emp .vm-who-emp b { font-size: 1.1rem; }
+    .vm-sub-visitor, .vm-row-emp .vm-sub-emp { font-size: 0.92rem; }
+    .vm-corp-visitor, .vm-row-emp .vm-corp-emp { font-size: 0.9rem; }
+    .vm-me-visitor, .vm-row-emp .vm-me-emp { font-size: 0.8rem; }
+}
+.vm-del-visitor,
+.vm-del-emp {
+    flex: 0 0 auto; padding: 0.35rem 0.8rem; font-size: 0.82rem; font-weight: 700;
+    color: #b91c1c; background: #fff; border: 1px solid #fca5a5; border-radius: 8px; cursor: pointer;
+}.vm-del-visitor:hover,
+.vm-del-emp:hover { background: #fef2f2; }/* 수정 모드에서만 나타나는 취소 — 저장 버튼 왼쪽. 눈에 덜 띄는 회색으로 둔다. */
+.vm-cancel-visitor,
+/* 수정 모드에서만 나타나는 취소 — 저장 버튼 왼쪽. 눈에 덜 띄는 회색으로 둔다. */
+.vm-cancel-emp {
+    color: #475569; background: #fff; border: 1px solid #cbd5e1;
+    font-weight: 700; cursor: pointer;
+}.vm-cancel-visitor:hover,
+.vm-cancel-emp:hover { background: #f1f5f9; }
+/* 손님 화면 행 버튼 — 수정(파랑 외곽선) / 저장(파랑 채움). 삭제만 붉은색으로 구분된다. */
+.vm-edit-btn {
+    color: var(--primary); background: #fff; border: 1px solid #bfdbfe;
+    font-weight: 700; cursor: pointer;
+}
+.vm-edit-btn:hover { background: #eff6ff; }
+.vm-save {
+    color: #fff; background: var(--primary); border: 1px solid var(--primary);
+    font-weight: 700; cursor: pointer;
+}
+.vm-save:hover { opacity: 0.9; }.vm-locked-visitor,
+.vm-locked-emp { flex: 0 0 auto; font-size: 0.8rem; color: var(--text-muted); }/* 행별 수정·삭제 — 같은 줄에 가로로 나란히. 이름이 길어도 밀리거나 접히지 않게 고정한다. */
+.vm-row-btns-visitor,
+/* 행별 수정·삭제 — 같은 줄에 가로로 나란히. 이름이 길어도 밀리거나 접히지 않게 고정한다. */
+.vm-row-btns-emp {
+    flex: 0 0 auto; display: flex; flex-wrap: nowrap; gap: 0.32rem; align-items: center;
+    padding-left: 0.7rem; border-left: 1px solid #eef2f7;
+}/* 두 버튼은 테두리 유무가 달라 여백만 맞춰도 2px 어긋난다.
+   → box-sizing 과 최소 높이를 고정해 테두리 차이를 흡수한다. */
+.vm-row-btns-visitor > *,
+/* 두 버튼은 테두리 유무가 달라 여백만 맞춰도 2px 어긋난다.
+   → box-sizing 과 최소 높이를 고정해 테두리 차이를 흡수한다. */
+.vm-row-btns-emp > * {
+    flex: 0 0 auto; white-space: nowrap; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 29px; padding: 0 0.72rem;
+    font-size: 0.86rem; line-height: 1; border-radius: 8px;
+}
+
+.vm-edit { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-color); }
+.vm-edit-row { margin-bottom: 0.4rem; }
+.vm-edit input {
+    width: 100%; padding: 0.6rem 0.7rem;
+    border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; background: #fff;
+}
+/* 입실~퇴실은 한 줄에 둔다. 세로로 늘어지면 '구간'이라는 게 안 읽힌다. */
+.vm-edit-times { display: flex; align-items: center; gap: 0.4rem; }
+.vm-tilde { flex: 0 0 auto; color: var(--text-muted); }
+
+.vm-add { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px dashed var(--border-color); }
+.vm-add-label { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.45rem; text-align: left; }
+.vm-add input {
+    width: 100%; padding: 0.6rem 0.7rem;
+    border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; background: #fff;
+}
+/* 두 칸을 한 줄에 — min-width:0 이 없으면 input 기본 너비 때문에 칸이 안 줄고 폼을 밀어낸다. */
+.vm-field-row { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.vm-field-row > * { flex: 1 1 0; min-width: 0; }
+/* 회사명 칸 안내('비우면 대표자와 동일')가 길다 → 짧은 차량 번호 칸보다 폭을 더 준다 */
+.vm-field-row > #vmCompany { flex-grow: 1.4; }/* 성명 : 연락처(3박스) = 연락처 쪽에 폭을 더 준다. */
+.vm-row-name-visitor > :first-child,
+/* 성명 : 연락처(3박스) = 연락처 쪽에 폭을 더 준다. */
+.vm-row-name-emp > :first-child { flex: 0.72 1 0; }.vm-row-name-visitor > .phone-group,
+.vm-row-name-emp > .phone-group { flex: 1.28 1 0; }
+/* 패널 안 전화번호 박스 — 기본 패딩(0.9rem)은 좁은 칸에 과하다. */
+.vm-add .phone-group { gap: 3px; }
+.vm-add .phone-box {
+    padding: 0.6rem 0.1rem; font-size: 0.9rem; background: #fff; border-radius: 8px;
+}
+.vm-add .phone-sep { font-size: 0.8rem; }
+.vm-add-btn { width: 100%; margin-top: 0.2rem; }.vm-note-visitor,
+.vm-note-emp { margin: 0.6rem 0 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
 .visitor-info-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem 1.4rem; text-align: center; box-shadow: var(--shadow-md); margin-top: 0.5rem; }
 .visitor-info-box .greet { font-size: 1.15rem; margin: 0 0 0.5rem; color: var(--text-main); }
 .visitor-info-box .badge-company { display: inline-block; font-size: 0.85rem; font-weight: 700; color: var(--primary); background: #eff6ff; padding: 0.25rem 0.7rem; border-radius: 999px; }
@@ -982,7 +867,8 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 /* 🔳 손님 개인 QR 박스 */
 .guest-qr-box { text-align: center; margin: 1rem 0; padding: 1rem; background: #fff; border: 1px solid var(--border-color); border-radius: var(--radius-md); box-sizing: border-box; min-width: 0; overflow: hidden; }
 .guest-qr-img { width: 100%; max-width: 200px; height: auto; aspect-ratio: 1 / 1; object-fit: contain; display: block; margin: 0 auto 0.6rem; }
-.guest-qr-hint { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+.guest-qr-save { display: inline-block; padding: 0.5rem 1.1rem; font-size: 0.85rem; font-weight: 600; color: var(--primary); background: #fff; border: 1px solid var(--primary); border-radius: var(--radius-md); text-decoration: none; }
+.guest-qr-save:hover { background: var(--primary); color: #fff; }
 
 /* 🔳 그룹 전원 QR 나열 */
 .guest-qr-guide { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; margin: 1rem 0 0.6rem; text-align: center; }
@@ -1049,59 +935,23 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 /* 이름|연락처 한 줄에서 연락처(전화 3박스) 칸을 더 넓게 배분 → 번호 잘림 방지.
    연락처는 3박스+하이픈이라 이름칸보다 넓어야 한다. (이름칸은 상대적으로 좁아짐) */
 .input-row-group .input-group:has(.phone-group) { flex: 1.7; }
-.phone-box { font-size: 0.9rem; letter-spacing: -0.02em; }
-
-/* ====================================================================
-   📱 경비실(보안 데스크) 대시보드 모바일 최적화
-   ==================================================================== */
-/* 표 최소폭 → 좁은 화면에서는 셀을 눌러담지 않고 가로 스크롤 (기존엔 규칙이 없어 눌러담김) */
-.min-w-700 { min-width: 700px; }
-
-@media (max-width: 640px) {
-    /* 사이드바 메뉴를 한 줄(가로)로 합치고 콤팩트하게 → 세로 3줄의 빈 공간 제거 */
-    .sec-erp-nav { flex-direction: row; gap: 5px; }
-    .sec-nav-item { flex: 1; justify-content: center; gap: 4px; padding: 0.55rem 0.25rem; font-size: 0.75rem; }
-    .sec-nav-item > span:first-child { white-space: nowrap; }
-    /* 방문객 수동 예약 버튼 축소: 너비를 내용에 맞게(auto) + 가운데 배치 (기존 100% 해제) */
-    .sec-erp-sidebar-action { text-align: center; }
-    .sec-erp-sidebar-action button,
-    .sec-erp-sidebar-action .w-100 { width: auto !important; display: inline-flex; align-items: center;
-        gap: 4px; padding: 0.5rem 1.1rem; font-size: 0.82rem; }
-    .sec-erp-sidebar { padding: 0.7rem; }
-    .sec-erp-brand { padding: 0 0.2rem 0.5rem; }
-
-    /* 표: 폰트/셀 여백 콤팩트 (가로 스크롤로 열 유지) */
+/* 방문일자는 날짜 한 칸이면 충분하다 → 내용 폭만 쓰고, 남는 폭은 옆 담당자 칸에 준다 */
+.input-row-group .input-group.visit-date-group { flex: 0 0 auto; width: 11rem; }
+.phone-box { font-size: 0.9rem; letter-spacing: -0.02em; }@media (max-width: 640px) {
+/* 표: 폰트/셀 여백 콤팩트 (가로 스크롤로 열 유지) */
     .sec-erp-layout .modern-table { font-size: 0.84rem; }
     .sec-erp-layout .modern-table th,
     .sec-erp-layout .modern-table td { padding: 0.55rem 0.5rem; white-space: nowrap; }
-
-    /* 통계 카드 여백 정리 */
-    .sec-stat-grid { gap: 8px; }
-    .sec-stat-card .sec-stat-label { font-size: 0.78rem; }
 }
 
-/* 경비실 대시보드 내장 스캔 입력 바 */
-/* 스캔바는 화면에서 숨김(공간 미차지). 단, 안의 입력창은 포커스 가능해야 리더기 입력을 받는다.
-   → display:none 은 포커스가 안 되므로 '보이지 않지만 존재하는' 방식으로 숨긴다. */
-.sec-scan-bar { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0;
-    padding: 0; margin: -1px; border: 0; pointer-events: none; }
-.sec-scan-icon { font-size: 1.3rem; }
-.sec-scan-input { flex: 1; min-width: 0; background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
-    border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.95rem; outline: none; }
-.sec-scan-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
-.sec-scan-input::placeholder { color: #64748b; }
-.sec-scan-result { font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
-.sec-scan-result.ok { color: #34d399; }
-.sec-scan-result.warn { color: #fbbf24; }
-.sec-scan-result.err { color: #f87171; }
-@media (max-width: 640px) {
-    .sec-scan-bar { flex-wrap: wrap; }
-    .sec-scan-result { flex: 1 1 100%; }
-}
+
 
 /* 방문객 상태 화면 인라인 안내 배너 (퇴실 요청 접수 등) */
 .guest-flash { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; font-weight: 700;
-    padding: 0.7rem 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; text-align: center; font-size: 0.95rem; }
+    padding: 0.7rem 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; text-align: center; font-size: 0.95rem;
+    transition: opacity 0.3s ease, transform 0.3s ease; }
+/* 2초 뒤 사라질 때 — 갑자기 없어지면 아래 내용이 덜컥 올라온다. 흐려지며 살짝 올라가게 둔다. */
+.guest-flash.is-fading { opacity: 0; transform: translateY(-4px); }
 
 /* ====================================================================
    🖥️ 경비실 데스크톱: 전체 텍스트 10% 확대 (루트 16px → 17.6px)
@@ -1115,8 +965,9 @@ body:has(.container-security-wide) { justify-content: flex-start; }
      넘치는 경우는 기존대로 .table-responsive 의 가로 스크롤이 처리한다.
    ==================================================================== */
 @media (min-width: 1200px) {
-    html:has(.container-security-wide) { font-size: calc(17.6px * var(--sec-font-scale)); }
+html:has(.container-security-wide) { font-size: calc(17.6px * var(--sec-font-scale)); }
 }
+
 
 /* ====================================================================
    📲 경비실 태블릿: 루트 폰트 소폭 확대 (14px → 15px)
@@ -1132,7 +983,7 @@ body:has(.container-security-wide) { justify-content: flex-start; }
    ==================================================================== */
 @media (min-width: 641px) and (max-width: 900px),
        (min-width: 901px) and (max-width: 1199px) and (pointer: coarse) {
-    html:has(.container-security-wide) { font-size: calc(15px * var(--sec-font-scale)); }
+html:has(.container-security-wide) { font-size: calc(15px * var(--sec-font-scale)); }
 
     /* 셀 여백 축소: 루트 확대로 늘어난 rem 패딩을 되돌려 표가 세로로 길어지는 것을 막는다.
        - 대기열(5컬럼)·전체기록(11컬럼) 두 표 모두 적용.
@@ -1144,6 +995,7 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     #secPanelLogs .modern-table td { padding: 0.45rem 0.5rem; }
 }
 
+
 /* ====================================================================
    📱 경비실 모바일(≤640px): 루트 폰트 14px → 15px
    - 위 두 블록(데스크톱 17.6px / 태블릿 15px)이 641px 이상만 다루고 있어,
@@ -1154,8 +1006,9 @@ body:has(.container-security-wide) { justify-content: flex-start; }
      이미 padding 을 따로 지정하고 있어 이중으로 건드리면 표가 도로 넓어진다.
    ==================================================================== */
 @media (max-width: 640px) {
-    html:has(.container-security-wide) { font-size: calc(15px * var(--sec-font-scale)); }
+html:has(.container-security-wide) { font-size: calc(15px * var(--sec-font-scale)); }
 }
+
 
 
 /* ====================================================================
@@ -1165,47 +1018,9 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
     margin: 18px 0 8px; font-size: 0.95rem; font-weight: 800; color: var(--text-main);
 }
-.sec-pass-summary { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
-
-/* 상태 배지: 활성(초록) / 정지(주황) / 만료·해지(회색) */
-.sec-pass-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; }
 .sec-pass-badge-on  { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
 .sec-pass-badge-off { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
 .sec-pass-badge-end { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-
-.sec-pass-actions { white-space: nowrap; }
-.sec-pass-actions .sec-btn-approve-item { width: auto; margin: 2px; padding: 5px 10px; }
-
-/* 이용 요일 선택 (체크박스를 버튼처럼) */
-.sec-pass-weekday-box { display: flex; gap: 6px; flex-wrap: wrap; }
-.sec-pass-weekday { position: relative; }
-.sec-pass-weekday input { position: absolute; opacity: 0; width: 0; height: 0; }
-.sec-pass-weekday span {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 40px; padding: 7px 0; border: 1px solid #cbd5e1; border-radius: 6px;
-    font-size: 0.85rem; font-weight: 700; color: #64748b; background: #fff; cursor: pointer;
-    transition: all 0.15s ease;
-}
-.sec-pass-weekday input:checked + span { background: var(--primary); border-color: var(--primary); color: #fff; }
-
-/* 출입 기록·대기열의 출입권 표시 — 일반 방문객과 한눈에 구분 */
-/* 출입 기록에서는 이름 아래 줄로 내린다 (대기열은 이름 옆 유지: 그쪽은 아래에 소속이 붙는다) */
-.sec-pass-tag-line { margin-top: 2px; line-height: 1; }
-/* 신청이 접수된 시각 — 중복 신청을 가려낼 때 본다 */
-.sec-req-time { color: var(--text-muted); }
-/* 🙋 신청 주체 — 손님이 직접 올린 건과 직원이 대신 올린 건을 색으로 가른다 */
-.requester-tag {
-    display: inline-block; padding: 0 5px; margin-right: 3px; border-radius: 3px;
-    font-size: 0.66rem; font-weight: 800; vertical-align: middle;
-}
-.requester-visitor { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-.requester-staff   { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-.sec-pass-tag-line .sec-pass-tag { margin-left: 0; }
-.sec-pass-tag {
-    display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 4px;
-    background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe;
-    font-size: 0.68rem; font-weight: 800; vertical-align: middle;
-}
 
 /* ====================================================================
    🎫 손님 화면 — 출입 이용권 신청 / 내 이용권 조회
@@ -1304,26 +1119,44 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 .region-confirm-box {
     padding: 10px 14px; background: #eef6ff; border: 1px solid #bcdcff;
     border-radius: 8px; font-weight: 700; color: #1d4ed8; font-size: 0.88rem;
-}
-
-/* 경비실 발급 신청 표: 행 강조 + 인라인 확정 입력 */
-.sec-pass-req-row td { background: #fffbeb; }
-.sec-req-input {
-    width: 100%; max-width: 150px; padding: 5px 7px; border: 1px solid #cbd5e1;
-    border-radius: 6px; font-size: 0.8rem; background: #fff; margin: 2px auto; display: block;
-}
-
-@media (max-width: 640px) {
-    .pass-my-qr { width: 150px; height: 150px; }
+}@media (max-width: 640px) {
+.pass-my-qr { width: 150px; height: 150px; }
     /* 좁은 화면에서도 좌우 배치를 유지한다 → 세로로 쌓지 않고 폭·글자만 줄인다 */
     .guest-pass-btns { gap: 0.45rem; }
     .btn-guest-pass { padding: 0.9rem 0.4rem; font-size: 1rem; }
     .btn-guest-pass .guest-emoji-header { font-size: 1.5rem; }
 }
 
+
+
+
 /* 손님 화면 공통 타이틀 — 지금까지 마크업에만 있고 규칙이 없어 카드 기본(좌측) 정렬이었다.
    로그인·퇴실·사전예약·이용권 신청 등 이 클래스를 쓰는 모든 화면의 제목을 가운데로 맞춘다. */
 .guest-title-bold-style { text-align: center; }
+
+/* 방문 상태 확인 제목 줄 — 좌(빈칸) · 중(제목) · 우(수정 버튼) 3분할.
+   양 옆을 같은 1fr 로 두면 오른쪽에 버튼이 있어도 제목이 화면 정중앙에 선다. */
+.status-head {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 0.4rem;
+}
+.status-head-title { margin: 0; }
+.status-head-side { min-width: 0; }
+.status-head-right { display: flex; justify-content: flex-end; }
+/* 제목보다 작고 가볍게 — 주 동작이 아니라 보조 동작이다. */
+.btn-status-edit {
+    padding: 0.3rem 0.6rem; font-size: 0.78rem; font-weight: 700;
+    color: var(--primary); background: #eff6ff; border: 1px solid #bfdbfe;
+    border-radius: 8px; cursor: pointer; white-space: nowrap;
+}
+.btn-status-edit:hover { background: var(--primary); color: #fff; }
+/* 좁은 화면에서는 버튼 글자가 제목을 밀어내므로 줄을 바꿔 아래로 내린다. */
+@media (max-width: 420px) {
+.status-head { grid-template-columns: 1fr; }
+    .status-head-side:empty { display: none; }
+    .status-head-right { justify-content: center; margin-top: 0.3rem; }
+}
+
 
 /* 이용 기간 안내 (손님 신청 폼 — 날짜는 서버가 신청일+1개월로 고정한다) */
 .pass-req-period {
@@ -1333,34 +1166,34 @@ body:has(.container-security-wide) { justify-content: flex-start; }
 }
 .pass-req-period b { font-size: 1.1rem; color: var(--text-main); }
 .pass-req-period span { font-size: 0.92rem; color: var(--text-muted); }
+.emp-tab-btn.active { background: #fff; color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+/* 상태별 색 — 손 쓸 수 있는 '신청'만 눈에 띄게 하고 끝난 건은 가라앉힌다 */
+.pass-state-신청 { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.pass-state-활성 { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.pass-state-반려 { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.pass-state-정지, .pass-state-만료 { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 
-/* 🎫 경비실 QR 이용권 보기 오버레이 (인쇄 없이 화면 표시 + 이미지 저장) */
+.emp-modal-overlay {
+    position: fixed; inset: 0; z-index: 1300;
+    background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+}.emp-modal-body .vm-panel-visitor,
+.emp-modal-body .vm-panel-emp { margin-top: 0; border: none; padding: 0; }
+/* 좁은 화면에서는 3분할이 글자를 잘라먹는다 → 세로로 푼다. */
+
+/* 모달 안의 전화번호 3박스 — 기본 패딩(0.9rem)은 모달 칸에 비해 과하다.
+   칸이 좁아 숫자가 안 보이는 것을 막되, 글자 크기는 다른 입력칸과 맞춘다. */
+.emp-modal .phone-group { gap: 3px; }
+.emp-modal .phone-box {
+    padding: 0.6rem 0.1rem; font-size: 0.92rem; background: #fff; border-radius: 8px;
+}
+.emp-modal .phone-sep { font-size: 0.8rem; }
+
 .sec-qr-overlay {
     position: fixed; inset: 0; z-index: 1200;
     background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(3px);
     display: flex; align-items: center; justify-content: center; padding: 1rem;
 }
-.sec-qr-dialog {
-    background: #fff; border-radius: var(--radius-md); padding: 1.4rem 1.2rem;
-    width: min(92vw, 22rem); text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
-}
-.sec-qr-title {
-    font-size: 1.15rem; font-weight: 800; color: var(--text-main);
-    line-height: 1.4; word-break: keep-all;
-}
-.sec-qr-img { width: 200px; height: 200px; margin: 0.7rem auto; display: block; }
-.sec-qr-name { font-size: 1.32rem; font-weight: 800; color: var(--text-main); }
-.sec-qr-company {
-    font-size: 1.15rem; font-weight: 800; color: var(--text-main);
-    margin-bottom: 0.8rem; line-height: 1.4; word-break: keep-all;
-}
-.sec-qr-meta {
-    display: grid; grid-template-columns: auto 1fr; gap: 5px 10px;
-    font-size: 0.8rem; text-align: left; max-width: 16rem; margin: 0 auto 1rem;
-}
-.sec-qr-meta span { color: var(--text-muted); }
-.sec-qr-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.sec-qr-actions button { margin-left: 0; }
 
 /* 🎫 이용 기간 단위 선택 (1일 / 1주일 / 1개월) — 손님 신청 폼 */
 .pass-req-periods { display: flex; gap: 0.4rem; margin-bottom: 0.6rem; }
@@ -1370,10 +1203,6 @@ body:has(.container-security-wide) { justify-content: flex-start; }
     font-size: 1.05rem; font-weight: 700; color: #64748b; transition: all 0.15s ease;
 }
 .pass-req-period-btn.active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
-
-/* 경비실 발급 폼: 자동 계산되는 종료일 표시 */
-.sec-auto-hint { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
-#secPassTo[readonly] { background: #f1f5f9; color: #475569; cursor: default; }
 
 /* ============================================================================
    🔒 경비실 관제 테마 (다크 콘솔)
@@ -1438,67 +1267,17 @@ body:has(.container-security-wide) {
     line-height: 1.25; text-align: center;
     pointer-events: none;   /* 뒤쪽 버튼 클릭을 가리지 않도록 */
 }
-.container-security-wide .sec-nav-brand.is-stacked {
-    position: static; transform: none;
-    flex: 1 1 100%; pointer-events: auto;
-    padding-top: 0.4rem; margin-top: 0.2rem;
-    border-top: 1px solid var(--sec-line);
-}
-.container-security-wide .sec-nav-title {
-    font-size: 1.1rem; font-weight: 800; color: #2d4d96; letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-.container-security-wide .sec-nav-sub {
-    font-size: 0.78rem; font-weight: 600; color: #2d4d96; opacity: 0.8;
-    white-space: nowrap;
-}
 
 /* 유틸리티 바 */
 .container-security-wide #utility-nav {
     background: var(--sec-panel); border: 1px solid var(--sec-line);
     border-radius: 4px; box-shadow: none;
 }
-.container-security-wide .nav-profile-info .user-text { color: var(--sec-txt); }
-/* 경비실 화면은 직급을 노출하지 않는다 (계정명·소속만).
-   auth.js 의 nav 는 임직원 화면과 공용이라, 마크업을 바꾸는 대신 여기서 숨긴다. */
-.container-security-wide .nav-profile-info .nav-rank { display: none; }
-.container-security-wide .nav-profile-info .avatar { background: var(--sec-panel-alt); }
 
 /* 메인 카드 = 콘솔 본체. 카드 자체 여백을 없애고 내부 패널이 선으로 구획을 잡는다 */
 .container-security-wide .card-security-wide {
     background: var(--sec-panel); border: 1px solid var(--sec-line);
     border-radius: 4px; box-shadow: none; padding: 0; overflow: hidden;
-}
-.container-security-wide .sec-erp-layout { gap: 0; min-height: 600px; }
-
-/* ── 좌측 사이드바 ───────────────────────────────────────────── */
-.container-security-wide .sec-erp-sidebar {
-    flex: 0 0 190px; gap: 0; padding: 0;
-    background: var(--sec-panel-alt); border-radius: 0; box-shadow: none;
-    border-right: 1px solid var(--sec-line);
-    /* 기본 규칙이 color:#fff (다크 사이드바 전제) 라 밝은 바탕에서 글자가 사라진다 */
-    color: var(--sec-txt);
-}
-.container-security-wide .sec-erp-brand {
-    padding: 0.85rem 1rem; border-bottom: 1px solid var(--sec-line); gap: 8px;
-}
-.container-security-wide .sec-erp-brand-text strong { font-size: 0.9rem; font-weight: 700; color: var(--sec-txt); }
-/* 제품/버전 표기 — 관제 소프트웨어의 신뢰 신호 */
-.container-security-wide .sec-brand-ver {
-    color: var(--sec-txt-faint); font-family: var(--sec-mono);
-    font-size: 0.66rem; font-weight: 500; letter-spacing: 0.04em;
-}
-.container-security-wide .sec-erp-nav { gap: 0; padding: 0.35rem 0; }
-
-/* 메뉴 항목: 알약형 파란 버튼 → 좌측 얇은 accent 바로 선택 표시 */
-.container-security-wide .sec-nav-item {
-    border-radius: 0; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 500;
-    color: var(--sec-txt-dim); border-left: 2px solid transparent; background: transparent;
-}
-/* 이모지 대신 작은 사각 마커로 항목을 표시한다 */
-.container-security-wide .sec-nav-label { display: inline-flex; align-items: center; gap: 0.5rem; }
-.container-security-wide .sec-nav-dot {
-    width: 5px; height: 5px; background: currentColor; opacity: 0.5; flex-shrink: 0;
 }
 .container-security-wide .sec-nav-item.active .sec-nav-dot { opacity: 1; background: var(--sec-accent); }
 .container-security-wide .sec-nav-item:hover:not(.active) { background: rgba(0,0,0,0.04); color: var(--sec-txt); }
@@ -1506,57 +1285,8 @@ body:has(.container-security-wide) {
     background: var(--sec-panel); color: var(--sec-txt);
     border-left-color: var(--sec-accent); box-shadow: none;
 }
-/* 배지: 대기 건수는 실제 처리해야 할 일이므로 색을 유지하되 채도를 낮춘다 */
-.container-security-wide .sec-nav-badge {
-    border-radius: 3px; background: var(--sec-crit); color: #fff;
-    font-family: var(--sec-mono); font-size: 0.68rem; font-weight: 600; height: 18px; min-width: 18px;
-}
-.container-security-wide .sec-nav-badge-warn { background: var(--sec-warn); color: #fff; }
 .container-security-wide .sec-nav-item.active .sec-nav-badge { background: var(--sec-crit); color: #fff; }
 .container-security-wide .sec-nav-item.active .sec-nav-badge-warn { background: var(--sec-warn); color: #fff; }
-
-.container-security-wide .sec-erp-sidebar-action { padding: 0 0.75rem 0.75rem; }
-
-/* 📋 패널 헤더 바 — 표 위에 얹히는 제목줄. 좌: 제목 / 우: 메타·필터 */
-.container-security-wide .sec-panel-head {
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
-    margin-bottom: 0; padding: 0.5rem 0.85rem;
-    background: var(--sec-panel-alt);
-    border: 1px solid var(--sec-line); border-bottom: none; border-radius: 3px 3px 0 0;
-}
-/* 헤더 바로 아래 붙는 표는 위쪽 모서리를 펴서 한 덩어리로 만든다 */
-.container-security-wide .sec-panel-head + .sec-table-container { border-radius: 0 0 3px 3px; }
-
-/* 독립형 제목 바 — 바로 아래에 표가 붙지 않는 경우(이용권 탭처럼 구역이 여러 개).
-   아래쪽 테두리를 닫아 주지 않으면 잘린 상자처럼 보인다. */
-.container-security-wide .sec-panel-head-solo {
-    border-bottom: 1px solid var(--sec-line); border-radius: 3px; margin-bottom: 0.9rem;
-}
-
-/* 🎫 이용권 탭 구역 머리 — 발급 신청 / 오늘 출입 현황 / 발급된 이용권 */
-.container-security-wide .sec-pass-head { margin-top: 1rem; }
-.container-security-wide .sec-tab-panel > .sec-pass-head:first-child,
-.container-security-wide #secPassReqZone > .sec-pass-head { margin-top: 0; }
-.container-security-wide .sec-pass-head-title {
-    font-size: 0.78rem; font-weight: 700; color: var(--sec-txt);
-}
-.container-security-wide .sec-pass-head .sec-pass-summary {
-    font-family: var(--sec-mono); font-size: 0.66rem; font-weight: 500;
-    color: var(--sec-txt-faint); letter-spacing: 0; text-align: right;
-}
-/* 신청 구역 전체는 위쪽에 한 칸 띄운다 (발급 폼이 닫혀 있어도 제목 바와 붙지 않게) */
-.container-security-wide #secPassReqZone { margin-top: 0; }
-
-/* 거점 필터 바 — '출입 기록' 탭에서 헤더와 표 사이에 낀다.
-   기본값이 밝은 회색(#f8fafc)이라 그대로 두면 다크 화면 한가운데 흰 띠가 생긴다. */
-.container-security-wide .region-filter-bar {
-    background: var(--sec-panel-alt); border: 1px solid var(--sec-line);
-    border-top: none; border-bottom: none; border-radius: 0;
-    margin-bottom: 0; padding: 0.45rem 0.85rem; gap: 0.6rem;
-}
-.container-security-wide .region-filter-bar .filter-label {
-    font-size: 0.72rem; font-weight: 500; color: var(--sec-txt-faint); letter-spacing: 0.03em;
-}
 .container-security-wide .region-filter-btn {
     border-radius: 3px; border: 1px solid var(--sec-line-strong); background: transparent;
     color: var(--sec-txt-dim); font-size: 0.75rem; font-weight: 500; padding: 0.25rem 0.6rem;
@@ -1565,8 +1295,6 @@ body:has(.container-security-wide) {
 .container-security-wide .region-filter-btn.active {
     background: rgba(44, 111, 147, 0.12); border-color: var(--sec-accent); color: var(--sec-accent);
 }
-/* 필터 바가 사이에 끼면 표는 아래쪽 모서리만 둥글게 */
-.container-security-wide .region-filter-bar + .sec-table-container { border-radius: 0 0 3px 3px; }
 
 /* 날짜 입력(기록·지연 탭 헤더 안)
    ⚠ 기본 규칙이 `.date-range-picker-box input[type="date"]`(0,2,1)라 클래스 하나로는 못 이긴다.
@@ -1588,34 +1316,8 @@ body:has(.container-security-wide) {
     opacity: 0.65;
 }
 .container-security-wide .range-tilde { color: var(--sec-txt-faint); }
-
-/* 페이지네이션 */
-.container-security-wide .pagination-container { border-top: 1px solid var(--sec-line); }
-.container-security-wide .pagination-container button {
-    background: transparent; border: 1px solid var(--sec-line-strong); color: var(--sec-txt-dim);
-    border-radius: 3px; min-width: 30px; height: 30px; font-size: 0.78rem; font-weight: 500;
-    font-family: var(--sec-mono);
-}
-.container-security-wide .pagination-container button:hover:not(:disabled) { background: rgba(0,0,0,0.04); color: var(--sec-txt); }
 .container-security-wide .pagination-container button.active {
     background: rgba(44, 111, 147, 0.12); border-color: var(--sec-accent); color: var(--sec-accent);
-}
-
-
-/* 글자 배율 컨트롤 (콘솔 상태 바 우측) */
-.container-security-wide .sec-font-zoom { display: inline-flex; align-items: center; gap: 0.25rem; }
-.container-security-wide .sec-font-zoom button {
-    width: 1.55rem; height: 1.55rem; line-height: 1; padding: 0; cursor: pointer;
-    border-radius: 3px; font-size: 0.9rem; font-weight: 700;
-    background: rgba(44, 111, 147, 0.12); color: var(--sec-accent);
-    border: 1px solid rgba(44, 111, 147, 0.4);
-}
-.container-security-wide .sec-font-zoom button:hover:not(:disabled) {
-    background: var(--sec-accent); color: #fff;
-}
-.container-security-wide .sec-font-zoom button:disabled { opacity: 0.35; cursor: default; }
-.container-security-wide .sec-font-zoom-val {
-    min-width: 2.6rem; text-align: center; font-variant-numeric: tabular-nums;
 }
 
 /* 이용권 탭의 구역 소제목 — 표 위에 붙는 작은 라벨로 처리 */
@@ -1623,145 +1325,23 @@ body:has(.container-security-wide) {
     font-size: 0.72rem; font-weight: 600; color: var(--sec-txt-faint);
     letter-spacing: 0.05em; margin-bottom: 0.35rem;
 }
-.container-security-wide .sec-pass-summary {
-    font-family: var(--sec-mono); font-size: 0.7rem; font-weight: 500; color: var(--sec-txt-dim);
-}
-
-/* ── 우측 콘텐츠 ─────────────────────────────────────────────── */
-/* 하단 상태 바를 바닥에 붙이기 위해 세로 flex + 위쪽 패딩만 준다 */
-.container-security-wide .sec-erp-content {
-    padding: 0; display: flex; flex-direction: column;
-}
-
-/* 🖥️ 콘솔 상단 상태 바 — 거점 / 현재 화면 / 동기화 / 시각 / 운영자 */
-.container-security-wide .sec-console-bar {
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
-    padding: 0.5rem 1.05rem; border-bottom: 1px solid var(--sec-line); background: var(--sec-panel-alt);
-}
-.container-security-wide .sec-console-loc { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; }
-.container-security-wide .sec-console-region { color: var(--sec-txt); font-weight: 700; }
-.container-security-wide .sec-console-sep { color: var(--sec-txt-faint); }
-.container-security-wide .sec-console-view { color: var(--sec-txt-dim); font-weight: 500; }
-
-/* 살아 있음 표시 — 동기화가 30초 넘게 끊기면 경고색으로 바뀐다 */
-.container-security-wide .sec-console-live {
-    width: 7px; height: 7px; border-radius: 50%; background: var(--sec-ok); flex-shrink: 0;
-    box-shadow: 0 0 0 2px rgba(46, 125, 79, 0.25);
-}
-.container-security-wide .sec-console-live.is-stale {
-    background: var(--sec-warn); box-shadow: 0 0 0 2px rgba(150, 101, 14, 0.25);
-}
-
-.container-security-wide .sec-console-meta {
-    display: flex; align-items: center; gap: 0.9rem;
-    font-family: var(--sec-mono); font-size: 0.72rem; color: var(--sec-txt-dim); letter-spacing: 0;
-}
-.container-security-wide .sec-console-sync.is-stale { color: var(--sec-warn); }
-.container-security-wide .sec-console-clock {
-    color: var(--sec-txt); font-size: 0.95rem; font-weight: 500; font-variant-numeric: tabular-nums;
-}
 
 /* ── 본문 2단 (좌: 작업 영역 / 우: 관제 요약 패널) ────────────────
    기본은 1단이고, 우측 패널은 넓은 화면에서만 켠다. 아래 @media 참조. */
 /* 본문 영역은 남는 세로 공간을 모두 차지한다.
    (내용 높이에만 맞추면 하단 상태바(margin-top:auto)와의 사이가 비고,
     2단일 때 우측 패널의 좌측 경계선이 중간에서 끊겨 보인다) */
-.container-security-wide .sec-console-body { display: block; flex: 1 1 auto; min-height: 0; }
-.container-security-wide .sec-console-main { min-width: 0; }
-.container-security-wide .sec-console-side { display: none; }
+.container-security-wide .sec-console-body {
+display: block; flex: 1 1 auto; min-height: 0;
+}
 
-/* 요약 카드 · 추이 스트립 · 탭 패널이 놓이는 본문 영역 */
-.container-security-wide .sec-scan-bar,
-.container-security-wide .sec-stat-grid,
-.container-security-wide .sec-trend-strip,
-.container-security-wide .sec-tab-panel,
-.container-security-wide .sec-reg-form { margin-left: 1.05rem; margin-right: 1.05rem; }
-.container-security-wide .sec-stat-grid { margin-top: 0.9rem; }
-
-/* 📈 시간대별 입실 추이 스트립 — 요약 카드 바로 아래에 계기판처럼 이어 붙인다 */
-.container-security-wide .sec-trend-strip {
-    display: flex; align-items: center; gap: 0.9rem; margin-bottom: 1rem;
-    padding: 0.4rem 0.8rem; background: var(--sec-panel-alt);
-    border: 1px solid var(--sec-line); border-top: none; border-radius: 0 0 3px 3px;
-}
-.container-security-wide .sec-trend-svg {
-    flex: 1; min-width: 0; height: 34px; display: block; color: var(--sec-accent);
-}
-.container-security-wide .sec-trend-readout {
-    display: flex; align-items: baseline; gap: 0.45rem; white-space: nowrap;
-    font-family: var(--sec-mono); font-size: 0.72rem; color: var(--sec-txt-faint);
-}
-.container-security-wide .sec-trend-label { font-family: 'Pretendard', sans-serif; }
-.container-security-wide .sec-trend-value {
-    color: var(--sec-txt); font-size: 0.95rem; font-weight: 600; font-variant-numeric: tabular-nums;
-}
 
 /* 🖥️ 우측 관제 패널 (≥1440px 에서만 표시 — 아래 @media 에서 켠다) */
 .container-security-wide .sec-console-side {
-    border-left: 1px solid var(--sec-line);
+border-left: 1px solid var(--sec-line);
     flex-direction: column; min-width: 0;
 }
-.container-security-wide .sec-side-block { border-bottom: 1px solid var(--sec-line); }
-.container-security-wide .sec-side-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-    padding: 0.5rem 0.85rem; background: var(--sec-panel-alt);
-    border-bottom: 1px solid var(--sec-line);
-}
-.container-security-wide .sec-side-title { font-size: 0.76rem; font-weight: 700; color: var(--sec-txt); }
-.container-security-wide .sec-side-meta {
-    font-family: var(--sec-mono); font-size: 0.66rem; color: var(--sec-txt-faint); letter-spacing: 0;
-}
-.container-security-wide .sec-side-list { padding: 0.1rem 0; }
-.container-security-wide .sec-side-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-    padding: 0.42rem 0.85rem; border-bottom: 1px solid var(--sec-line); font-size: 0.76rem;
-}
-.container-security-wide .sec-side-list > .sec-side-row:last-child { border-bottom: none; }
-/* 거점 행은 '출입 기록' 탭으로 넘어가는 버튼이다.
-   button 기본 스타일(테두리·배경·폰트 미상속)을 지워 다른 행과 같은 모양을 유지한다. */
-.container-security-wide .sec-side-row-btn {
-    width: 100%; background: none; border: none; border-bottom: 1px solid var(--sec-line);
-    font: inherit; color: inherit; text-align: left; cursor: pointer;
-    transition: background 0.12s ease;
-}
-.container-security-wide .sec-side-row-btn:hover { background: rgba(44, 111, 147, 0.07); }
-.container-security-wide .sec-side-row-btn:focus-visible {
-    outline: 1px solid var(--sec-accent); outline-offset: -1px;
-}
-.container-security-wide .sec-side-row-name {
-    display: flex; align-items: center; gap: 0.45rem; color: var(--sec-txt);
-    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-/* 자기 거점은 한 눈에 구분되게 (색이 아니라 굵기로 — 색은 이상 상황용으로 아껴 둔다) */
-.container-security-wide .sec-side-row.is-mine .sec-side-row-name { font-weight: 700; }
-.container-security-wide .sec-side-row-val {
-    font-family: var(--sec-mono); font-size: 0.68rem; color: var(--sec-txt-dim);
-    white-space: nowrap; letter-spacing: 0;
-}
-.container-security-wide .sec-side-dot {
-    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--sec-txt-faint);
-}
-.container-security-wide .sec-side-dot.is-ok { background: var(--sec-ok); }
-.container-security-wide .sec-side-dot.is-warn { background: var(--sec-warn); }
-.container-security-wide .sec-side-empty,
-.container-security-wide .sec-side-more {
-    padding: 0.55rem 0.85rem; font-size: 0.72rem; color: var(--sec-txt-faint);
-}
-.container-security-wide .sec-side-more { border-top: 1px solid var(--sec-line); font-family: var(--sec-mono); }
 
-/* 🖥️ 콘솔 하단 상태 바 */
-.container-security-wide .sec-console-foot {
-    margin-top: auto; display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap;
-    padding: 0.4rem 1.05rem; border-top: 1px solid var(--sec-line); background: var(--sec-panel-alt);
-    font-family: var(--sec-mono); font-size: 0.68rem; color: var(--sec-txt-faint); letter-spacing: 0;
-}
-.container-security-wide .sec-console-foot-end { margin-left: auto; }
-
-/* 🔔 경보음 상태 — 울리는 중에는 빨갛게 깜빡여, 소리를 못 들어도 눈에 띄게 한다.
-   꺼짐·차단 상태도 같은 자리에 노출한다. 조용한 게 정상인지 고장인지 구분돼야 한다. */
-.container-security-wide .sec-alarm-bar {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-}
 .container-security-wide .sec-alarm-dot {
     width: 7px; height: 7px; border-radius: 50%; background: var(--sec-txt-faint); flex: 0 0 auto;
 }
@@ -1776,8 +1356,8 @@ body:has(.container-security-wide) {
     color: var(--sec-crit); font-weight: 700;
 }
 .container-security-wide .sec-alarm-off .sec-alarm-text,
-.container-security-wide .sec-alarm-locked .sec-alarm-text { color: var(--sec-warn); }
-@keyframes secAlarmBlink { 50% { opacity: 0.15; } }
+.container-security-wide .sec-alarm-locked .sec-alarm-text { color: var(--sec-warn); }@keyframes secAlarmBlink { 50% { opacity: 0.15; } }
+
 
 .container-security-wide .sec-alarm-btn {
     padding: 1px 7px; border: 1px solid var(--sec-line); border-radius: 4px;
@@ -1795,51 +1375,6 @@ body:has(.container-security-wide) {
 .container-security-wide .sec-alarm-sep { color: var(--sec-line); }
 .container-security-wide .sec-alarm-push-ok   { color: var(--sec-ok); }
 .container-security-wide .sec-alarm-push-warn { color: var(--sec-warn); font-weight: 700; }
-
-/* 요약 통계: 떠 있는 카드 → 선으로 나눈 계기판 한 줄 */
-/* 아래 .sec-trend-strip 과 위아래로 맞물려 하나의 계기판 덩어리가 된다.
-   → 아래쪽 테두리·모서리·여백을 모두 없애고 추이 스트립이 이어받는다. */
-.container-security-wide .sec-stat-grid {
-    gap: 0; margin-bottom: 0;
-    border: 1px solid var(--sec-line); border-bottom: none;
-    border-radius: 3px 3px 0 0; overflow: hidden;
-}
-.container-security-wide .sec-stat-card {
-    background: var(--sec-panel-alt); border-radius: 0; padding: 0.7rem 0.95rem; gap: 5px;
-    border: none; border-right: 1px solid var(--sec-line); border-top: 2px solid transparent;
-    box-shadow: none; transition: background 0.15s ease;
-}
-.container-security-wide .sec-stat-grid > .sec-stat-card:last-child { border-right: none; }
-.container-security-wide .sec-stat-card:hover { transform: none; box-shadow: none; background: #e9edf2; }
-.container-security-wide .sec-stat-card:focus-visible { outline: 1px solid var(--sec-accent); outline-offset: -1px; }
-.container-security-wide .sec-stat-card .sec-stat-label {
-    font-size: 0.72rem; font-weight: 500; color: var(--sec-txt-faint); letter-spacing: 0.02em;
-}
-.container-security-wide .sec-stat-card .sec-stat-value {
-    font-family: var(--sec-mono); font-size: 1.35rem; font-weight: 600;
-    color: var(--sec-txt); font-variant-numeric: tabular-nums; letter-spacing: 0;
-}
-/* 상태색은 상단 2px 선 + 숫자에만. 카드 전체를 물들이지 않는다 */
-.container-security-wide .sec-stat-card.stat-pending { border-top-color: var(--sec-crit); }
-.container-security-wide .sec-stat-card.stat-pending .sec-stat-value { color: var(--sec-crit); }
-.container-security-wide .sec-stat-card.stat-onsite { border-top-color: var(--sec-accent); }
-.container-security-wide .sec-stat-card.stat-onsite .sec-stat-value { color: var(--sec-accent); }
-.container-security-wide .sec-stat-card.stat-overdue { border-top-color: var(--sec-warn); }
-.container-security-wide .sec-stat-card.stat-overdue .sec-stat-value { color: var(--sec-warn); }
-
-/* 패널 제목줄 */
-.container-security-wide .sec-live-title,
-.container-security-wide .sec-logs-title {
-    font-size: 0.88rem; font-weight: 700; color: var(--sec-txt); letter-spacing: 0.02em;
-}
-.container-security-wide .sec-live-title { color: var(--sec-txt); }
-.container-security-wide .sec-live-indicator { color: var(--sec-txt-faint); font-family: var(--sec-mono); font-size: 0.7rem; font-weight: 500; }
-.container-security-wide .sec-spinner { border-color: var(--sec-line-strong); border-top-color: var(--sec-accent) !important; }
-
-/* ── 표: 콘솔 로그처럼 촘촘하게 ───────────────────────────────── */
-.container-security-wide .sec-table-container {
-    border: 1px solid var(--sec-line); border-radius: 3px; background: var(--sec-panel);
-}
 .container-security-wide .modern-table th {
     background: var(--sec-panel-alt); color: var(--sec-txt-faint);
     font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em;
@@ -1853,13 +1388,6 @@ body:has(.container-security-wide) {
     font-variant-numeric: tabular-nums;
 }
 .container-security-wide .modern-table tbody tr:hover td { background: var(--sec-panel-alt); }
-.container-security-wide .sec-overdue-row td { background: rgba(177, 58, 47, 0.06); }
-
-/* 상태 배지: 밝은 파스텔 → 어두운 바탕용 저채도 */
-.container-security-wide .status-badge { border-radius: 3px; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.45rem; }
-.container-security-wide .badge-done { background: transparent; color: var(--sec-txt-faint); border: 1px solid var(--sec-line-strong); }
-.container-security-wide .badge-waiting { background: rgba(150, 101, 14, 0.1); color: var(--sec-warn); border: 1px solid rgba(150, 101, 14, 0.3); }
-.container-security-wide .sec-overdue-badge { background: rgba(177, 58, 47, 0.09); color: var(--sec-crit); border: 1px solid rgba(177, 58, 47, 0.3); border-radius: 3px; font-weight: 600; }
 .container-security-wide .sec-pass-badge-on  { background: rgba(46, 125, 79, 0.1); color: var(--sec-ok); border: 1px solid rgba(46, 125, 79, 0.3); }
 .container-security-wide .sec-pass-badge-off { background: rgba(150, 101, 14, 0.1); color: var(--sec-warn); border: 1px solid rgba(150, 101, 14, 0.3); }
 .container-security-wide .sec-pass-badge-end { background: transparent; color: var(--sec-txt-faint); border: 1px solid var(--sec-line-strong); }
@@ -1877,7 +1405,6 @@ body:has(.container-security-wide) {
 .container-security-wide .btn-list-action { border-radius: 3px; font-weight: 600; }
 .container-security-wide .bg-blue { background: transparent !important; color: var(--sec-accent); border: 1px solid var(--sec-accent); }
 .container-security-wide .bg-blue:hover { background: rgba(44, 111, 147, 0.1) !important; }
-.container-security-wide .bg-green { background: var(--sec-ok) !important; color: #ffffff; border: 1px solid var(--sec-ok); }
 /* 보조 동작(반려·정지·퇴실 처리): 윤곽선 */
 .container-security-wide .bg-orange { background: transparent !important; color: var(--sec-warn); border: 1px solid var(--sec-warn); }
 .container-security-wide .bg-orange:hover { background: rgba(150, 101, 14, 0.1) !important; }
@@ -1888,29 +1415,6 @@ body:has(.container-security-wide) {
     background: transparent; color: var(--sec-crit); border: 1px solid rgba(177, 58, 47, 0.45); border-radius: 3px;
 }
 .container-security-wide .btn-cancel-outline:hover { background: rgba(177, 58, 47, 0.09); border-color: var(--sec-crit); }
-
-/* 📝 발급·예약 폼(.sec-reg-form) — 기본값이 둥근 모서리 + 파란 강조라 콘솔 톤과 겉돈다 */
-.container-security-wide .sec-reg-form {
-    background: var(--sec-panel-alt); border: 1px solid var(--sec-line);
-    border-radius: 3px; padding: 0.9rem 1rem; margin-bottom: 1rem;
-}
-.container-security-wide .sec-reg-form > h3 {
-    font-size: 0.82rem; font-weight: 700; color: var(--sec-txt);
-    padding-bottom: 0.5rem; margin-bottom: 0.8rem;
-    border-bottom: 1px solid var(--sec-line);
-}
-.container-security-wide .sec-reg-form .sec-region-text {
-    font-family: var(--sec-mono); font-size: 0.7rem; font-weight: 500;
-    color: var(--sec-txt-faint); letter-spacing: 0;
-}
-/* 요일 선택 칩: --primary(파랑) → 콘솔 accent */
-.container-security-wide .sec-pass-weekday span {
-    border: 1px solid var(--sec-line-strong); background: var(--sec-panel);
-    color: var(--sec-txt-dim); border-radius: 3px; font-weight: 500;
-}
-.container-security-wide .sec-pass-weekday input:checked + span {
-    background: var(--sec-accent); border-color: var(--sec-accent); color: #fff;
-}
 /* 처리(승인 발급·반려) / 관리(QR·정지) 칸의 버튼은 항상 한 줄에 나란히 둔다.
    좁은 화면 규칙의 white-space:normal + word-break 가 버튼을 아래로 흘려보내던 것을 막는다.
    (td 를 flex 로 바꾸면 표 컬럼 정렬이 깨지므로, 셀은 table-cell 로 두고 nowrap 으로 처리) */
@@ -1919,44 +1423,6 @@ body:has(.container-security-wide) {
 .container-security-wide .sec-erp-layout .modern-table td.sec-pass-actions {
     white-space: nowrap; word-break: normal;
 }
-.container-security-wide .sec-pass-actions .sec-btn-approve-item {
-    display: inline-block; width: auto; margin: 0 3px; white-space: nowrap;
-    /* 'QR'(영문)과 '정지'(한글)는 글자 높이가 달라 인라인 베이스라인이 어긋난다.
-       → 줄높이를 고정하고 가운데 정렬해 두 버튼을 같은 높이·같은 선에 맞춘다. */
-    vertical-align: middle; line-height: 1.35;
-    /* 칸에 비해 버튼이 지나치게 작아 보이지 않도록 여백을 확보한다 */
-    padding: 8px 14px; font-size: 0.82rem;
-}
-
-/* 신청 표 안의 인라인 입력(종류·유효기간 확정) */
-.container-security-wide .sec-req-input {
-    background: var(--sec-panel); border: 1px solid var(--sec-line-strong);
-    color: var(--sec-txt); border-radius: 3px; font-size: 0.74rem;
-}
-
-/* 🎫 '유효기간 확정' 칸: 날짜와 기간을 한 줄에 나란히 놓는다.
-   기본값이 display:block + max-width:150px 라 폭과 무관하게 둘이 각자 한 줄을 차지했다.
-   폭 구간별로 따로 두지 않고 여기 한 곳에서 정한다 — 넓은 화면·좁은 화면 모두 같은 배치. */
-.container-security-wide #secPassReqZone .sec-req-input {
-    display: inline-block; vertical-align: middle; max-width: none;
-    /* 선택값('정기'/'수시', '1개월')과 드롭다운 화살표가 보이는 최소 폭.
-       없으면 좁은 화면에서 종류 셀렉트가 27px 까지 눌린다. */
-    min-width: 4.4rem;
-}
-.container-security-wide #secPassReqZone input[type="date"].sec-req-input { width: 7.6rem; }
-.container-security-wide #secPassReqZone select.sec-req-input { width: auto; }
-/* 확정된 기간 문구는 입력 아랫줄로. 같은 줄에 두면 이 칸의 최대너비를 끌어올려
-   신청자 칸을 밀어낸다. */
-.container-security-wide #secPassReqZone span[id^="secReqRange"] { display: block; }
-
-/* 스캔 입력칸: 화면상 숨겨져 있지만(opacity 0) 다크 전제 색이라 함께 맞춰 둔다 */
-.container-security-wide .sec-scan-input {
-    background: var(--sec-panel); border: 1px solid var(--sec-line-strong); color: var(--sec-txt);
-}
-.container-security-wide .sec-scan-input::placeholder { color: var(--sec-txt-faint); }
-.container-security-wide .sec-scan-result.ok { color: var(--sec-ok); }
-.container-security-wide .sec-scan-result.warn { color: var(--sec-warn); }
-.container-security-wide .sec-scan-result.err { color: var(--sec-crit); }
 
 /* 입력 폼(이용권 발급 등) */
 .container-security-wide .input-group label { color: var(--sec-txt-dim); font-size: 0.78rem; font-weight: 500; }
@@ -1971,74 +1437,14 @@ body:has(.container-security-wide) {
     box-shadow: 0 0 0 2px rgba(44, 111, 147, 0.18);
 }
 .container-security-wide .input-group input::placeholder { color: var(--sec-txt-faint); }
-.container-security-wide #secPassTo[readonly] { background: #eef1f5; color: var(--sec-txt-faint); }
-.container-security-wide .sec-auto-hint { color: var(--sec-txt-faint); }
 
 /* 🖥️ 넓은 화면(≥1440px)에서만 우측 관제 패널을 켠다.
    이보다 좁으면 좌측이 900px 아래로 내려가 출입 기록 표(12컬럼)가 상시 가로 스크롤이 된다. */
-@media (min-width: 1440px) {
-    .container-security-wide .sec-console-body {
-        display: grid; grid-template-columns: minmax(0, 1fr) 260px; align-items: stretch;
-    }
-    .container-security-wide .sec-console-side { display: flex; }
-    /* 2단일 때는 좌측 내부 여백만 유지하고 오른쪽은 경계선에 붙인다 */
-    .container-security-wide .sec-console-main .sec-scan-bar,
-    .container-security-wide .sec-console-main .sec-stat-grid,
-    .container-security-wide .sec-console-main .sec-trend-strip,
-    .container-security-wide .sec-console-main .sec-tab-panel,
-    .container-security-wide .sec-console-main .sec-reg-form { margin-right: 1.05rem; }
-}
+
 
 /* 📱 사이드바가 상단 가로 탭으로 접히는 구간: 세로 경계선 → 가로 경계선 */
 @media (max-width: 900px), (min-width: 901px) and (pointer: coarse) {
-    .container-security-wide .sec-erp-sidebar {
-        border-right: none; border-bottom: 1px solid var(--sec-line);
-        /* 세로 여백은 최소로 — 좁은 화면에서 이 영역은 브랜드 한 줄 + 탭 한 줄이 전부다 */
-        padding: 0.25rem 0.6rem 0;
-        /* ⚠ 데스크톱 규칙의 flex: 0 0 190px 를 반드시 풀어 준다.
-           가로 배치일 때 190px 는 '너비'였지만, 세로로 접히면 flex-basis 가 '높이'가 되어
-           내용이 두 줄뿐인데도 사이드바가 190px 로 고정돼 상단이 텅 빈 채 밀려났다. */
-        flex: 0 0 auto;
-    }
-    /* 브랜드는 기본 규칙의 flex:1 1 100% 때문에 한 줄을 통째로 차지했다.
-       제품명·버전도 세로 2줄 → 가로 1줄로 눕혀 높이를 줄인다. */
-    .container-security-wide .sec-erp-brand {
-        flex: 1 1 auto; border-bottom: none; padding: 0 0.2rem;
-    }
-    .container-security-wide .sec-erp-brand-text {
-        flex-direction: row; align-items: baseline; gap: 0.4rem;
-    }
-    /* 탭 줄은 다음 줄로 내린다. 위 브랜드 줄과의 간격만 아주 살짝 준다. */
-    .container-security-wide .sec-erp-nav { flex: 1 1 100%; order: 1; padding: 0; gap: 4px; margin-top: 0.2rem; }
-    /* 탭 자체 높이도 한 단계 낮추되, 터치로 누를 수 있는 크기는 유지한다 */
-    .container-security-wide .sec-nav-item { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-    .container-security-wide .sec-erp-sidebar-action { order: 2; padding: 0; }
-    .container-security-wide .sec-nav-item {
-        border-left: none; border-bottom: 2px solid transparent; border-radius: 0;
-    }
-    .container-security-wide .sec-nav-item.active { border-left: none; border-bottom-color: var(--sec-accent); }
-    /* 🏷️ 브랜드는 폭에 따라 자동으로 붙거나 내려간다(위 flex 규칙). 여기선 글자만 한 단계 줄인다. */
-    .container-security-wide .sec-nav-title { font-size: 1rem; }
-    .container-security-wide .sec-nav-sub { font-size: 0.72rem; }
-
-    /* 좁은 화면: 콘솔 바 좌우 여백을 줄이고, 본문 요소 여백도 같은 값으로 맞춘다 */
-    .container-security-wide .sec-console-bar,
-    .container-security-wide .sec-console-foot { padding-left: 0.75rem; padding-right: 0.75rem; }
-    .container-security-wide .sec-scan-bar,
-    .container-security-wide .sec-stat-grid,
-    .container-security-wide .sec-trend-strip,
-    .container-security-wide .sec-tab-panel,
-    .container-security-wide .sec-reg-form { margin-left: 0.75rem; margin-right: 0.75rem; }
-    /* 요약 카드와 추이 스트립은 한 덩어리로 붙어야 한다.
-       (좁은 화면 공통 규칙의 margin-bottom:16px 가 둘 사이를 벌려 놓는다)
-       + 카드는 3장인데 공통 규칙이 2열을 주는 바람에 빈 칸이 생겨 2×2 처럼 보였다.
-         숫자 하나짜리 칸이라 좁아도 3열 한 줄로 들어간다. */
-    .container-security-wide .sec-stat-grid {
-        margin-bottom: 0; grid-template-columns: repeat(3, 1fr);
-    }
-    .container-security-wide .sec-stat-card { padding: 0.5rem 0.55rem; gap: 3px; }
-    .container-security-wide .sec-stat-card .sec-stat-label { font-size: 0.8rem; }
-    .container-security-wide .sec-stat-card .sec-stat-value { font-size: 1.3rem; }
+.container-security-wide .sec-nav-item.active { border-left: none; border-bottom-color: var(--sec-accent); }
 
     /* 📋 좁은 화면 표: 가로 스크롤 대신 '한 화면에 담기'를 택한다.
        - min-w-700/900 을 풀어 표가 상자 폭에 맞도록 한다.
@@ -2047,7 +1453,6 @@ body:has(.container-security-wide) {
        - nowrap 을 풀어야 좁은 칸에서 글자가 잘리지 않고 줄바꿈된다. */
     .container-security-wide .sec-erp-layout .modern-table.min-w-700,
     .container-security-wide .sec-erp-layout .modern-table.min-w-900 { min-width: 0; }
-    .container-security-wide .sec-erp-layout .col-lo { display: none; }
     .container-security-wide .sec-erp-layout .modern-table th,
     .container-security-wide .sec-erp-layout .modern-table td {
         white-space: normal; word-break: break-word; padding: 0.45rem 0.35rem;
@@ -2065,12 +1470,4 @@ body:has(.container-security-wide) {
          결과적으로 여유가 있으면 다 들어가고, 모자랄 때만 가로로 스크롤된다. */
     .container-security-wide #secPassReqZone .modern-table th:first-child,
     .container-security-wide #secPassReqZone .modern-table td:first-child { min-width: 5.6rem; }
-    /* 좁은 화면에서도 누를 수 있는 크기를 지킨다.
-       루트가 15px 로 통일돼 있어 rem 이 의도대로 계산된다. (0.87rem ≈ 13px) */
-    .container-security-wide .sec-pass-actions .sec-btn-approve-item {
-        padding: 0.53rem 0.8rem; font-size: 0.87rem; margin: 0 2px;
-    }
-    /* 시계·운영자까지 한 줄에 들어가지 않으므로 메타 정보는 아래 줄로 흘린다 */
-    .container-security-wide .sec-console-meta { gap: 0.6rem; font-size: 0.68rem; }
-    .container-security-wide .sec-console-clock { font-size: 0.85rem; }
 }

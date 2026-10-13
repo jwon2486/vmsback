@@ -17,6 +17,18 @@ self.addEventListener('push', function (event) {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
 
+    /* 처리가 끝났다는 신호 → 떠 있는 알림을 거둔다.
+       알림이 남아 있으면 경비가 이미 처리한 건을 보고 또 확인하러 간다. */
+    if (data.clear) {
+        event.waitUntil((async function () {
+            const ns = await self.registration.getNotifications({ tag: data.tag || 'sec-alert' });
+            ns.forEach(n => n.close());
+            const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+            cs.forEach(c => c.postMessage({ type: 'sec-push-clear' }));
+        })());
+        return;
+    }
+
     const title = data.title || '출입관리 알림';
     const body  = data.body  || '확인이 필요한 건이 있습니다.';
 

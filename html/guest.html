@@ -12,7 +12,11 @@
     <link rel="icon" href="/icons/icon-192.png">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
+    <!-- 화면별로 파일을 나눠 둔다. 한쪽을 고칠 때 다른 쪽을 스크롤로 지나치지 않게 하기 위함이다.
+         실제 격리는 클래스 이름 분리(-visitor / -emp)가 담당한다. 순서: 공통 → 임직원 → 경비실 -->
     <link rel="stylesheet" href="../css/guest.css">
+    <link rel="stylesheet" href="../css/emp.css">
+    <link rel="stylesheet" href="../css/security.css">
 </head>
 <body>
     <div class="container">
@@ -123,6 +127,8 @@
     <script src="../js/auth.js"></script>
     <script src="../js/visitor.js"></script>
     <script src="../js/emp.js"></script>
+    <!-- 🧑‍💼 임직원 모달: 방문 예약 수정 · 장기 출입권 신청 -->
+    <script src="../js/emp-modal.js"></script>
     <!-- 🔔 경보음 관리자 — security.js 가 secAlarm.report() 를 부르므로 먼저 로드한다 -->
     <script src="../js/sec-alarm.js"></script>
     <script src="../js/security.js"></script>

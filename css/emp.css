@@ -1,0 +1,305 @@
+/* css/emp.css — 임직원 화면 전용 (대시보드·나의 예약·모달).
+   손님 화면과 클래스 이름이 분리돼 있어(-emp 접미사) 여기를 고쳐도 손님 화면은 영향받지 않는다.
+   공통 스타일은 guest.css 에 있다. 이 파일은 guest.css 다음에 로드된다. */
+
+
+.nav-profile-info { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.nav-profile-info .avatar { font-size: 1.2rem; background: #f1f5f9; padding: 0.35rem; border-radius: 50%; flex-shrink: 0; }
+.nav-profile-info .user-text { font-size: 1rem; color: #334155; min-width: 0; display: flex; flex-flow: row wrap; align-items: center; justify-content: center; text-align: center; gap: 3px 7px; }
+.nav-profile-info .user-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
+.nav-profile-info .dept-tag { font-size: 0.82rem; color: var(--primary); font-weight: 600; background: #eff6ff; padding: 0.2rem 0.5rem; border-radius: 6px; margin-left: 0; white-space: nowrap; }
+.nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }@media (max-width: 900px) {
+.nav-profile-info { min-width: 0; }
+    .nav-actions { flex-wrap: nowrap; gap: 0.35rem; flex-shrink: 0; }
+    .btn-nav-link { padding: 0.3rem 0.6rem; font-size: 0.86rem; white-space: nowrap; }
+}
+
+
+/* 접기/펴기 토글은 모바일에서만 쓴다. 넓은 화면에서는 버튼이 다 보이므로 필요 없다. */
+.nav-toggle { display: none; }@media (max-width: 640px) {
+.nav-profile-info { gap: 0.35rem; flex: 1 1 auto; min-width: 0; }
+    .nav-profile-info .avatar { font-size: 1rem; padding: 0.28rem; }
+    .nav-profile-info .user-text { font-size: 0.85rem; justify-content: flex-start; text-align: left; }
+    .nav-profile-info .dept-tag { margin-left: 0; font-size: 0.72rem; padding: 0.08rem 0.32rem; }
+
+    .nav-toggle {
+        display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto;
+        padding: 0.32rem 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;
+        background: #f8fafc; color: #475569; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+    }
+    .nav-caret { transition: transform 0.18s ease; }
+
+    /* 상시 노출 묶음 — 줄어들지 않는다. 좁아질 몫은 이름 쪽이 맡는다(말줄임 처리됨). */
+    .nav-actions-primary { display: flex; flex-flow: row nowrap; gap: 0.3rem; flex: 0 0 auto; }
+
+    /* 메뉴 묶음 — 접으면 사라지고, 펴면 order 로 아랫줄에 내려가 한 줄을 다 쓴다.
+       버튼은 글자 폭에 맞춘 크기로 가로로 늘어놓고 모자랄 때만 다음 줄로 넘긴다. */
+    .nav-actions-more { display: none; }
+    .nav-actions .btn-nav-link { flex: 0 0 auto; width: auto; padding: 0.32rem 0.5rem; font-size: 0.76rem; }
+}
+
+
+.btn-nav-link { padding: 0.35rem 0.85rem; font-size: 0.92rem; font-weight: 700; border-radius: 8px; background: transparent; border: none; cursor: pointer; }
+.btn-link-danger { background: #fef2f2; color: var(--danger); border: 1px solid #fee2e2; }
+.btn-link-danger:hover { background: var(--danger); color: white; }
+/* 관리자 버튼: 로그아웃 버튼과 동일 스타일(.btn-nav-link) + 밝은 연두색 */
+.btn-link-admin { background: #ecfccb; color: #4d7c0f; border: 1px solid #bef264; text-decoration: none; display: inline-flex; align-items: center; }
+.btn-link-admin:hover { background: #84cc16; color: #ffffff; }
+/* 전체기록 버튼: 다른 버튼처럼 테두리 + 옅은 배경 pill (슬레이트 톤) */
+.btn-all-logs { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+.btn-all-logs:hover { background: #475569; color: #ffffff; }
+
+.list-header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }@media (min-width: 991px) {
+.picker-box-full { gap: 0.25rem; flex: 0 0 auto; }
+    .picker-box-full input[type="date"] { padding: 0.5rem 0.5rem; font-size: 0.82rem; }
+}
+
+
+/* 방문 거점 선택 + 방문 일자: 모든 화면에서 같은 줄로 배치 */
+.region-date-group { display: flex; flex-direction: row; gap: 1rem; width: 100%; }@media (max-width: 640px) {
+.region-date-group { gap: 0.5rem; }
+}
+
+
+
+/* 🔢 임직원 화면: 내 담당자 번호 (방문객에게 알려 주는 값) */
+.my-visit-code {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    padding: 0.6rem 0.9rem; margin-bottom: 0.9rem;
+    background: #eef6ff; border: 1px solid #bcdcff; border-radius: var(--radius-md);
+}
+.my-visit-code .mvc-label { font-size: 0.88rem; font-weight: 700; color: #1d4ed8; }
+.my-visit-code .mvc-value {
+    font-size: 1.25rem; font-weight: 800; color: #1d4ed8;
+    letter-spacing: 0.12em; font-variant-numeric: tabular-nums;
+}
+.my-visit-code .mvc-btn {
+    margin-left: auto; padding: 0.28rem 0.7rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--primary); background: var(--primary); color: #fff;
+    font-family: inherit; font-size: 0.82rem; font-weight: 700;
+}
+.my-visit-code .mvc-btn-sub {
+    margin-left: 0; background: #fff; color: var(--primary);
+}
+.my-visit-code .mvc-btn:hover { opacity: 0.88; }
+.emp-comp-scroll-box { padding-right: 5px; }
+
+/* ==========================================
+   6. 리스트 내부 아이템 디자인
+   ========================================== */
+.result-item, .result-item-schedule { 
+    background: #ffffff; border: 1px solid var(--border-color); border-radius: 10px; 
+    padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.01); 
+}
+/* 나의 예약 카드 — 위(누가) / 아래(언제·어디서·처리) 2단.
+   한 줄에 다 밀어 넣으면 좁은 화면에서 버튼이 잘려 나간다. */
+.result-item-schedule { flex-direction: column; align-items: stretch; gap: 0; }
+.sched-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;
+    line-height: 1.5; word-break: keep-all;
+}
+.sched-people { min-width: 0; flex: 1 1 auto; }
+.sched-top .status-badge { flex: 0 0 auto; }
+
+/* 시간 줄(좌) + 버튼(우). 좁아지면 버튼이 아랫줄로 내려간다. */
+.sched-bottom-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 0.5rem; flex-wrap: wrap;
+}
+.sched-bottom-row .item-sub-time { flex: 1 1 auto; min-width: 0; margin-top: 0; }
+.sched-bottom-row .item-action-zone { flex: 0 0 auto; margin-top: 0; }
+.sched-bottom {
+    margin-top: 0.5rem; padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+.schedule-item-card-padding { padding: 0.7rem 0.75rem; }
+.item-sub-desc { font-size: 0.88rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; margin-top: 3px; }
+.item-sub-time { font-size: 0.88rem; color: var(--primary); font-weight: 600; margin-top: 3px; }
+/* 나의 예약: 입/퇴실 '실제 | 예정' 인라인 표기 */
+.item-sub-time .time-checkin, .item-sub-time .time-checkout { color: var(--text-main); font-weight: 700; line-height: 1.6; }
+.item-sub-time .time-expected-inline { color: var(--text-muted); font-weight: 500; }
+.item-sub-time .time-pending { color: #f59e0b; font-weight: 700; }
+
+.item-action-zone {
+    display: flex; justify-content: flex-end; align-items: center;
+    flex-wrap: wrap; gap: 6px; margin-top: 0.45rem;
+}
+.status-badge { font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.6rem; border-radius: 6px; }
+.badge-done { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+.badge-waiting { background:#fef3c7; color:#ea580c; border:1px solid #fde68a; }
+
+/* 그룹/사전예약 리스트용 */
+.group-schedule-card { background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.group-schedule-header { padding: 10px 15px; background: #e2e8f0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; gap: 10px; }
+.group-action-wrapper { display: flex; align-items: center; gap: 4px; }
+button.btn-add-comp-outline-solid { background: #ffffff; margin-top: 10px; }
+.display-block { display: block !important; }
+/* 임직원 목록의 보조 액션(개별 신청·QR 전달). 규칙이 없어 배경 없이 흰 글씨로 나오던 것을 채운다. */
+.bg-emp-sub { background: #64748b !important; }
+
+.fw-bold { font-weight: bold; }
+
+/* 동반 일행 입력 헤더: 제목(좌) / 전체 삭제(우) 배치 */
+.comp-zone-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+
+/* 📍 거점 QR 안내: nav 버튼 + 팝업 */
+.btn-region-qr { background: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe; text-decoration: none; }
+.btn-region-qr:hover { background: var(--primary); color: #fff; }
+/* 🎫 장기 출입권 — 방문 예약과 다른 종류의 신청이라 보라 계열로 구분한다.
+   (파란색은 거점 QR 안내가 쓰고 있어 나란히 두면 같은 기능으로 읽힌다) */
+.btn-pass-req { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+.btn-pass-req:hover { background: #6d28d9; color: #fff; }
+
+/* 🔳 방문객 QR 전달 (직원 화면) — 카드 뼈대는 거점 QR 안내와 같은 스타일을 쓴다 */
+.emp-qr-status { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+.emp-qr-actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+.emp-qr-save {
+    padding: 0.4rem 0.8rem; border: 1px solid var(--border-color); border-radius: 8px;
+    background: #fff; color: var(--text-muted); font-weight: 700; font-size: 0.82rem;
+    text-decoration: none; cursor: pointer;
+}
+.emp-qr-save:hover { border-color: var(--primary); color: var(--primary); }@media (max-width: 640px) {
+.emp-qr-save { padding: 0.32rem 0.4rem; font-size: 0.7rem; }
+    .emp-qr-status { font-size: 0.7rem; }
+}
+
+.region-badge-warning { background-color: #f59e0b; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+
+.ind-panel { width: 100%; background: #f8fafc; border-top: 1px dashed #cbd5e1; padding: 8px 10px; margin-top: 8px; border-radius: 6px; }
+.ind-panel-title { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; }
+.ind-panel-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+.ind-panel-name { font-size: 0.95rem; color: #334155; font-weight: bold; }
+.ind-panel-corp { color: #64748b; font-size: 0.8em; font-weight: normal; }
+.ind-panel-actions { display: flex; gap: 4px; align-items: center; }
+.btn-ind-action { padding: 2px 6px !important; font-size: 0.75rem !important; }
+.badge-ind-status { padding: 2px 6px; font-size: 0.7rem; }
+
+.pagination-nav-bar { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 15px; padding: 6px 0; width: 100%; }
+.btn-page { padding: 4px 10px; font-size: 0.85rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; color: #475569; cursor: pointer; font-weight: 700; }
+.btn-page:disabled { opacity: 0.5; cursor: not-allowed; }
+.page-indicator { font-size: 0.88rem; font-weight: 800; color: #334155; }@media (min-width: 641px) and (max-width: 900px) and (orientation: portrait) {
+.mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
+    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; }
+    .mobile-tab-content { display: none; }
+}
+@media (min-width: 991px) {
+#my-schedule-list { display: flex; flex-direction: column; gap: 0.85rem; }
+}
+@media (max-width: 640px) {
+.mobile-tabs { display: flex; width: 100%; margin-bottom: 1.25rem; background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px; }
+    .mobile-tab-btn { flex: 1; padding: 0.85rem; border: none; background: transparent; border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.95rem; } 
+    .mobile-tab-content { display: none; }
+
+    /* 나의 예약 카드는 상·하 2단 구조라 모바일에서도 그대로 쓴다.
+       예전에는 여기서 한 줄(nowrap)로 되돌렸는데, 그 탓에 버튼이 화면 밖으로 잘렸다. */
+    .item-action-zone { width: auto; justify-content: flex-end; margin-top: 0; }
+    .group-schedule-header { flex-direction: column; align-items: flex-start; }
+    .group-action-wrapper { width: 100%; justify-content: flex-end; margin-top: 8px; }
+}
+
+
+/* 🎫 경비실 QR 이용권 보기 오버레이 (인쇄 없이 화면 표시 + 이미지 저장) */
+/* ====================================================================
+   🧑‍💼 임직원 화면 모달 (방문 예약 수정 · 장기 출입권 신청)
+   경비실 QR 창과 같은 겹침 방식을 쓰되, 입력 폼이라 세로로 길어질 수 있어
+   내용이 넘치면 모달 안에서만 스크롤되게 한다(배경이 같이 밀리지 않게).
+   ==================================================================== */
+/* 모달 안 탭 — 임직원 모바일 화면의 탭(.mobile-tabs)과 같은 모양.
+   그쪽은 좁은 화면 전용 규칙이라 재사용할 수 없어 같은 생김새로 따로 둔다. */
+.emp-tabs {
+    display: flex; width: 100%; margin-bottom: 1rem;
+    background: #f1f5f9; border-radius: 10px; padding: 4px; gap: 4px;
+}
+.emp-tab-btn {
+    flex: 1; padding: 0.7rem 0.4rem; border: none; background: transparent;
+    border-radius: 8px; font-weight: 700; color: #64748b; font-size: 0.92rem; cursor: pointer;
+}
+
+/* 신청 현황 목록 */
+.pass-my-item {
+    border: 1px solid var(--border-color); border-radius: 10px;
+    padding: 0.7rem 0.8rem; margin-bottom: 0.6rem; background: #fff; text-align: left;
+}
+.pass-my-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.pass-my-state {
+    flex: 0 0 auto; font-size: 0.75rem; font-weight: 800;
+    padding: 2px 9px; border-radius: 999px; border: 1px solid transparent;
+}
+/* 나의 예약 목록 — 회사 머리글 + 이름 묶음 */
+.corp-block { margin-bottom: 0.25rem; }
+.corp-block:last-child { margin-bottom: 0; }
+.corp-head { font-size: 0.86rem; font-weight: 700; color: var(--text-muted); word-break: keep-all; }
+.corp-names { line-height: 1.6; }
+
+.pass-my-info { margin-top: 0.35rem; font-size: 0.83rem; color: var(--text-muted); }
+.pass-my-btns { display: flex; gap: 0.4rem; margin-top: 0.55rem; }
+.pass-my-btns > * { flex: 1 1 0; }
+.emp-modal {
+    background: #fff; border-radius: var(--radius-md);
+    width: min(94vw, 30rem); max-height: 88vh; overflow-y: auto;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
+}
+.emp-modal-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--border-color);
+    position: sticky; top: 0; background: #fff; border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.emp-modal-title { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--text-main); }
+.emp-modal-x {
+    border: none; background: none; font-size: 1.3rem; line-height: 1;
+    color: var(--text-muted); cursor: pointer; padding: 0 0.2rem;
+}
+.emp-modal-body { padding: 1rem 1.1rem 1.2rem; }
+.emp-field { margin-bottom: 0.7rem; text-align: left; }
+.emp-field > label {
+    display: block; font-size: 0.85rem; font-weight: 700;
+    color: var(--text-main); margin-bottom: 0.3rem;
+}
+.emp-field input, .emp-field select, .emp-field textarea {
+    width: 100%; padding: 0.6rem 0.7rem; border: 1px solid #cbd5e1;
+    border-radius: 8px; font-size: 0.92rem; background: #fff; font-family: inherit;
+}
+/* 두 칸을 한 줄에 — 입력칸이 좁아지는 대신 폼 전체가 짧아져 한눈에 들어온다.
+   min-width:0 이 없으면 input 의 기본 너비 때문에 칸이 안 줄고 모달을 밀어낸다. */
+.emp-field-row { display: flex; gap: 0.5rem; align-items: center; }
+.emp-field-row > * { flex: 1 1 0; min-width: 0; }
+.emp-field-row .emp-field { margin-bottom: 0.7rem; }
+.emp-field-row .emp-tilde { flex: 0 0 auto; color: var(--text-muted); }
+
+/* 사업장·시작일·기간 3분할. 사업장 이름이 길어 더 넓게 준다. */
+.emp-row-3 { align-items: flex-end; }
+.emp-row-3 > .emp-field:nth-child(1) { flex: 1.35 1 0; }
+.emp-row-3 > .emp-field:nth-child(2) { flex: 1.05 1 0; }
+.emp-row-3 > .emp-field:nth-child(3) { flex: 0.75 1 0; }@media (max-width: 480px) {
+.emp-row-3 { flex-wrap: wrap; }
+    .emp-row-3 > .emp-field:nth-child(1) { flex: 1 1 100%; }
+    .emp-row-3 > .emp-field:nth-child(2),
+    .emp-row-3 > .emp-field:nth-child(3) { flex: 1 1 0; }
+}
+
+/* 성명 : 연락처 = 성명이 짧으므로 연락처(3박스)에 폭을 더 준다. */
+.emp-row-comp > .emp-field:nth-child(1) { flex: 0.75 1 0; }
+.emp-row-comp > .emp-field:nth-child(2) { flex: 1.25 1 0; }
+
+.emp-modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.emp-modal-actions button { flex: 1 1 0; padding: 0.75rem 0.5rem; font-size: 0.95rem; font-weight: 700; border-radius: 8px; cursor: pointer; }
+.emp-btn-primary { background: var(--primary); color: #fff; border: 1px solid var(--primary); }
+.emp-btn-ghost { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+.emp-req-star { color: #dc2626; }
+/* 모달 안에서 한 줄을 다 쓰는 버튼.
+   admin.css 의 .btn-full 은 임직원 화면(guest.css)에 없어서 버튼이 맨 텍스트로 보였다. */
+.emp-btn-block {
+    display: block; width: 100%; margin-top: 0.1rem;
+    padding: 0.7rem 0.5rem; font-size: 0.92rem; font-weight: 700;
+    border-radius: 8px; cursor: pointer;
+}
+.container-security-wide .nav-profile-info .user-text { color: var(--sec-txt); }
+/* 경비실 화면은 직급을 노출하지 않는다 (계정명·소속만).
+   auth.js 의 nav 는 임직원 화면과 공용이라, 마크업을 바꾸는 대신 여기서 숨긴다. */
+.container-security-wide .nav-profile-info .nav-rank { display: none; }
+.container-security-wide .nav-profile-info .avatar { background: var(--sec-panel-alt); }
+
+/* 상태 배지: 밝은 파스텔 → 어두운 바탕용 저채도 */
+.container-security-wide .status-badge { border-radius: 3px; font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.45rem; }
+.container-security-wide .badge-done { background: transparent; color: var(--sec-txt-faint); border: 1px solid var(--sec-line-strong); }
+.container-security-wide .badge-waiting { background: rgba(150, 101, 14, 0.1); color: var(--sec-warn); border: 1px solid rgba(150, 101, 14, 0.3); }

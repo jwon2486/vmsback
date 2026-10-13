@@ -15,20 +15,45 @@ function renderEmpNavbar() {
     
     let allLogsBtnHtml = '';
     if (emp && [3, 5].includes(parseInt(emp.level))) {
-        allLogsBtnHtml = `<button onclick="openVisitorLogModal()" class="btn-nav-link btn-all-logs">📊 전체기록</button>`;
+        allLogsBtnHtml = `<button onclick="openVisitorLogModal()" class="btn-nav-link btn-all-logs">전체기록</button>`;
     }
     
+    // 🎫 장기 출입권 신청 — 방문 예약과 성격이 다른 별도 신청이라 전역 동작으로 둔다.
+    //    경비실(4)은 '출입 이용권' 탭에서 직접 발급하므로 신청 창구가 필요 없다.
+    let passBtnHtml = '';
+    if (emp && parseInt(emp.level) !== 4) {
+        passBtnHtml = `<button onclick="openPassRequest()" class="btn-nav-link btn-pass-req">장기 출입권</button>`;
+    }
+
+    /* 📱 모바일에서는 버튼이 한 줄에 다 안 들어간다. 두 묶음으로 나눈다.
+         - 상시 노출: 전체기록·관리자·로그아웃 — 자주 쓰거나 바로 닿아야 하는 것
+         - 메뉴 안:  장기 출입권·거점 QR 안내 — 가끔 쓰는 신청·안내 창구
+       데스크톱에서는 토글이 숨고 두 묶음이 한 줄에 이어 붙는다(기존 순서 그대로). */
     utilityNav.innerHTML = `
         <div class="nav-profile-info">
             <span class="user-text"><b>${emp.name}<span class="nav-rank"> ${emp.rank || ''}</span></b> <span class="dept-tag">${emp.dept}</span></span>
         </div>
-        <div class="nav-actions nav-actions-flex-wrapper">
+        <div class="nav-actions nav-actions-more" id="navActionsMore">
+            ${passBtnHtml}
             <button onclick="openRegionQrModal()" class="btn-nav-link btn-region-qr">거점 QR 안내</button>
+        </div>
+        <div class="nav-actions nav-actions-primary">
             ${allLogsBtnHtml}
             ${adminBtnHtml}
             <button onclick="handleEmpLogout()" class="btn-nav-link btn-link-danger">로그아웃</button>
         </div>
+        <button type="button" class="nav-toggle" onclick="toggleUtilityNav()"
+                aria-expanded="false" aria-controls="navActionsMore">메뉴 <span class="nav-caret">▾</span></button>
     `;
+}
+
+/** 모바일 유틸리티 바 접기/펴기. 데스크톱에서는 토글 자체가 보이지 않는다. */
+function toggleUtilityNav() {
+    const nav = document.getElementById('utility-nav');
+    const btn = nav?.querySelector('.nav-toggle');
+    if (!nav) return;
+    const open = nav.classList.toggle('nav-open');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function showEmpLoginForm() {

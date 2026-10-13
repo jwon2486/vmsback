@@ -11,6 +11,17 @@ const SEC_REFRESH_LABEL = `자동 갱신 ${SEC_REFRESH_MS / 1000}초`;
 // 'YYYY-MM-DD HH:MM:SS' → 'HH:MM:SS' 만 반환.
 //  - 표에는 이미 '방문일' 컬럼이 있어 날짜가 중복되므로 입·퇴실 셀은 시간만 표시한다.
 //  - 값이 없거나 예상 형식이 아니면 안전하게 원본(또는 '-')을 그대로 반환.
+/* 📅 출입 기록 표의 방문일. (현재 방문일 열은 숨김 상태 — 열을 되살릴 때 다시 쓴다)
+   같은 해 날짜가 대부분이고 조회 기간은 바로 위 필터에 적혀 있어, 연도가 매 행 반복될 이유가 없다.
+   다른 해 기록은 헷갈리면 안 되므로 연도를 그대로 둔다. */
+function secDateShort(v) {
+    const s = (v || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2}-\d{2})$/);
+    if (!m) return s || '-';
+    const thisYear = String(new Date().getFullYear());
+    return m[1] === thisYear ? m[2] : s;
+}
+
 function secTimeOnly(val) {
     if (!val) return '-';
     const parts = String(val).trim().split(' ');
@@ -306,21 +317,20 @@ function showSecurityDashboard() {
                     <table class="modern-table w-100 min-w-900">
                         <thead class="sec-table-head">
                             <tr>
-                                <th class="p-10 col-lo">순번</th>
-                                <th class="p-10">방문일</th>
+                                <!-- 순번·방문일 열은 경비실 화면에서 숨긴다(2026-10-13). 다시 쓰려면 행 쪽과 함께 되살린다. -->
                                 <th class="p-10">이름</th>
                                 <th class="p-10 col-lo">연락처</th>
-                                <th class="p-10">방문 횟수</th>
-                                <th class="p-10">소속</th>
-                                <th class="p-10 col-lo">방문 목적</th>
-                                <th class="p-10">담당자</th>
                                 <th class="p-10 col-lo">차량 번호</th>
+                                <th class="p-10">방문 횟수</th>
+                                <th class="p-10 col-wrap">소속</th>
+                                <th class="p-10 col-lo">방문 목적</th>
+                                <th class="p-10 col-wrap">담당자</th>
                                 <th class="p-10">입·퇴실</th>
                                 <th class="p-10">상태</th>
                             </tr>
                         </thead>
                         <tbody id="secAllLogsBody">
-                            <tr><td colspan="11" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
+                            <tr><td colspan="9" class="no-data-box">전체 기록을 불러오는 중입니다...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -968,14 +978,14 @@ async function loadSecurityAllLogs(isAuto = false) {
     if (!tbody || !startDateEl || !endDateEl) return;
 
     if (!isAuto) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center-p20-gray">기록 내역을 불러오는 중입니다...</td></tr>';
     }
 
     try {
         const regionParam = secRegionFilter ? `&region=${encodeURIComponent(secRegionFilter)}` : '';
         const res = await fetch(`/api/admin/logs?start_date=${startDateEl.value}&end_date=${endDateEl.value}${regionParam}`);
         if (res.status === 401 || res.status === 403) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">조회 권한이 만료되었습니다. 재로그인 해주세요.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center-p20-red">조회 권한이 만료되었습니다. 재로그인 해주세요.</td></tr>';
             if (securityRefreshTimer) clearInterval(securityRefreshTimer);
             return;
         }
@@ -1004,7 +1014,7 @@ async function loadSecurityAllLogs(isAuto = false) {
         secRenderTrend();   // 📈 방금 받은 기록으로 시간대별 추이 다시 그림
     } catch (e) {
         if (!isAuto) {
-            tbody.innerHTML = '<tr><td colspan="12" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center-p20-red">데이터 연동 에러가 발생했습니다.</td></tr>';
         }
     }
 }
@@ -1024,7 +1034,7 @@ function renderSecurityLogTable() {
     {
         let html = '';
         if (secLogsAll.length === 0) {
-            html = '<tr><td colspan="11" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
+            html = '<tr><td colspan="9" class="text-center-p20-gray">해당 날짜에 조회된 출입 데이터가 없습니다.</td></tr>';
         } else {
             sorted.forEach(v => {
                 const managerDisplay = v.emp_name
@@ -1045,15 +1055,13 @@ function renderSecurityLogTable() {
 
                 html += `
                     <tr class="border-bottom-eee">
-                        <td class="p-10 col-lo">${v.month_seq != null ? v.month_seq : '-'}</td>
-                        <td class="p-10">${v.visit_date}</td>
                         <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}<div class="fs-8 sec-req-time">${secRequesterLine(v)}</div></td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
-                        <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
-                        <td class="p-10">${v.company}</td>
-                        <td class="p-10 col-lo"><span class="sec-purpose-badge">${v.purpose}</span></td>
-                        <td class="p-10">${managerDisplay}</td>
                         <td class="p-10 col-lo">${secVehicle(v.vehicle_no)}</td>
+                        <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
+                        <td class="p-10 col-wrap">${v.company}</td>
+                        <td class="p-10 col-lo"><span class="sec-purpose-badge">${v.purpose}</span></td>
+                        <td class="p-10 col-wrap">${managerDisplay}</td>
                         <td class="p-10">
                             <span class="text-green fw-600">입 ${secTimeOnly(v.checkin_time)}</span><br>
                             <span class="text-red fw-600">퇴 ${secTimeOnly(v.checkout_time)}</span>

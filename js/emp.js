@@ -351,37 +351,39 @@ function renderScheduleItems() {
             const v = subMembers[0]; 
             const isCombined = subMembers.length > 1; 
 
+            /* 상태 배지는 '동작'이 아니라 '현재 상태'다 → 버튼 줄에서 빼내 카드 위쪽에 올린다.
+               버튼 줄이 한 칸 짧아지고, 상태는 이름 옆에서 먼저 눈에 들어온다. */
+            let statusBadgeHtml = '';
+            if (v.status === '입실대기')      statusBadgeHtml = `<span class="status-badge badge-waiting">입실 대기중</span>`;
+            else if (v.status === '퇴실대기') statusBadgeHtml = `<span class="status-badge badge-waiting">퇴실 대기중</span>`;
+            else if (!['사전예약', '입실완료'].includes(v.status))
+                statusBadgeHtml = `<span class="status-badge badge-done">${statusLabel(v.status)}</span>`;
+
             let actionHtml = '';
-            
+
             if (v.status === '사전예약') {
-                if (isCombined) {
-                    actionHtml = `<button onclick="toggleIndividualPanel('${key}')" class="btn-list-action bg-emp-sub">개별 신청</button>`;
-                } else {
-                    actionHtml = `
-                        <button onclick="handleStaffDirectCheckin(${v.id}, '${v.name}')" class="btn-list-action bg-blue">입실 요청</button>
-                        <button onclick="handleStaffCancelSchedule(${v.id}, '${v.name}')" class="btn-cancel-outline">취소</button>
-                    `;
-                }
-            } else if (v.status === '입실대기') {
-                actionHtml = `<span class="status-badge badge-waiting">입실 대기중</span>`;
+                actionHtml = isCombined
+                    ? `<button onclick="toggleIndividualPanel('${key}')" class="btn-list-action bg-emp-sub">개별 신청</button>`
+                    : `<button onclick="handleStaffDirectCheckin(${v.id}, '${v.name}')" class="btn-list-action bg-blue">입실 요청</button>`;
             } else if (v.status === '입실완료') {
-                if (isCombined) {
-                    actionHtml = `<button onclick="toggleIndividualPanel('${key}')" class="btn-list-action bg-emp-sub">개별 신청</button>`;
-                } else {
-                    actionHtml = `<button onclick="handleStaffDirectCheckout(${v.id}, '${v.name}')" class="btn-list-action bg-orange">퇴실 요청</button>`;
-                }
-            } else if (v.status === '퇴실대기') {
-                actionHtml = `<span class="status-badge badge-waiting">퇴실 대기중</span>`;
-            } else {
-                actionHtml = `<span class="status-badge badge-done">${statusLabel(v.status)}</span>`;
+                actionHtml = isCombined
+                    ? `<button onclick="toggleIndividualPanel('${key}')" class="btn-list-action bg-emp-sub">개별 신청</button>`
+                    : `<button onclick="handleStaffDirectCheckout(${v.id}, '${v.name}')" class="btn-list-action bg-orange">퇴실 요청</button>`;
             }
 
             // 🔳 내가 대신 등록해 준 손님에게 QR·링크를 전달한다 (손님이 직접 입·퇴실 신청).
-            //    이미 방문이 끝난 건은 전달할 이유가 없으므로 진행 중인 상태에만 붙인다.
             if (EMP_QR_STATUSES.includes(v.status)) {
-                actionHtml += `<button onclick="showEmpVisitorQr(${v.id})" class="btn-list-action bg-emp-sub">QR 전달</button>`;
+                actionHtml += `<button onclick="showEmpVisitorQr(${v.id})" class="btn-list-action bg-emp-sub">QR</button>`;
             }
-            
+
+            /* 수정·삭제는 아직 입실 전인 건에만 붙인다(서버도 같은 기준).
+               삭제를 수정창 안에만 두면 한 건 지우려고 팝업을 열었다 닫아야 한다 → 목록에서 바로 누르게 한다. */
+            if (['사전예약', '입실대기'].includes(v.status)) {
+                actionHtml += `
+                    <button onclick="openVisitEdit(${v.id})" class="btn-list-action bg-emp-sub">수정</button>
+                    <button onclick="handleStaffCancelSchedule(${v.id}, '${v.name}')" class="btn-cancel-outline">삭제</button>`;
+            }
+
             // 입실/퇴실을 각각 '실제 | 예정' 한 줄로 표기 (실제값 없으면 대기중/-)
             const inActual = v.checkin_time || '<span class="time-pending">대기중</span>';
             const outActual = v.checkout_time || '<span class="time-pending">대기중</span>';
@@ -401,9 +403,15 @@ function renderScheduleItems() {
                 companyGroups[comp].push(`<span class="ind-panel-name">${m.name} <span class="ind-panel-corp">(${formatPhone(m.contact)})</span></span>`);
             });
 
+            // 회사명을 사람 정보 위에 올린다.
+            //  - 이름 뒤 괄호로 붙이면 일행이 여러 명일 때 어느 회사 소속인지 끝까지 읽어야 안다.
+            //  - 같은 회사끼리 묶여 있으므로 머리글로 한 번만 쓰는 게 짧고 분명하다.
             const combinedNamesHtml = Object.entries(companyGroups).map(([comp, namesHtmlArray]) => {
-                return `${namesHtmlArray.join(', ')} <span class="corp-sub-text corp-label-font-size">(${comp})</span>`;
-            }).join(', &nbsp;&nbsp;'); 
+                return `<div class="corp-block">
+                            <div class="corp-head">회사: ${comp}</div>
+                            <div class="corp-names">${namesHtmlArray.join(', ')}</div>
+                        </div>`;
+            }).join(''); 
 
             let individualRowsHtml = '';
             if (isCombined) {
@@ -442,15 +450,21 @@ function renderScheduleItems() {
 
             html += `
                 <div class="result-item-schedule schedule-item-card-padding ${borderStyleClass}">
-                    <div class="item-info">
-                        <div style="line-height:1.5; word-break: keep-all; margin-bottom:4px;">${combinedNamesHtml}</div>
+                    <!-- 위: 누가 오는가 (회사·이름·연락처) + 현재 상태 -->
+                    <div class="sched-top">
+                        <div class="sched-people">${combinedNamesHtml}</div>
+                        ${statusBadgeHtml}
+                    </div>
+                    <!-- 아래: 언제·어디서 + 처리 버튼.
+                         시간 줄이 짧아 오른쪽이 비므로 버튼을 그 자리에 붙여 한 줄을 아낀다. -->
+                    <div class="sched-bottom">
                         <div class="item-sub-desc schedule-desc-layout">
                             ${regionBadgeHtml} 📅 ${v.visit_date} | ${v.purpose}
                         </div>
-                        <div class="item-sub-time schedule-time-font-size">${timeHtml}</div>
-                    </div>
-                    <div class="item-action-zone">
-                        ${actionHtml}
+                        <div class="sched-bottom-row">
+                            <div class="item-sub-time schedule-time-font-size">${timeHtml}</div>
+                            <div class="item-action-zone">${actionHtml}</div>
+                        </div>
                     </div>
                     ${individualRowsHtml} 
                 </div>`;

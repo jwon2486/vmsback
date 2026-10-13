@@ -67,6 +67,21 @@ function shiftTimeDef(def, minutes) {
     return { ap: h < 12 ? 'AM' : 'PM', h: h12, m: m };
 }
 
+/* 'HH:MM'(24시) → 시간 선택기가 쓰는 {ap,h,m} 형태.
+   저장값은 24시 문자열이고 선택기는 오전/오후 12시제라 변환이 필요하다.
+   분은 10분 단위로 내림한다 — 선택기에 없는 값(예: 09:37)이 들어오면 아무것도 선택되지 않는다. */
+function hhmmToTimeDef(hhmm) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm || '').trim());
+    if (!m) return null;
+    let h = parseInt(m[1], 10);
+    const min = Math.floor(parseInt(m[2], 10) / 10) * 10;
+    if (isNaN(h) || h < 0 || h > 23) return null;
+    const ap = h < 12 ? 'AM' : 'PM';
+    if (h === 0) h = 12;
+    else if (h > 12) h -= 12;
+    return { ap: ap, h: h, m: min };
+}
+
 // def(선택) = {ap,'AM'|'PM', h:1~12, m:0~50} 를 주면 그 값으로 기본 선택된 상태로 렌더.
 function timeSelectHtml(prefix, def) {
     const selAp = def ? def.ap : '';
@@ -274,6 +289,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const isEmpPage = (path === '/emp' || path === '/emp/');
 
     if (isEmpPage) {
+        // 손님 화면과 같은 HTML 을 쓰므로, 임직원 전용 스타일을 걸 수 있게 표식을 남긴다.
+        // (모바일에서 로고 영역을 감추는 규칙이 손님 화면까지 먹으면 안 된다)
+        document.body.classList.add('emp-page');
         const utilityNav = document.getElementById('utility-nav');
         if (utilityNav) {
             utilityNav.classList.remove('display-none');
