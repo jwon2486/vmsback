@@ -1676,6 +1676,73 @@ def approve_security_log_group():
         print(f"❌ [Group Approve API Error]: {e}")
         return jsonify({"success": False, "message": f"그룹 승인 중 서버 오류 발생: {str(e)}"}), 500
 
+# ====================================================================
+# 🚗 차량 번호 정정 (경비실)
+#   - 잘못 적힌 번호를 바로잡거나, 차를 몰고 왔는데 번호가 빠진 건을 채워 넣는다.
+#   - 상태 제한을 두지 않는다. 오기는 퇴실이 끝난 뒤에야 드러나는 경우가 대부분이고,
+#     차량 번호는 승인 흐름과 무관한 '사실 기록'이라 되돌릴 승인이 없다.
+#   - 🔒 거점은 승인 API 와 같은 정책: 자기 소속 센터의 건만 고칠 수 있다.
+#     출입 기록 탭은 전 사업장을 조회할 수 있으므로 여기서 반드시 막아야 한다.
+# ====================================================================
+VEHICLE_NO_MAX = 20     # 표 한 칸에 들어가는 길이. 번호판은 길어야 9자 안팎이다.
+
+@app.route('/api/vehicle', methods=['POST'])
+def update_vehicle_no():
+    """
+    🚗 차량 번호만 바로잡는다. (출입 기록 / 출입권 공용)
+
+    표 안에서 셀만 고쳐 저장하는 용도라, 다른 항목은 건드리지 않는다.
+      kind = 'log'  → visitor_log  (출입 기록·승인 대기열)
+      kind = 'pass' → visitor_pass (출입권)
+
+    권한
+      최고 관리자(3) : 전 거점
+      경비실(4)      : 자기 거점만 — 거점은 세션에서 읽고 클라이언트 값은 무시한다
+      그 외          : 차단 (전체기록 열람(5)은 읽기 전용이다)
+    """
+    if 'user' not in session:
+        return jsonify({"success": False, "message": "권한이 없습니다."}), 403
+    level = int(session['user'].get('level', 1))
+    if level not in (3, 4):
+        return jsonify({"success": False, "message": "차량 번호를 수정할 권한이 없습니다."}), 403
+
+    data = request.json or {}
+    kind = (data.get('kind') or 'log').strip()
+    if kind not in ('log', 'pass'):
+        return jsonify({"success": False, "message": "대상 구분이 올바르지 않습니다."}), 400
+    row_id = data.get('id')
+    if not str(row_id or '').strip().isdigit():
+        return jsonify({"success": False, "message": "대상이 없습니다."}), 400
+
+    # 빈 입력은 '없음' 으로 되돌린다 — 신규 등록 경로와 같은 미기재 표기를 쓴다.
+    vehicle_no = re.sub(r'\s+', ' ', (data.get('vehicle_no') or '')).strip() or '없음'
+    if len(vehicle_no) > VEHICLE_NO_MAX:
+        return jsonify({"success": False,
+                        "message": f"차량 번호는 {VEHICLE_NO_MAX}자까지 입력할 수 있습니다."}), 400
+
+    table = 'visitor_log' if kind == 'log' else 'visitor_pass'
+    conn = get_db_connection()
+    row = conn.execute(f"SELECT id, name, region, vehicle_no FROM {table} WHERE id = ?",
+                       (row_id,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"success": False, "message": "대상을 찾을 수 없습니다."}), 404
+
+    if level == 4:
+        my_region = security_session_region()   # 🔒 클라이언트 파라미터 무시
+        if not my_region or row['region'] != my_region:
+            conn.close()
+            return jsonify({"success": False,
+                            "message": "다른 사업장의 건은 수정할 수 없습니다."}), 403
+
+    conn.execute(f"UPDATE {table} SET vehicle_no = ? WHERE id = ?", (vehicle_no, row_id))
+    conn.commit()
+    conn.close()
+    print(f"🚗 [차량번호수정] {kind}={row['id']} {row['name']} "
+          f"{row['vehicle_no']} → {vehicle_no} (by {session['user'].get('id', '')})")
+    return jsonify({"success": True, "vehicle_no": vehicle_no,
+                    "message": f"{row['name']} 님의 차량 번호를 저장했습니다."})
+
 @app.route('/api/security/preregister', methods=['POST'])
 def security_preregister():
     if 'user' not in session or int(session['user'].get('level', 1)) != 4:

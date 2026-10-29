@@ -1102,3 +1102,25 @@ tr:hover td { background: #f8fafc; }
   /* 좁은 화면에서는 다른 탭과 동일하게 부가 설명을 숨긴다 */
   .pass-stat-grid .stat-label-sub { display: none; }
 }
+
+/* 🚗 차량 번호 — 표 안에서 바로 고치는 셀.
+   팝업을 띄우면 지금 어느 줄을 고치는지 시선이 끊긴다 → 셀이 그 자리에서 입력칸이 된다.
+   버튼이 열 폭을 밀어내지 않도록 값만 줄바꿈을 허용한다. */
+.veh-cell { display: inline-flex; align-items: center; gap: 0.3rem; justify-content: center; flex-wrap: wrap; }
+.veh-text { min-width: 0; word-break: break-all; }
+.veh-btn {
+    flex: 0 0 auto; padding: 2px 6px; border: 1px solid #cbd5e1; border-radius: 5px;
+    background: #fff; color: #475569; font-size: 0.7rem; font-weight: 700;
+    line-height: 1.5; cursor: pointer; white-space: nowrap;
+}
+.veh-btn:hover { background: #eff6ff; border-color: #2563eb; color: #2563eb; }
+.veh-save { border-color: #16a34a; color: #16a34a; }
+.veh-save:hover { background: #f0fdf4; border-color: #16a34a; color: #15803d; }
+.veh-input {
+    flex: 1 1 5.5rem; width: 5.5rem; min-width: 0; padding: 3px 5px;
+    border: 1px solid #2563eb; border-radius: 5px;
+    font-size: 0.78rem; font-weight: 700; text-align: center;
+}
+.veh-input:focus { outline: 2px solid #bfdbfe; outline-offset: 0; }
+/* 편집 중에는 줄바꿈 없이 한 줄로 (좁은 열에서 버튼이 아래로 떨어지지 않게) */
+.veh-cell.is-editing { flex-wrap: nowrap; width: 100%; }

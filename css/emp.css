@@ -8,7 +8,12 @@
 .nav-profile-info .user-text { font-size: 1rem; color: #334155; min-width: 0; display: flex; flex-flow: row wrap; align-items: center; justify-content: center; text-align: center; gap: 3px 7px; }
 .nav-profile-info .user-text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; }
 .nav-profile-info .dept-tag { font-size: 0.82rem; color: var(--primary); font-weight: 600; background: #eff6ff; padding: 0.2rem 0.5rem; border-radius: 6px; margin-left: 0; white-space: nowrap; }
-.nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }@media (max-width: 900px) {
+.nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+/* 액션 묶음은 둘(메뉴·상시)로 나뉘어 있다. #utility-nav 가 space-between 이라
+   그냥 두면 두 묶음이 좌우로 흩어져 '메뉴' 묶음이 바 한가운데에 놓인다.
+   → 경비실 화면에서는 가운데에 시스템 명칭이 겹쳐 글자와 버튼이 포개진다.
+   앞쪽 묶음에 왼쪽 여백을 몰아줘 두 묶음을 오른쪽에 붙인다. */
+.nav-actions-more { margin-left: auto; }@media (max-width: 900px) {
 .nav-profile-info { min-width: 0; }
     .nav-actions { flex-wrap: nowrap; gap: 0.35rem; flex-shrink: 0; }
     .btn-nav-link { padding: 0.3rem 0.6rem; font-size: 0.86rem; white-space: nowrap; }
@@ -34,7 +39,7 @@
 
     /* 메뉴 묶음 — 접으면 사라지고, 펴면 order 로 아랫줄에 내려가 한 줄을 다 쓴다.
        버튼은 글자 폭에 맞춘 크기로 가로로 늘어놓고 모자랄 때만 다음 줄로 넘긴다. */
-    .nav-actions-more { display: none; }
+    .nav-actions-more { display: none; margin-left: 0; }   /* 펼치면 아랫줄 한 줄을 다 쓴다 — 여백 몰아주기 해제 */
     .nav-actions .btn-nav-link { flex: 0 0 auto; width: auto; padding: 0.32rem 0.5rem; font-size: 0.76rem; }
 }
 

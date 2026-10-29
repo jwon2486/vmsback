@@ -171,6 +171,20 @@ function adminVehicle(val) {
     return (!s || s === '없음') ? '-' : s;
 }
 
+/* 🚗 차량 번호를 이 자리에서 고칠 수 있는 사람인가.
+   admin.js 는 /admin(레벨3)과 /records(레벨3·4·5 공용 조회 화면)에서 함께 쓰인다.
+   → 전체기록만 열람하는 레벨5 에게는 수정 버튼을 내보내지 않는다.
+   판정 기준은 서버 /api/vehicle 과 동일하다: 레벨3 전 사업장, 레벨4 자기 거점만. */
+function adminCanEditVehicle(region) {
+    let emp = null;
+    try { emp = JSON.parse(sessionStorage.getItem('emp_session')); } catch (e) {}
+    if (!emp) return false;
+    const level = parseInt(emp.level);
+    if (level === 3) return true;
+    if (level === 4) return !!region && region === emp.region;
+    return false;
+}
+
 // 상태값 → 모바일 카드 상태 배지 색상 클래스 (진행 단계별로 색을 달리해 한눈에 구분).
 function adminStatusClass(status) {
     const s = String(status || '');
@@ -383,7 +397,7 @@ function renderAdminLogTable() {
                         <td data-label="소속">${v.company}</td>
                         <td data-label="방문 목적"><span class="purpose-tag">${v.purpose}</span></td>
                         <td data-label="담당자">${managerDisplay}</td>
-                        <td data-label="차량 번호">${adminVehicle(v.vehicle_no)}</td>
+                        <td data-label="차량 번호">${vehCellHtml('log', v.id, v.vehicle_no, adminCanEditVehicle(v.region))}</td>
                         <td data-label="입·퇴실">
                             <span class="time-in">입 ${adminTimeOnly(v.checkin_time)}</span><br>
                             <span class="time-out">퇴 ${adminTimeOnly(v.checkout_time)}</span>
@@ -408,6 +422,7 @@ function renderAdminLogTable() {
             });
         }
         tbody.innerHTML = html;
+        vehRestoreEditing(tbody);   // 🚗 표를 다시 그려도 편집 중이던 입력칸은 그대로 둔다
     }
 
     if (typeof window.renderLogPagination === 'function') {
@@ -869,7 +884,7 @@ function renderPassTable(today) {
             <tr class="${isRequest ? 'pass-row-request' : ''}">
                 <td data-label="방문객"><b>${p.name}</b><div class="pass-sub">${p.company || '-'}</div>${reqMark}</td>
                 <td data-label="연락처">${window.formatPhone ? window.formatPhone(p.contact) : (p.contact || '-')}
-                    <div class="pass-sub">🚗 ${p.vehicle_no || '없음'}</div></td>
+                    <div class="pass-sub">🚗 ${vehCellHtml('pass', p.id, p.vehicle_no, adminCanEditVehicle(p.region))}</div></td>
                 <td data-label="이용 목적">${p.purpose || '-'}</td>
                 <td data-label="사업장">${p.region || '-'}</td>
                 <td data-label="유효기간">${validHtml}</td>
@@ -889,6 +904,7 @@ function renderPassTable(today) {
                 </td>
             </tr>`;
         }).join('');
+        vehRestoreEditing(tbody);   // 🚗 편집 중이던 입력칸 복원
     }
 
     // 상단 요약: 승인 방식별 활성 수 / 오늘 출입 / 정리 대상(만료 임박)

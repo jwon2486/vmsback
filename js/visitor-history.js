@@ -3,6 +3,116 @@
  * 방문 이력 팝업 (관리자/경비실 공용) — 자립형, 인라인 스타일이라 어느 페이지 CSS에도 의존하지 않음.
  * 사용: openVisitorHistory(name, contact)
  */
+/* 🚗 차량 번호 — 표 안에서 바로 고친다.
+   팝업을 띄우면 지금 어느 줄을 고치는지 시선이 끊기고, 한 건 고치려고 창을 열었다 닫아야 한다.
+   → 셀이 그 자리에서 입력칸으로 바뀌고, 저장하면 다시 값으로 돌아온다.
+
+   ⚠️ 표는 3초마다 다시 그려진다. 그대로 두면 입력하던 값이 날아간다.
+      편집 중인 행 id 를 들고 있다가, 다시 그릴 때 그 행만 입력 상태로 되살린다. */
+let vehEditing = null;        // { kind:'log'|'pass', id, value } — 편집 중인 셀
+
+/** 표를 다시 그린 직후 호출. 편집 중이던 셀을 입력 상태로 되돌린다.
+    적다 만 값(draft)을 그대로 살리고, 글자를 다시 전체 선택하지는 않는다
+    — 3초마다 전체 선택되면 다음 타자가 앞 글자를 지워 버린다. */
+function vehRestoreEditing(root) {
+    if (!vehEditing) return;
+    const cell = (root || document).querySelector(
+        `.veh-cell[data-kind="${vehEditing.kind}"][data-id="${vehEditing.id}"]`);
+    if (cell) vehRenderEditing(cell, vehEditing.draft != null ? vehEditing.draft : vehEditing.value, false);
+}
+
+/** 평상시 셀 HTML. canEdit 이 거짓이면 값만 보여 준다(다른 사업장 건 등). */
+function vehCellHtml(kind, id, value, canEdit) {
+    const text = (!value || String(value).trim() === '없음') ? '-' : String(value).trim();
+    const safe = text.replace(/</g, '&lt;');
+    if (!canEdit) return safe;
+    return `<span class="veh-cell" data-kind="${kind}" data-id="${id}">`
+         + `<span class="veh-text">${safe}</span>`
+         + `<button type="button" class="veh-btn" onclick="vehStartEdit(this)">수정</button>`
+         + `</span>`;
+}
+
+/** 셀을 입력 상태로 바꾼다. 값은 속성이 아니라 프로퍼티로 넣는다(따옴표가 섞여도 안 깨지게). */
+function vehRenderEditing(cell, value, selectAll = true) {
+    cell.classList.add('is-editing');
+    cell.innerHTML =
+        `<input type="text" class="veh-input" maxlength="20" placeholder="없으면 비워 두세요">`
+      + `<button type="button" class="veh-btn veh-save" onclick="vehSave(this)">저장</button>`
+      + `<button type="button" class="veh-btn veh-cancel" onclick="vehCancel(this)">취소</button>`;
+    const input = cell.querySelector('.veh-input');
+    input.value = (value === '-' || value === '없음') ? '' : (value || '');
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter')  { e.preventDefault(); vehSave(input); }
+        if (e.key === 'Escape') { e.preventDefault(); vehCancel(input); }
+    });
+    // 적는 족족 보관해 둔다 — 표가 다시 그려져도 적다 만 값이 살아남게.
+    input.addEventListener('input', () => { if (vehEditing) vehEditing.draft = input.value; });
+    // 입력 중에는 빈 곳 클릭 시 스캔칸으로 포커스를 뺏기지 않게 한다(경비실 전역 리스너 대비).
+    cell.addEventListener('click', (e) => e.stopPropagation());
+    input.focus();
+    if (selectAll) input.select();
+    else input.setSelectionRange(input.value.length, input.value.length);   // 커서는 끝으로
+}
+
+function vehStartEdit(btn) {
+    const cell = btn.closest('.veh-cell');
+    if (!cell) return;
+    const cur = cell.querySelector('.veh-text')?.textContent || '';
+    vehEditing = { kind: cell.dataset.kind, id: Number(cell.dataset.id), value: cur, draft: null };
+    vehRenderEditing(cell, cur);
+}
+
+function vehCancel(el) {
+    const cell = el.closest('.veh-cell');
+    const prev = vehEditing ? vehEditing.value : '-';
+    vehEditing = null;
+    if (cell) {
+        cell.classList.remove('is-editing');
+        cell.innerHTML = `<span class="veh-text">${String(prev).replace(/</g, '&lt;')}</span>`
+                       + `<button type="button" class="veh-btn" onclick="vehStartEdit(this)">수정</button>`;
+    }
+    if (typeof secKeepScanFocus === 'function') secKeepScanFocus();
+}
+
+async function vehSave(el) {
+    const cell = el.closest('.veh-cell');
+    if (!cell) return;
+    const input = cell.querySelector('.veh-input');
+    const kind = cell.dataset.kind, id = Number(cell.dataset.id);
+    const typed = input ? input.value.trim() : '';
+
+    let d = null;
+    try {
+        d = await (await fetch('/api/vehicle', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kind, id, vehicle_no: typed }),
+        })).json();
+    } catch (e) {}
+    if (!d || !d.success) {
+        alert((d && d.message) || '차량 번호 저장에 실패했습니다.');
+        if (input) input.focus();
+        return;
+    }
+
+    // 저장된 값으로 셀을 되돌린다. 표 전체를 다시 불러오지 않아도 화면이 맞는다.
+    vehEditing = null;
+    const shown = (d.vehicle_no === '없음') ? '-' : d.vehicle_no;
+    cell.classList.remove('is-editing');
+    cell.innerHTML = `<span class="veh-text">${String(shown).replace(/</g, '&lt;')}</span>`
+                   + `<button type="button" class="veh-btn" onclick="vehStartEdit(this)">수정</button>`;
+    // 캐시도 함께 고쳐 둔다 — 다음 자동 갱신 전까지 옛 값으로 되돌아가지 않게.
+    [typeof secQueueCache !== 'undefined' ? secQueueCache : null,
+     typeof secLogsAll    !== 'undefined' ? secLogsAll    : null,
+     typeof secPassCache  !== 'undefined' ? secPassCache  : null,
+     typeof passListCache !== 'undefined' ? passListCache : null,
+     typeof adminLogsAll  !== 'undefined' ? adminLogsAll  : null].forEach(arr => {
+        if (!Array.isArray(arr)) return;
+        const hit = arr.find(x => x && x.id === id);
+        if (hit) hit.vehicle_no = d.vehicle_no;
+    });
+    if (typeof secKeepScanFocus === 'function') secKeepScanFocus();
+}
+
 (function () {
     /* 🌐 이 파일은 손님(다국어) 화면과 관리자·경비실(한국어 전용) 화면이 함께 쓴다.
        관리자 쪽은 i18n.js 를 로드하지 않으므로 t() 를 직접 부르면 ReferenceError 가 난다.

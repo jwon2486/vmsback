@@ -36,6 +36,12 @@ function secVehicle(val) {
     return (!s || s === '없음') ? '-' : s;
 }
 
+/* 🚗 차량 번호 셀 — 표 안에서 바로 고친다 (공용 vehCellHtml, visitor-history.js).
+   canEdit 이 거짓이면(다른 사업장 건) 값만 보여 준다. 서버도 같은 기준으로 막는다. */
+function secVehicleCell(v, canEdit) {
+    return vehCellHtml('log', v.id, v.vehicle_no, canEdit);
+}
+
 // 🏷️ 경비실 화면 한정: 시스템 명칭(S&SYS VMS / 부제)을 상단 유틸리티 바 중앙에 넣는다.
 //    원래 자리인 .app-header 는 CSS 로 숨긴다 — 표가 많은 화면이라 세로 공간을 아낀다.
 //    renderEmpNavbar() 가 nav 를 다시 그린 뒤에 호출되므로 여기서 붙여도 지워지지 않는다.
@@ -79,11 +85,16 @@ function secSyncNavBrandLayout() {
     const nav = document.getElementById('utility-nav');
     const brand = nav && nav.querySelector('.sec-nav-brand');
     const prof = nav && nav.querySelector('.nav-profile-info');
-    const acts = nav && nav.querySelector('.nav-actions');
-    if (!brand || !prof || !acts) return;
+    // 액션 묶음은 둘('메뉴'·'상시')이다. 숨어 있는 묶음(모바일의 메뉴 묶음)은 빼고,
+    // 보이는 것 중 가장 왼쪽을 오른쪽 경계로 삼는다. 첫 번째 묶음을 그냥 집으면
+    // 숨은 요소의 좌표(0)나 엉뚱한 묶음을 재서 '자리가 남는다'고 잘못 판단한다.
+    const actLefts = [...nav.querySelectorAll('.nav-actions')]
+        .filter(el => el.offsetParent !== null)
+        .map(el => el.getBoundingClientRect().left);
+    if (!brand || !prof || !actLefts.length) return;
 
     brand.classList.remove('is-stacked');          // 먼저 중앙 상태로 되돌리고 재야 정확하다
-    const gap = acts.getBoundingClientRect().left - prof.getBoundingClientRect().right;
+    const gap = Math.min(...actLefts) - prof.getBoundingClientRect().right;
     const need = brand.scrollWidth + 28;           // 좌우로 최소한 남겨 둘 간격
     if (gap < need) brand.classList.add('is-stacked');
 }
@@ -909,7 +920,7 @@ async function fetchSecurityQueue(isAuto = false) {
                 html += `
                     <tr class="sec-item-row ${bgClass}">
                         <td class="p-10 ${indentClass}"><b>${v.name}</b>${v.pass_id ? '<span class="sec-pass-tag">출입권</span>' : ''}<br><span class="text-gray-light">${v.company}</span><br><span class="fs-8 sec-req-time">${secRequesterLine(v)}</span></td>
-                        <td class="p-10">${v.vehicle_no || '-'}</td>
+                        <td class="p-10">${secVehicleCell(v, true)}</td>
                         <td class="p-10">${formatPhone(v.contact)}</td>
                         <td class="p-10">
                             <b>${managerName}</b><br>
@@ -928,6 +939,7 @@ async function fetchSecurityQueue(isAuto = false) {
             });
         }
         tbody.innerHTML = html;
+        vehRestoreEditing(tbody);   // 🚗 3초 자동 갱신에 편집 중이던 입력칸이 날아가지 않게
     } catch (e) {
         console.error("대기열 갱신 실패", e);
     }
@@ -1057,7 +1069,7 @@ function renderSecurityLogTable() {
                     <tr class="border-bottom-eee">
                         <td class="p-10"><span style="color:#2563eb;font-weight:700;text-decoration:underline;cursor:pointer;" onclick="openVisitorHistory(decodeURIComponent('${encodeURIComponent(v.name||'').replace(/'/g,'%27')}'),decodeURIComponent('${encodeURIComponent(v.contact||'').replace(/'/g,'%27')}'))">${v.name}</span>${v.pass_id ? '<div class="sec-pass-tag-line"><span class="sec-pass-tag">출입권</span></div>' : ''}<div class="fs-8 sec-req-time">${secRequesterLine(v)}</div></td>
                         <td class="p-10 col-lo">${formatPhone(v.contact)}</td>
-                        <td class="p-10 col-lo">${secVehicle(v.vehicle_no)}</td>
+                        <td class="p-10 col-lo">${secVehicleCell(v, v.region === myRegion)}</td>
                         <td class="p-10">${v.visit_count != null ? (v.visit_count >= 2 ? `<b class="text-blue">${v.visit_count}회</b>` : `${v.visit_count}회`) : '-'}</td>
                         <td class="p-10 col-wrap">${v.company}</td>
                         <td class="p-10 col-lo"><span class="sec-purpose-badge">${v.purpose}</span></td>
@@ -1072,6 +1084,7 @@ function renderSecurityLogTable() {
             });
         }
         tbody.innerHTML = html;
+        vehRestoreEditing(tbody);   // 🚗 편집 중이던 입력칸 복원
     }
 
     if (typeof window.renderLogPagination === 'function') {
@@ -1388,7 +1401,7 @@ function renderSecPassList(today) {
         return `
             <tr class="sec-item-row">
                 <td class="p-10"><b>${p.name}</b><br><span class="text-gray-light">${p.company}</span></td>
-                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
+                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${vehCellHtml('pass', p.id, p.vehicle_no, p.region === secMyRegion())}</span></td>
                 <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
                 <td class="p-10">${p.valid_from}<br>~ ${p.valid_to}${p.period ? `<br><span class="fs-8 text-gray-light">${p.period}</span>` : ''}</td>
                 <td class="p-10 col-lo">${secPassWeekdayText(p.weekdays)}</td>
@@ -1400,6 +1413,7 @@ function renderSecPassList(today) {
                 </td>
             </tr>`;
     }).join('');
+    vehRestoreEditing(tbody);   // 🚗 편집 중이던 입력칸 복원
 }
 
 // 🙋 발급 신청 표: 유효기간·종류를 이 자리에서 확정해 바로 승인한다.
@@ -1419,7 +1433,7 @@ function renderSecPassRequests(today) {
         return `
             <tr class="sec-item-row sec-pass-req-row">
                 <td class="p-10"><b>${p.name}</b><br><span class="text-gray-light">${p.company}</span>${memo}</td>
-                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${p.vehicle_no || '없음'}</span></td>
+                <td class="p-10 col-lo">${formatPhone(p.contact)}<br><span class="fs-8 text-gray-light">차량 ${vehCellHtml('pass', p.id, p.vehicle_no, p.region === secMyRegion())}</span></td>
                 <td class="p-10 col-lo"><span class="sec-purpose-badge">${p.purpose}</span></td>
                 <td class="p-10">
                     <input type="date" id="secReqFrom_${p.id}" class="sec-req-input" value="${p.valid_from}"
@@ -1437,6 +1451,7 @@ function renderSecPassRequests(today) {
                 </td>
             </tr>`;
     }).join('');
+    vehRestoreEditing(tbody);   // 🚗 편집 중이던 입력칸 복원
 }
 
 async function approveSecPass(passId) {
